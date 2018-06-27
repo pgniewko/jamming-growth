@@ -54,10 +54,9 @@
       integer BUDCONT(Ntot), BUDCONTCC(Ntot), ZEROBUDS
       double precision phitemp, calc_phi, wide
       integer N_j,Ziso_j,Nc_j,Nf_j,Nu_j,Nmm_j,Nbb_j,Nmb_j
-      double precision phi_j,dphi,phi_orig,ddelrx,delrx
+      double precision phi_j,phi_orig,ddelrx,delrx
       
-      integer before_jamming, at_jamming, above_jamming,ddelrx_steps
-      integer delrx_index
+      integer ddelrx_steps, delrx_index
       
       double precision SSTRESS, cory, SSTRESS0
 
@@ -78,9 +77,6 @@
 
       ! read cell parameters
       read(*,*) att
-
-      ! read pdhi exponent
-      read(*,*) dphi
       
       ! read output files
       read(*,*) file1
@@ -88,22 +84,16 @@
       read(*,*) ddelrx_steps
       
       ! parameters
-      D1=1d0       ! Minor axis of particle; D1=1.0 - circle
-      exp=2d0      ! 2 =  LS, 2.5 = Hertzian, >2.9 = RLJ
-      width=0.1d0  ! width of neighborlist 
+      D1=1d0         ! Minor axis of particle; D1=1.0 - circle
+      exp=2d0        ! 2 =  LS, 2.5 = Hertzian, >2.9 = RLJ
+      width=0.1d0    ! width of neighborlist 
       ftol=0.5d-16   ! Condition 1 for frprmn: V/N < ftol 
       ftol1=0.5d-16  ! Condition 2 for frprmn: dV/N < ftol1
-      rat=1.5d0    ! ratio of initial cell 2 to cell 1 volume
+      rat=1.5d0      ! ratio of initial cell 2 to cell 1 volume
       
       phitemp = 0.0d0
       wide = 2.0d0
-      
-      !dphi = 1d-6
 
-      before_jamming =  0 
-      at_jamming = 0
-      above_jamming = 0
-      
       SSTRESS = 0d0
       SSTRESS0= 0d0
 
@@ -149,8 +139,8 @@
              SSTRESS0 = SSTRESS
          endif
          
-         write(*,*) k, N, fret/dble(N), 
-     +     P,delrx,ddelrx,delrx_index,SSTRESS, SSTRESS-SSTRESS0
+         write(*,*) k,N,fret/dble(N), 
+     +     P,delrx,ddelrx,delrx_index,SSTRESS,SSTRESS-SSTRESS0
     
 
          flush(12)
@@ -161,8 +151,8 @@
          
          call contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
          call out_numbers(N, Nf, Nu, Ziso)
-       write(12,'(3E26.18,5I12)')delrx,SSTRESS,SSTRESS-SSTRESS0,N,
-     +         Nc,Nf, Nu, Ziso   
+         write(12,'(3E26.18,5I12)')delrx,SSTRESS,SSTRESS-SSTRESS0,
+     +         N,Nc,Nf,Nu,Ziso   
        
          phi = calc_phi(D, alpha, D1, N) 
          write(11,*) 2*N, phi

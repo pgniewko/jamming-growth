@@ -46,17 +46,15 @@ fi
 file_="LF_DPHI_prod_"$suffix
 
 
-#### SPRAWDZ CZY PLIK JEST DLUZSZY NIZ 1 LINIA
 cp $MY_PATH"/output"/$file_  .
 
-
+## CHECK IF THE FILE IS LONGER THAN TWO LINES
 if [[ $(wc -l <$file_) -ge 2 ]] ; then
 
 time $exe_file <<EOF
    $Lx
    $Ly
    $att
-   $dphi
    $file_
    1e-6
    1000
