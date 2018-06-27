@@ -19,7 +19,7 @@
       parameter(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp,ran2
       double precision x00(Ntot),y00(Ntot)
-      double precision ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei,ap
+      double precision ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei
       double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
       double precision rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
       double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT,P0
@@ -66,7 +66,7 @@
       common /f2com/ width
       common /f3com/ alpha
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f6com/ P,PP,PT,PR
       common /f8com/ alpha0
       common /f9com/ scale
@@ -78,7 +78,6 @@
       read(*,*) alpha0
       read(*,*) Lx
       read(*,*) Ly
-      read(*,*) ap
 
       ! read cell parameters
       read(*,*) celltype
@@ -221,10 +220,10 @@
       subroutine makelist(N,x,y,D,D1,xp,yp,countn,nl)
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
-      double precision Lx,Ly,ap, delrx
+      double precision Lx,Ly,delrx
       integer countn(Ntot),nl(800,Ntot),N,celltype
       common /f10com/ celltype
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f11com/ delrx
       
       call makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
@@ -239,12 +238,12 @@
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
       double precision D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
       double precision dd,dr1,dr2,dk2,di_up(Ntot),exp,att
-      double precision Lx,Ly,ap, delrx, cory
+      double precision Lx,Ly,delrx, cory
       integer countn(Ntot),nl(800,Ntot),N,i,j
       common /f2com/ width
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f11com/ delrx
 
       do i=1,N
@@ -323,7 +322,7 @@
       parameter(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,alpha(Ntot)
       double precision rij,xij,yij,dij,exp,dlnsig,dij_up,sigma,LJ
-      double precision Lx,Ly,ap,rijsq,dijsq_up,scale(Ntot),c(Ntot),att
+      double precision Lx,Ly,rijsq,dijsq_up,scale(Ntot),c(Ntot),att
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),Vij
       double precision dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
       double precision delrx, cory
@@ -331,7 +330,7 @@
       integer countn(Ntot),nl(800,Ntot),N
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f9com/ scale
       common /f11com/ delrx
 
@@ -422,7 +421,7 @@
       double precision x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
       double precision fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
       double precision dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y,scale(Ntot)
-      double precision fthi,fthj,fth_c,Lx,Ly,ap,P,Pij,rijsq,dijsq_up
+      double precision fthi,fthj,fth_c,Lx,Ly,P,Pij,rijsq,dijsq_up
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),att
       double precision dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
       double precision PP(Ntot),c(Ntot),Vij,PT,PR, delrx, cory
@@ -430,7 +429,7 @@
       integer countn(Ntot),nl(800,Ntot),N !,growth_flag
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f6com/ P,PP,PT,PR
       common /f9com/ scale
       common /f11com/ delrx
@@ -572,11 +571,11 @@
          parameter(pi=3.1415926535897932d0)
          parameter(Ntot = 4096)
          double precision D(Ntot),alpha(Ntot)
-         double precision Lx,Ly,ap
+         double precision Lx,Ly
          double precision phis,D1,phit
          integer i,N
          
-         common /f5com/ Lx,Ly,ap
+         common /f5com/ Lx,Ly
          
          phit=0d0
          
@@ -600,14 +599,14 @@
       double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
       double precision xij, yij, D(Ntot), D1
       double precision exp,dij_up,dij
-      double precision Lx,Ly,ap,rijsq,c(Ntot),att ! ,scale(Ntot)
+      double precision Lx,Ly,rijsq,c(Ntot),att ! ,scale(Ntot)
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       double precision dk(Ntot,2)
       double precision delrx,cory
       integer flag
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f11com/ delrx
 !      common /f9com/ scale
 
@@ -733,11 +732,11 @@
       ! not needed
       double precision f1,f2,f3,fxe,fye,fthe
       double precision xi,yi,thi,max1,max2,max3,del
-      double precision alpha(Ntot),Lx,Ly,ap,alpha0
+      double precision alpha(Ntot),Lx,Ly,alpha0
 
       ! not needed
       common /f3com/ alpha ! aspect ratio
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f8com/ alpha0
 
       common /f2com/ width      

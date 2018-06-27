@@ -56,7 +56,6 @@ time $exe_file <<EOF
    $ar
    $Lx
    $Ly
-   $AP
    $celltype
    $divtype
    $P0
