@@ -19,7 +19,7 @@
       parameter(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp,ran2
       double precision x00(Ntot),y00(Ntot)
-      double precision ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei
+      double precision ftol,ftol1,fret,width,Lx,Ly,ratei
       double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
       double precision rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
       double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT,P0
@@ -68,14 +68,12 @@
       common /f4com/ exp,att
       common /f5com/ Lx,Ly
       common /f6com/ P,PP,PT,PR
-      common /f8com/ alpha0
       common /f9com/ scale
       common /f10com/ celltype
       common /f11com/ delrx
       common /f12com/ SSTRESS
 
       ! read geometric parameters
-      read(*,*) alpha0
       read(*,*) Lx
       read(*,*) Ly
 

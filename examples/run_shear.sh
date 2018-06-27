@@ -53,7 +53,6 @@ cp $MY_PATH"/output"/$file_  .
 if [[ $(wc -l <$file_) -ge 2 ]] ; then
 
 time $exe_file <<EOF
-   $ar
    $Lx
    $Ly
    $celltype
