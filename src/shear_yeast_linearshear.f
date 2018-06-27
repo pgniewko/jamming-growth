@@ -23,10 +23,10 @@
       double precision phi,flow,P,PP(Ntot),D0(Ntot)
       double precision xa(2),ya(2),PR,PT
       double precision cc,ss,dr(2),dd,att
-      integer N,Nr,iter,i,j,k,kk,m
+      integer N,Nr,iter,i,kk
       integer Nf,Nu,Nmm,Nbb,Nmb
-      character file1*150
       
+      character file_conf*150
       character file_traj*150
       character file_G*150
       
@@ -34,7 +34,7 @@
       double precision calc_phi, wide
       double precision phi_init,ddelrx,delrx
       
-      integer ddelrx_steps, delrx_index
+      integer shear_steps, step_index
       double precision SSTRESS, cory, SSTRESS0
 
 ! END OF NEW DATA      
@@ -56,9 +56,9 @@
       read(*,*) att
       
       ! read output files
-      read(*,*) file1
+      read(*,*) file_conf
       read(*,*) ddelrx
-      read(*,*) ddelrx_steps
+      read(*,*) shear_steps
       
       ! parameters
       D1=1d0         ! Minor axis of particle; D1=1.0 - circle
@@ -73,12 +73,12 @@
       SSTRESS0= 0d0
 
       ! FILES
- 123  open(unit=1,file=TRIM(file1)) ! CONFIGURATION FILE
+ 123  open(unit=1,file=TRIM(file_conf)) ! CONFIGURATION FILE
  
-      file_traj='prod_shear_' // TRIM(file1)
+      file_traj='prod_shear_' // TRIM(file_conf)
       open(unit=11,file=TRIM(file_traj), status='replace')
       
-      file_G ='G_data_' // TRIM(file1)
+      file_G ='G_data_' // TRIM(file_conf)
       open(unit=12,file=TRIM(file_G), status='replace')
 
 !     READ PACKING FROM FILE      
@@ -87,9 +87,9 @@
           read(1, *) x(i),y(i),D(i),alpha(i),th(i)
       enddo
       
-      do delrx_index=1,ddelrx_steps
+      do step_index=1,shear_steps
           
-         delrx = dble(delrx_index-1)*ddelrx
+         delrx = dble(step_index-1)*ddelrx
 
          ! convert from angle to length scale = sqrt(I/m) * angle
          do i=1,N
@@ -107,8 +107,8 @@
              SSTRESS0 = SSTRESS
          endif
          
-         write(*,*) k,N,fret/dble(N), 
-     +     P,delrx,ddelrx,delrx_index,SSTRESS,SSTRESS-SSTRESS0
+         write(*,*) N,fret/dble(N), 
+     +     P,delrx,ddelrx,step_index,SSTRESS,SSTRESS-SSTRESS0
     
 
          flush(12)
@@ -157,7 +157,6 @@
       enddo
       maxdis=2d0*dsqrt(2d0*maxdis*maxdis)
 
-      return
       end
 
 
@@ -224,7 +223,7 @@
          xp(i)=x(i)
          yp(i)=y(i)
       enddo
-      return
+      
       end
  
 
@@ -495,8 +494,7 @@
       enddo
       
       SSTRESS=SSTRESS/Lx/Ly
-
-      return							
+							
       end
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
