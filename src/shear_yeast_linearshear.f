@@ -145,9 +145,10 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine CG_check(N,x,y,xp,yp,maxdis)
+      implicit none
+      integer Ntot,N,i
       parameter(Ntot = 4096)
       double precision maxdis,x(Ntot),y(Ntot),xp(Ntot),yp(Ntot)
-      integer N
 
       maxdis=0d0
       do i=1,N
@@ -162,9 +163,11 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine makelist(N,x,y,D,D1,xp,yp,countn,nl)
+      implicit none
+      integer Ntot,N
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
-      integer countn(Ntot),nl(800,Ntot),N
+      integer countn(Ntot),nl(800,Ntot)
       
       call makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
 
@@ -227,9 +230,11 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine func(N,x,y,th,D,D1,V,countn,nl)
+      implicit none
+      integer Ntot,N    
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
-      integer countn(Ntot),nl(800,Ntot),N
+      integer countn(Ntot),nl(800,Ntot)
       
       call func_dimer(N,x,y,th,D,D1,V,countn,nl)
       
@@ -498,24 +503,20 @@
       double precision function calc_phi(D, alpha, D1, N)
          implicit none
          integer Ntot
+         parameter(Ntot = 4096)
          double precision pi
          parameter(pi=3.1415926535897932d0)
-         parameter(Ntot = 4096)
          double precision D(Ntot),alpha(Ntot)
-         double precision Lx,Ly
-         double precision phis,D1,phit
-         integer i,N
-         
+         double precision Lx,Ly,phis,D1,phit
+         integer N,i
          common /f5com/ Lx,Ly
          
          phit=0d0
-         
          do i=1,N
              phit=phit+(1d0+(alpha(i)-1d0)**2)*D(i)**2
          enddo
          
          calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
-         
       end function
      
       
