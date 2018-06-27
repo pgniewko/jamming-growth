@@ -13,29 +13,21 @@
       program shear_packing
 
       implicit none
-      integer Ntot,Ngen
-      parameter(Ntot=4096,Ngen=4096)
+      integer Ntot
+      parameter(Ntot=4096)
       double precision pi
       parameter(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp
-      double precision x00(Ntot),y00(Ntot)
-      double precision ftol,ftol1,fret,width,Lx,Ly,ratei
-      double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
-      double precision phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
-      double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT
-      double precision tbirth(Ntot*Ngen),cc,ss,dr(2),dd,corr,att,rat
-      double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
-      double precision xdiv(999,2),ydiv(999,2),thdiv(999,2)
-      double precision dt
-      integer dtstatus, terminate
-      integer N,Nr,iter,i,j,k,kk,c(Ntot,Ngen),m,Nexist
-      integer nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      integer age(Ntot),agehist(Ngen,2),agetot1,agetot2
-      integer div,ndiv,idiv(999,2),kdiv, Nf, Nu, Nmm,Nbb,Nmb
+      double precision ftol,ftol1,fret,width,Lx,Ly
+      double precision alpha(Ntot),scale(Ntot)
+      double precision phi,flow,P,PP(Ntot),D0(Ntot)
+      double precision xa(2),ya(2),PR,PT
+      double precision cc,ss,dr(2),dd,att
+      integer N,Nr,iter,i,j,k,kk,m
+      integer Nf,Nu,Nmm,Nbb,Nmb
       character file1*150
       
-! NEW DATA 
-      character file_prod*150
+      character file_traj*150
       character file_G*150
       
       integer F(Ntot), Nc, Ziso
@@ -74,7 +66,6 @@
       width=0.1d0    ! width of neighborlist 
       ftol=0.5d-16   ! Condition 1 for frprmn: V/N < ftol 
       ftol1=0.5d-16  ! Condition 2 for frprmn: dV/N < ftol1
-      rat=1.5d0      ! ratio of initial cell 2 to cell 1 volume
       
       wide = 2.0d0
 
@@ -84,24 +75,17 @@
       ! FILES
  123  open(unit=1,file=TRIM(file1)) ! CONFIGURATION FILE
  
-      file_prod='prod_shear_' // TRIM(file1)
-      open(unit=11,file=TRIM(file_prod), status='replace')
+      file_traj='prod_shear_' // TRIM(file1)
+      open(unit=11,file=TRIM(file_traj), status='replace')
       
       file_G ='G_data_' // TRIM(file1)
       open(unit=12,file=TRIM(file_G), status='replace')
-      
-      write(*,*)file1
-      write(*,*)file_prod
-      write(*,*)file_G
-     
-      phi_init = 0d0
-      
+
+!     READ PACKING FROM FILE      
       read(1, *) N, phi_init
       do i=1,N
           read(1, *) x(i),y(i),D(i),alpha(i),th(i)
       enddo
-      
-
       
       do delrx_index=1,ddelrx_steps
           
@@ -180,10 +164,7 @@
       subroutine makelist(N,x,y,D,D1,xp,yp,countn,nl)
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
-      double precision Lx,Ly,delrx
       integer countn(Ntot),nl(800,Ntot),N
-      common /f5com/ Lx,Ly
-      common /f11com/ delrx
       
       call makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
 
@@ -197,7 +178,7 @@
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
       double precision D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
       double precision dd,dr1,dr2,dk2,di_up(Ntot),exp,att
-      double precision Lx,Ly,delrx, cory
+      double precision Lx,Ly,delrx,cory
       integer countn(Ntot),nl(800,Ntot),N,i,j
       common /f2com/ width
       common /f3com/ alpha ! aspect ratio
@@ -247,26 +228,19 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine func(N,x,y,th,D,D1,V,countn,nl)
       parameter(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,delrx
+      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
       integer countn(Ntot),nl(800,Ntot),N
-      common /f11com/ delrx
       
-
-
       call func_dimer(N,x,y,th,D,D1,V,countn,nl)
-
-
+      
       end
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
-      double precision fx(Ntot),fy(Ntot),fth(Ntot),delrx
+      double precision fx(Ntot),fy(Ntot),fth(Ntot)
       integer countn(Ntot),nl(800,Ntot),N
-      common /f11com/ delrx
-
 
       call dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       
