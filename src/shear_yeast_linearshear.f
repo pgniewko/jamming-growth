@@ -29,7 +29,7 @@
       double precision dt
       integer dtstatus, terminate
       integer N,Nr,seed,iter,steps,i,j,k,kk,c(Ntot,Ngen),m,skip,Nexist
-      integer celltype,divtype,nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
+      integer divtype,nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
       integer age(Ntot),agehist(Ngen,2),agetot1,agetot2
       integer div,ndiv,idiv(999,2),kdiv, Nf, Nu, Nmm,Nbb,Nmb
       character file1*150
@@ -69,7 +69,6 @@
       common /f5com/ Lx,Ly
       common /f6com/ P,PP,PT,PR
       common /f9com/ scale
-      common /f10com/ celltype
       common /f11com/ delrx
       common /f12com/ SSTRESS
 
@@ -78,7 +77,6 @@
       read(*,*) Ly
 
       ! read cell parameters
-      read(*,*) celltype
       read(*,*) divtype
       read(*,*) P0
       read(*,*) att
@@ -219,8 +217,7 @@
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
       double precision Lx,Ly,delrx
-      integer countn(Ntot),nl(800,Ntot),N,celltype
-      common /f10com/ celltype
+      integer countn(Ntot),nl(800,Ntot),N
       common /f5com/ Lx,Ly
       common /f11com/ delrx
       
@@ -287,8 +284,7 @@
       subroutine func(N,x,y,th,D,D1,V,countn,nl)
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,delrx
-      integer countn(Ntot),nl(800,Ntot),N,celltype
-      common /f10com/ celltype
+      integer countn(Ntot),nl(800,Ntot),N
       common /f11com/ delrx
       
 
@@ -304,8 +300,7 @@
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
       double precision fx(Ntot),fy(Ntot),fth(Ntot),delrx
-      integer countn(Ntot),nl(800,Ntot),N,celltype
-      common /f10com/ celltype
+      integer countn(Ntot),nl(800,Ntot),N
       common /f11com/ delrx
 
 
@@ -730,12 +725,11 @@
       ! not needed
       double precision f1,f2,f3,fxe,fye,fthe
       double precision xi,yi,thi,max1,max2,max3,del
-      double precision alpha(Ntot),Lx,Ly,alpha0
+      double precision alpha(Ntot),Lx,Ly
 
       ! not needed
       common /f3com/ alpha ! aspect ratio
       common /f5com/ Lx,Ly
-      common /f8com/ alpha0
 
       common /f2com/ width      
       common /f4com/ exp,att

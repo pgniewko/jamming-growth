@@ -55,7 +55,6 @@ if [[ $(wc -l <$file_) -ge 2 ]] ; then
 time $exe_file <<EOF
    $Lx
    $Ly
-   $celltype
    $divtype
    $P0
    $att
