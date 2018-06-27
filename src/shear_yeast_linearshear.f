@@ -21,14 +21,14 @@
       double precision x00(Ntot),y00(Ntot)
       double precision ftol,ftol1,fret,width,Lx,Ly,ratei
       double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
-      double precision desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
+      double precision phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
       double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT
       double precision tbirth(Ntot*Ngen),cc,ss,dr(2),dd,corr,att,rat
-      double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen),distrem
+      double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
       double precision xdiv(999,2),ydiv(999,2),thdiv(999,2)
       double precision dt
       integer dtstatus, terminate
-      integer N,Nr,seed,iter,steps,i,j,k,kk,c(Ntot,Ngen),m,skip,Nexist
+      integer N,Nr,iter,i,j,k,kk,c(Ntot,Ngen),m,Nexist
       integer nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
       integer age(Ntot),agehist(Ngen,2),agetot1,agetot2
       integer div,ndiv,idiv(999,2),kdiv, Nf, Nu, Nmm,Nbb,Nmb
@@ -78,13 +78,6 @@
 
       ! read cell parameters
       read(*,*) att
-
-      ! read run parameters
-      read(*,*) desync
-      read(*,*) steps
-      read(*,*) seed
-      read(*,*) distrem
-      read(*,*) skip
 
       ! read pdhi exponent
       read(*,*) dphi

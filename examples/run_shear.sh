@@ -56,11 +56,6 @@ time $exe_file <<EOF
    $Lx
    $Ly
    $att
-   $desync
-   $steps
-   $SEED2
-   $distrem
-   $skip
    $dphi
    $file_
    1e-6
