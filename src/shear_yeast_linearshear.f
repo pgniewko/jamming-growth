@@ -22,7 +22,7 @@
       double precision ftol,ftol1,fret,width,Lx,Ly,ratei
       double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
       double precision rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
-      double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT,P0
+      double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT
       double precision tbirth(Ntot*Ngen),cc,ss,dr(2),dd,corr,att,rat
       double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen),distrem
       double precision xdiv(999,2),ydiv(999,2),thdiv(999,2)
@@ -77,7 +77,6 @@
       read(*,*) Ly
 
       ! read cell parameters
-      read(*,*) P0
       read(*,*) att
 
       ! read run parameters
