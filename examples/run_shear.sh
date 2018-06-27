@@ -55,10 +55,7 @@ if [[ $(wc -l <$file_) -ge 2 ]] ; then
 time $exe_file <<EOF
    $Lx
    $Ly
-   $divtype
-   $P0
    $att
-   $rate0
    $desync
    $steps
    $SEED2

@@ -21,7 +21,7 @@
       double precision x00(Ntot),y00(Ntot)
       double precision ftol,ftol1,fret,width,Lx,Ly,ratei
       double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
-      double precision rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
+      double precision desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
       double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT
       double precision tbirth(Ntot*Ngen),cc,ss,dr(2),dd,corr,att,rat
       double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen),distrem
@@ -80,7 +80,6 @@
       read(*,*) att
 
       ! read run parameters
-      read(*,*) rate0
       read(*,*) desync
       read(*,*) steps
       read(*,*) seed
