@@ -10,9 +10,9 @@
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      program shear_packing
+      PROGRAM shear_packing
 
-      implicit none
+      IMPLICIT NONE
       integer Ntot
       parameter(Ntot=4096)
       double precision pi
@@ -140,12 +140,12 @@
          
       enddo
       
-      end
+      END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine CG_check(N,x,y,xp,yp,maxdis)
-      implicit none
+      SUBROUTINE CG_check(N,x,y,xp,yp,maxdis)
+      IMPLICIT NONE
       integer Ntot,N,i
       parameter(Ntot = 4096)
       double precision maxdis,x(Ntot),y(Ntot),xp(Ntot),yp(Ntot)
@@ -157,12 +157,12 @@
       enddo
       maxdis=2d0*dsqrt(2d0*maxdis*maxdis)
 
-      end
+      END
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine makelist(N,x,y,D,D1,xp,yp,countn,nl)
-      implicit none
+      SUBROUTINE makelist(N,x,y,D,D1,xp,yp,countn,nl)
+      IMPLICIT NONE
       integer Ntot,N
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
@@ -170,11 +170,11 @@
       
       call makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
 
-      end
+      END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
-      implicit none
+      SUBROUTINE makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
+      IMPLICIT NONE
       integer Ntot
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
@@ -224,12 +224,12 @@
          yp(i)=y(i)
       enddo
       
-      end
+      END
  
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine func(N,x,y,th,D,D1,V,countn,nl)
-      implicit none
+      SUBROUTINE func(N,x,y,th,D,D1,V,countn,nl)
+      IMPLICIT NONE
       integer Ntot,N    
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
@@ -237,10 +237,10 @@
       
       call func_dimer(N,x,y,th,D,D1,V,countn,nl)
       
-      end
+      END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      SUBROUTINE dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       parameter(Ntot = 4096)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
       double precision fx(Ntot),fy(Ntot),fth(Ntot)
@@ -248,10 +248,10 @@
 
       call dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       
-      end
+      END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine func_dimer(N,x,y,th,D,D1,V,countn,nl)
+      SUBROUTINE func_dimer(N,x,y,th,D,D1,V,countn,nl)
       parameter(Ntot = 4096)
       double precision pi
       parameter(pi=3.1415926535897932d0)
@@ -343,13 +343,12 @@
       if(exp.gt.2.9) then
          V=V/72d0
       endif
-
-      return				
-      end
+			
+      END
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      SUBROUTINE dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       parameter(Ntot = 4096)
       double precision pi
       parameter(pi=3.1415926535897932d0)
@@ -495,32 +494,32 @@
       
       SSTRESS=SSTRESS/Lx/Ly
 							
-      end
+      END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      double precision function calc_phi(D, alpha, D1, N)
-         implicit none
-         integer Ntot
-         parameter(Ntot = 4096)
-         double precision pi
-         parameter(pi=3.1415926535897932d0)
-         double precision D(Ntot),alpha(Ntot)
-         double precision Lx,Ly,phis,D1,phit
-         integer N,i
-         common /f5com/ Lx,Ly
+      DOUBLE PRECISION FUNCTION calc_phi(D, alpha, D1, N)
+      IMPLICIT NONE
+      integer Ntot
+      parameter(Ntot = 4096)
+      double precision pi
+      parameter(pi=3.1415926535897932d0)
+      double precision D(Ntot),alpha(Ntot)
+      double precision Lx,Ly,phis,D1,phit
+      integer N,i
+      common /f5com/ Lx,Ly
          
-         phit=0d0
-         do i=1,N
-             phit=phit+(1d0+(alpha(i)-1d0)**2)*D(i)**2
-         enddo
+      phit=0d0
+      do i=1,N
+         phit=phit+(1d0+(alpha(i)-1d0)**2)*D(i)**2
+      enddo
          
-         calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
-      end function
+      calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
+      END FUNCTION
      
       
-!      ! inuse
-      subroutine contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
-      implicit none
+      ! INUSE
+      SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
+      IMPLICIT NONE
       integer Ntot, N 
       parameter(Ntot = 4096)
       integer i, j, F(Ntot), Z, NCBUD(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
@@ -632,17 +631,18 @@
           
       enddo
       
-      end
+      END
       
-      subroutine out_numbers(N, Nf, Nu, Ziso)
-      implicit none
+      
+      SUBROUTINE out_numbers(N, Nf, Nu, Ziso)
+      IMPLICIT NONE
       integer Ntot
       parameter(Ntot = 4096)
       integer N, Nf, Nu, Ziso
       
       Ziso = 6*(N-Nf) - 2*Nu - 2
       
-      end      
+      END      
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!   BELOW THERE IS STANDARD NUMERICAL CODE   !!!!!!!!!!!!!!      
