@@ -29,7 +29,7 @@
       double precision dt
       integer dtstatus, terminate
       integer N,Nr,seed,iter,steps,i,j,k,kk,c(Ntot,Ngen),m,skip,Nexist
-      integer divtype,nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
+      integer nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
       integer age(Ntot),agehist(Ngen,2),agetot1,agetot2
       integer div,ndiv,idiv(999,2),kdiv, Nf, Nu, Nmm,Nbb,Nmb
       character file1*150
@@ -77,7 +77,6 @@
       read(*,*) Ly
 
       ! read cell parameters
-      read(*,*) divtype
       read(*,*) P0
       read(*,*) att
 
