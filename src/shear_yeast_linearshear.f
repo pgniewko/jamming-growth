@@ -2,33 +2,15 @@
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!
       !!
-      !!   Quasi-static growth of cells in rectangular cavity with
-      !!   physical outlet via conjugate gradient energy minimization. 
-      !! 
-      !! 
-      !!       Cell type - 1: ellipse (don't use)
-      !!                   2: budding
-      !!                   3: disk (don't use)
       !!
-      !!   Division type - 1: -> ->
-      !!                   2: -> <-
-      !!                   3: <- ->
-      !!                   4: random
-      !!
-      !!        Feedback - growth rate ~ e^(-P/P0)
-      !!                   P0=-1: no feedback
-      !!
-      !!
-      !!      Carl  Schreck
-      !!      9/17/2015
-      !!
-      !!      Pawel Gniewek
-      !!      May/2017-
+      !!      Author: Pawel Gniewek
+      !!      Email:
+      !!      License:
       !!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      program divide_cavity_physbox_combo
+      program shear_packing
 
       implicit none
       integer Ntot,Ngen
@@ -149,9 +131,6 @@
       file_G ='G_data_' // TRIM(file1)
       open(unit=12,file=TRIM(file_G), status='replace')
       
-!      file_G ='TEST_' // TRIM(file1)
-!      open(unit=13,file=TRIM(file_G), status='replace')
-      
       write(*,*)file1
       write(*,*)file_prod
       write(*,*)file_G
@@ -163,24 +142,9 @@
           read(1, *) x(i),y(i),D(i),alpha(i),th(i)
       enddo
       
-      
-!      write(13, *) N, phi_orig
-!      do i=1,N
-!           write(13,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
-!      enddo
-!      
-!      call exit(1)
-      ! initial size & aspect ratios - total vol = (1+rat)*alpha0
 
       
       do delrx_index=1,ddelrx_steps
-!          if (delrx_index.eq.1) then
-!             do i=1,N
-!                 x00(i) = x(i)
-!                 y00(i) = y(i)
-!                 
-!             enddo
-!          endif
           
          delrx = dble(delrx_index-1)*ddelrx
 
@@ -192,11 +156,6 @@
      
             th(i)=th(i)*scale(i)
          enddo
-         
-!         do i=1,N
-!             x(i)=x(i)+ddelrx*Lx*(y(i)-Ly/2)/(Ly/2)
-!            write(*,*) x(i),x00(i),x00(i)-x(i),(x00(i)-x(i))/Lx,y(i)
-!         enddo
          
          ! minimize energy
          call frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
@@ -237,42 +196,6 @@
          enddo         
          
       enddo
-!!!!!! THE MAIN LOOP IS OVER
-!      
-!      
-!      phi = calc_phi(D, alpha, D1, N)
-!         
-!      ! save the last configuration to the file
-!      write(1,*) 2*N, phi
-!      write(12,*) 2*N, phi
-!      do i=1,N              
-!          cc=dcos(th(i))
-!          ss=dsin(th(i))
-!          dd=alpha(i)-1d0
-!          dr(1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)/2d0
-!          dr(2)=-(1d0+dd)/(1d0+dd**2)*D(i)/2d0
-!          do kk=1,2
-!              xa(kk)=x(i)+dr(kk)*cc
-!              ya(kk)=y(i)+dr(kk)*ss
-!          enddo
-!          
-!          write(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-!          write(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
-!               
-!          write(12,'(3E26.18,I12)')xa(1),ya(1),d(i),0    ! LF phi_j+dphi
-!          write(12,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1 ! LF phi_j+dphi
-!      enddo
-!      flush(1)
-!      flush(12)
-!      
-!!!!!!!!!!!!!!
-!
-!      call contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
-!      call out_numbers(N, Nf, Nu, Ziso)
-!
-!      write(13,'(8I8,4E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
-!     +     phi,P,fret,P0
-!      flush(13)
       
       end
 
@@ -390,9 +313,7 @@
 
 
       call dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
-
-
-
+      
       end
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -643,8 +564,161 @@
       return							
       end
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      double precision function calc_phi(D, alpha, D1, N)
+         implicit none
+         integer Ntot
+         double precision pi
+         parameter(pi=3.1415926535897932d0)
+         parameter(Ntot = 4096)
+         double precision D(Ntot),alpha(Ntot)
+         double precision Lx,Ly,ap
+         double precision phis,D1,phit
+         integer i,N
+         
+         common /f5com/ Lx,Ly,ap
+         
+         phit=0d0
+         
+         do i=1,N
+             phit=phit+(1d0+(alpha(i)-1d0)**2)*D(i)**2
+         enddo
+         
+         calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
+         
+      end function
+     
+      
+!      ! inuse
+      subroutine contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
+      implicit none
+      integer Ntot, N 
+      parameter(Ntot = 4096)
+      integer i, j, F(Ntot), Z, NCBUD(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
+      integer ki,kj,k
+      double precision overlap, aspect_ratio
+      double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
+      double precision xij, yij, D(Ntot), D1
+      double precision exp,dij_up,dij
+      double precision Lx,Ly,ap,rijsq,c(Ntot),att ! ,scale(Ntot)
+      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+      double precision dk(Ntot,2)
+      double precision delrx,cory
+      integer flag
+      common /f3com/ alpha ! aspect ratio
+      common /f4com/ exp,att
+      common /f5com/ Lx,Ly,ap
+      common /f11com/ delrx
+!      common /f9com/ scale
 
+      Z = 0
+      Nf= 0
+      Nu= 0
+      
+      Nmm = 0 
+      Nbb = 0 
+      Nmb = 0
+      
+      flag = 0
+      
+      ! convert to from molecules to atoms
+      do i=1,N
+!         c(i)=dcos(th(i)/scale(i))
+!         s(i)=dsin(th(i)/scale(i))
+         c(i)=dcos( th(i) )
+         s(i)=dsin( th(i) )         
+         dd=alpha(i)-1d0
+         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
+         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
+         do k=1,2
+            xa(i,k)=x(i)+dr(i,k)*c(i)
+            ya(i,k)=y(i)+dr(i,k)*s(i)
+         enddo
+         dk(i,1)=D(i)*D1
+         dk(i,2)=dd*D(i)*D1
+      enddo
+      
+      do i=1,N
+         NCBUD(i,1)=0
+         NCBUD(i,2)=0
+      enddo
+
+      do i=1,N-1
+          do j=i+1, N
+              do ki=1,2
+                  do kj=1,2
+                      dij=(dk(i,ki)+dk(j,kj))/2d0
+                      xij=xa(i,ki)-xa(j,kj)
+                      yij=ya(i,ki)-ya(j,kj)
+                      cory=idnint(yij/Ly)
+                      xij=xij-cory*delrx*Lx
+                      xij=xij-idnint(xij/Lx)*Lx  !! PBC
+                      yij=yij-cory*Ly  !! PBC
+                      
+!                      xij=xa(i,ki)-xa(j,kj)
+!                      xij=xij-idnint(xij/Lx)*Lx  !! PBC
+!                      yij=ya(i,ki)-ya(j,kj)
+!                      yij=yij-idnint(yij/Ly)*Ly !! PBC
+                      rijsq=xij**2+yij**2
+                      if(rijsq.lt.(dij**2)) then
+                          Z = Z+2
+                          NCBUD(i,ki)=NCBUD(i,ki)+1
+                          NCBUD(j,kj)=NCBUD(j,kj)+1
+                          if (ki.eq.1 .and. kj.eq.1) then
+                              Nmm = Nmm + 2
+                          elseif (ki.eq.2 .and. kj.eq.2) then
+                              Nbb = Nbb + 2
+                          else
+                              Nmb = Nmb + 2
+                          endif
+                      endif
+                  enddo
+              enddo
+          enddo
+      enddo
+
+      
+      do i=1,N
+          flag = 0
+          if ( (NCBUD(i,1)+NCBUD(i,2)).lt.3 ) then
+              nf = nf + 1
+              flag = 1
+          endif
+          
+          if ( (NCBUD(i,1)+NCBUD(i,2)).eq.3 ) then
+              if ( NCBUD(i,1).eq.2 .or. NCBUD(i,2).eq.2 ) then
+                  nf = nf + 1
+                  flag = 1
+              endif
+          endif
+          
+          if (flag.eq.0) then    
+              if ( NCBUD(i,1).eq.0 ) then
+                  nu = nu + 1
+              endif
+              if ( NCBUD(i,2).eq.0 ) then
+                  nu = nu + 1
+              endif
+          endif
+          
+      enddo
+      
+      end
+      
+      subroutine out_numbers(N, Nf, Nu, Ziso)
+      implicit none
+      integer Ntot
+      parameter(Ntot = 4096)
+      integer N, Nf, Nu, Ziso
+      
+      Ziso = 6*(N-Nf) - 2*Nu - 2
+      
+      end      
+      
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!   BELOW THERE IS STANDARD NUMERICAL CODE   !!!!!!!!!!!!!!      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      
       SUBROUTINE frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
       parameter(Ntot = 4096)
       integer its,iter,ITMAX
@@ -1098,520 +1172,4 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       ran2=min(AM*iy,RNMX)
       return
       END
-               
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!! BELOW IS A NEW CODE ADDED BY PAWEL GNIEWEK !!!!!!!!
-!      subroutine determine_system_status(N,D,D1,alpha,ftol,wide,dt,
-!     +     fret, phi_j,dphi,
-!     +     dtstatus, terminate,
-!     +     before_jamming, at_jamming, above_jamming)
-!      implicit none
-!      integer Ntot, N
-!      parameter(Ntot = 4096)
-!      
-!      double precision delta, phi, calc_phi
-!      double precision D(Ntot),alpha(Ntot), D1
-!      double precision fret,phitemp,phi_j,ftol,wide,dt,dphi
-!      integer dtstatus, terminate
-!      integer before_jamming, at_jamming, above_jamming
-!      
-!      delta = 0.5d-8
-!      
-!      
-!      phi = calc_phi(D, alpha, D1, N)
-!      if (fret.lt.ftol*N .or. phi.lt.0.25) then
-!          terminate = 0
-!          before_jamming = 1
-!          at_jamming = 0
-!          above_jamming = 0
-!          dtstatus = 0
-!          
-!          dt = 1d0
-!          phi_j = 0d0
-!          return
-!      endif
-!      
-!      
-!      if (above_jamming.eq.0 .and. at_jamming .eq. 0)then
-!          if (fret.gt.(ftol * wide * N) )  then
-!             dt = 0.5*dt
-!             dtstatus = 1
-!             terminate = 0
-!             return 
-!          else if (fret.gt.(ftol*N) .and. fret.lt.(ftol*wide*N))then
-!              before_jamming = 0
-!              at_jamming = 1
-!              above_jamming = 1
-!              dt = 1d0
-!              dtstatus = 0
-!              terminate = 0
-!              phi_j = phi
-!              return
-!          ! else - not needed. this point should never been reached!
-!              
-!        endif
-!      endif
-!      
-!      
-!      if (phi_j .lt. 0.25) then
-!          write(*,*) "ERROR: SHOULD NOT REACH THIS POINT"
-!      endif
-!      
-!      if (at_jamming.ne.0) then
-!          write(*,*) "SOMETHING WRONG: should be at_jamming = 0"
-!      endif
-!
-!      if (above_jamming.ne.1) then
-!          write(*,*) "SOMETHING WRONG: should be above_jamming = 1"
-!      endif      
-!      
-!      at_jamming = 0
-!      if (phi .lt. phi_j+dphi-delta) then
-!          dt = 1
-!          terminate = 0
-!          dtstatus = 0
-!          return
-!      else if (phi .gt. phi_j+dphi+delta) then
-!          dt = 0.5 * dt
-!          dtstatus = 1
-!          terminate = 0
-!          return
-!      else
-!          dtstatus = 0
-!          terminate = 1
-!          return
-!      endif
-!      
-!      return
-!      end
-!      
-      
-      
-      
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      double precision function calc_phi(D, alpha, D1, N)
-         implicit none
-         integer Ntot
-         double precision pi
-         parameter(pi=3.1415926535897932d0)
-         parameter(Ntot = 4096)
-         double precision D(Ntot),alpha(Ntot)
-         double precision Lx,Ly,ap
-         double precision phis,D1,phit
-         integer i,N
-         
-         common /f5com/ Lx,Ly,ap
-         
-         phit=0d0
-         
-         do i=1,N
-             phit=phit+(1d0+(alpha(i)-1d0)**2)*D(i)**2
-         enddo
-         
-         calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
-         
-      end function
-      
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!! remove floaters !!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!      
-!      subroutine remove_floaters(x,y,th,phi,D1,D,N,F)
-!      implicit none
-!      integer Ntot, N 
-!      parameter(Ntot = 4096)
-!      integer R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot), DoF
-!      double precision overlap, aspect_ratio
-!      integer l, F(Ntot)
-!      double precision x(Ntot),y(Ntot),th(Ntot),pi,phi,alpha(Ntot)
-!      double precision thIJ, t(3), sign(3), AR2, cont,scale(Ntot)
-!      double precision xij, yij, rij, D(Ntot), D1, z_ave
-!      double precision dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
-!      double precision dtijthi,dtijthj,dthithj, compression
-!      double precision x2(Ntot), y2(Ntot), th2(Ntot), Lx,Ly,ap
-!      integer count, Z, nn
-!      
-!      common /f3com/ alpha ! aspect ratio
-!      common /f5com/ Lx,Ly,ap
-!      common /f9com/ scale
-!      
-!      pi = 3.141592653589793238d0
-!
-!      ! Remove floaters
-!      k=0
-!      phi=0.d0
-!      do i=1,N
-!         ii=i-k
-!         nn=n-k
-!         if(F(ii).eq.1) then
-!            k=k+1
-!            do j=ii,nn
-!               F(j) = F(j+1)
-!               x(j) = x(j+1)
-!               y(j) = y(j+1)
-!               th(j) = th(j+1)
-!               D(j) = D(j+1)
-!               alpha(j) = alpha(j+1)
-!               scale(j) = scale(j+1)              
-!            enddo
-!         endif
-!      enddo
-!
-!      N=N-k
-!      
-!      do i=1,N
-!         phi=phi+D(i)*D(i)
-!      enddo
-!      phi=pi*D1*D1*phi/Lx/Ly/4d0
-!      
-!      end
-!
-!      
-!      
-!!!!!!!!!!!!!!!!! counts contacts !!!!!!!!!!!!!
-!      subroutine contacts(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
-!      implicit none
-!      integer Ntot, N        
-!      parameter(Ntot = 4096)
-!      integer R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot)
-!      double precision overlap, aspect_ratio
-!      integer l, F(Ntot), Nf, Nu,Nmm,Nbb,Nmb
-!      double precision x(Ntot), y(Ntot), th(Ntot), pi,alpha(Ntot)
-!      double precision thIJ, t(3), sign(3),cont
-!      double precision xij, yij, rij, D(Ntot), D1, z_ave
-!      double precision dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
-!      double precision dtijthi,dtijthj,dthithj
-!      double precision x2(Ntot), y2(Ntot), th2(Ntot)
-!      integer Z
-!      common /f3com/ alpha ! aspect ratio
-!      pi = 3.141592653589793238d0
-!      Z = 0
-!      R = 0
-!
-!      Rnew = 1
-!      Nf=0
-!      Nu=0
-!      Nmm = 0 
-!      Nbb = 0 
-!      Nmb = 0
-!      
-!      do i=1, N
-!         c(i)=0
-!         listP(i)=i
-!         F(i) = 0
-!      enddo
-!      
-!      do while(Rnew>0)
-!         Rnew = 0
-!         do i=1, N-R
-!            II=listP(i)
-!            c(II)=0
-!         enddo
-!         
-!         ! Find Contacts
-!         do i=1,N-R
-!            II=listP(i)
-!            do j=1, i-1
-!               JJ=listP(j)	    
-!!               if(overlap(N,x,y,th,D,D1,II,JJ).lt.1.d0) then
-!                  c(II) = c(II)+overlap(N,x,y,th,D,D1,II,JJ) !1
-!                  c(JJ) = c(JJ)+overlap(N,x,y,th,D,D1,II,JJ) !1
-!!               endif
-!            enddo
-!         enddo
-!
-!         ! Remove floaters
-!         i=1
-!         do while (i.le.N-R)
-!            II=listP(i)
-!            !write(*,*) i, II, c(II)
-!            if(c(II).lt.3) then
-!               Nf = Nf + 1
-!               Rnew=Rnew+1
-!               R=R+1
-!               do j=i, N-R
-!                  listP(j) = listP(j+1)
-!               enddo
-!               F(II) = 1
-!            else
-!               i=i+1
-!            endif
-!         enddo
-!      enddo
-!      
-!      
-!      !Count Contacts
-!      Z=0
-!      do i=1, N-R
-!         II=listP(i)
-!         do j=1, i-1
-!            JJ=listP(j)	    
-!!            if(overlap(N,x,y,th,D,D1,II,JJ).lt.1.d0) then
-!               Z = Z+2*overlap(N,x,y,th,D,D1,II,JJ)
-!!            endif
-!         enddo
-!      enddo
-!
-!      z_ave = dble(Z)/dble(N-R)
-!
-!      end
-!      
-!      
-!!     CUSTOM OVERLAP FUNCTION
-!      
-!      function overlap(N,x,y,th,D,D1,i,j)
-!      implicit none
-!      integer Ntot, N     
-!      parameter(Ntot = 4096)
-!      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
-!      double precision rij,xij,yij,dij,ep,overlap
-!      double precision dtij,dthi,dthj,dtij2,dthi2,dthj2
-!      double precision dtijthi,dtijthj,dthithj, width
-!      double precision alpha(Ntot)
-!      double precision dd,dr1,dr2,dk2,exp,att
-!      double precision Lx,Ly,ap
-!      !
-!      double precision dijsq_up,scale(Ntot),c(Ntot)
-!      double precision s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-!      double precision dk(Ntot,2),di_up(Ntot),di1j1      
-!      integer celltype, ni, i, j
-! 
-!      
-!      common /f2com/ width
-!      common /f3com/ alpha ! aspect ratio
-!      common /f4com/ exp,att
-!      common /f5com/ Lx,Ly,ap
-!      common /f9com/ scale
-!      common /f10com/ celltype
-!      
-!      if (D1.ne.1.d0) then
-!          write(*,*) "SOMETHING IS WRONG. D1 SHALL BE EQ. TO 1.0"
-!      endif
-!      
-!      overlap = 0.d0
-!
-!      ! BUDDING CELLS
-!      if (celltype.eq.2) then
-!          write(*,*) "THERE IS SPECIAL CONTACT FUNCTION FOR YEAST"
-!
-!!          EXIT(1)
-!
-!          
-!      ! DISK CELLS      
-!      elseif (celltype.eq.3) then
-!                
-!          xij=x(i)-x(j)
-!          xij=xij-idnint(xij/Lx)*Lx  !! PBC
-!          yij=y(i)-y(j)
-!          yij=yij-idnint(yij/Ly)*Ly  !! PBC
-!          
-!          rij=dsqrt(xij**2+yij**2)  
-!          dij=D1*(d(i)+d(j))/2d0
-!
-!          if(rij.lt.dij) then
-!              overlap = 1.d0
-!          else
-!              overlap = 0.d0
-!          end if
-!      endif
-!          
-!      end
-!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!      ! inuse
-      subroutine contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
-      implicit none
-      integer Ntot, N 
-      parameter(Ntot = 4096)
-      integer i, j, F(Ntot), Z, NCBUD(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
-      integer ki,kj,k
-      double precision overlap, aspect_ratio
-      double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-      double precision xij, yij, D(Ntot), D1
-      double precision exp,dij_up,dij
-      double precision Lx,Ly,ap,rijsq,c(Ntot),att ! ,scale(Ntot)
-      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-      double precision dk(Ntot,2)
-      double precision delrx,cory
-      integer flag
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
-      common /f11com/ delrx
-!      common /f9com/ scale
-
-      Z = 0
-      Nf= 0
-      Nu= 0
-      
-      Nmm = 0 
-      Nbb = 0 
-      Nmb = 0
-      
-      flag = 0
-      
-      ! convert to from molecules to atoms
-      do i=1,N
-!         c(i)=dcos(th(i)/scale(i))
-!         s(i)=dsin(th(i)/scale(i))
-         c(i)=dcos( th(i) )
-         s(i)=dsin( th(i) )         
-         dd=alpha(i)-1d0
-         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
-         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-         do k=1,2
-            xa(i,k)=x(i)+dr(i,k)*c(i)
-            ya(i,k)=y(i)+dr(i,k)*s(i)
-         enddo
-         dk(i,1)=D(i)*D1
-         dk(i,2)=dd*D(i)*D1
-      enddo
-      
-      do i=1,N
-         NCBUD(i,1)=0
-         NCBUD(i,2)=0
-      enddo
-
-      do i=1,N-1
-          do j=i+1, N
-              do ki=1,2
-                  do kj=1,2
-                      dij=(dk(i,ki)+dk(j,kj))/2d0
-                      xij=xa(i,ki)-xa(j,kj)
-                      yij=ya(i,ki)-ya(j,kj)
-                      cory=idnint(yij/Ly)
-                      xij=xij-cory*delrx*Lx
-                      xij=xij-idnint(xij/Lx)*Lx  !! PBC
-                      yij=yij-cory*Ly  !! PBC
-                      
-!                      xij=xa(i,ki)-xa(j,kj)
-!                      xij=xij-idnint(xij/Lx)*Lx  !! PBC
-!                      yij=ya(i,ki)-ya(j,kj)
-!                      yij=yij-idnint(yij/Ly)*Ly !! PBC
-                      rijsq=xij**2+yij**2
-                      if(rijsq.lt.(dij**2)) then
-                          Z = Z+2
-                          NCBUD(i,ki)=NCBUD(i,ki)+1
-                          NCBUD(j,kj)=NCBUD(j,kj)+1
-                          if (ki.eq.1 .and. kj.eq.1) then
-                              Nmm = Nmm + 2
-                          elseif (ki.eq.2 .and. kj.eq.2) then
-                              Nbb = Nbb + 2
-                          else
-                              Nmb = Nmb + 2
-                          endif
-                      endif
-                  enddo
-              enddo
-          enddo
-      enddo
-
-      
-      do i=1,N
-          flag = 0
-          if ( (NCBUD(i,1)+NCBUD(i,2)).lt.3 ) then
-              nf = nf + 1
-              flag = 1
-          endif
-          
-          if ( (NCBUD(i,1)+NCBUD(i,2)).eq.3 ) then
-              if ( NCBUD(i,1).eq.2 .or. NCBUD(i,2).eq.2 ) then
-                  nf = nf + 1
-                  flag = 1
-              endif
-          endif
-          
-          if (flag.eq.0) then    
-              if ( NCBUD(i,1).eq.0 ) then
-                  nu = nu + 1
-              endif
-              if ( NCBUD(i,2).eq.0 ) then
-                  nu = nu + 1
-              endif
-          endif
-          
-      enddo
-      
-      end
-      
-      subroutine out_numbers(N, Nf, Nu, Ziso)
-      implicit none
-      integer Ntot
-      parameter(Ntot = 4096)
-      integer N, Nf, Nu, Ziso
-      
-      Ziso = 6*(N-Nf) - 2*Nu - 2
-      
-      end
-!      
-!      
-!      subroutine bud_contacts(x,y,th,D1,D,N,BUDCONT,ZEROBUDS)
-!      implicit none
-!      integer Ntot, N
-!      parameter(Ntot = 4096)
-!      integer i, j, NCBUD(Ntot,2), ZEROBUDS, BUDCONT(Ntot),k,ki,kj
-!      double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-!      double precision xij, yij, D(Ntot), D1
-!      double precision exp,dij
-!      double precision Lx,Ly,ap,rijsq,c(Ntot),att 
-!      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-!      double precision dk(Ntot,2)
-!
-!      common /f3com/ alpha ! aspect ratio
-!      common /f4com/ exp,att
-!      common /f5com/ Lx,Ly,ap
-!
-!      ZEROBUDS = 0
-!      
-!      ! convert to from molecules to atoms
-!      do i=1,N
-!         c(i)=dcos( th(i) )
-!         s(i)=dsin( th(i) )         
-!         dd=alpha(i)-1d0
-!         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
-!         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-!         do k=1,2
-!            xa(i,k)=x(i)+dr(i,k)*c(i)
-!            ya(i,k)=y(i)+dr(i,k)*s(i)
-!         enddo
-!         dk(i,1)=D(i)*D1
-!         dk(i,2)=dd*D(i)*D1
-!      enddo
-!      
-!      do i=1,N
-!         NCBUD(i,1)=0
-!         NCBUD(i,2)=0
-!         BUDCONT(i) = 0
-!      enddo
-!
-!      do i=1,N-1
-!          do j=i+1, N
-!               do ki=1,2
-!                  do kj=1,2
-!                      dij=(dk(i,ki)+dk(j,kj))/2d0
-!                      xij=xa(i,ki)-xa(j,kj)
-!                      xij=xij-idnint(xij/Lx)*Lx !! PBC
-!                      yij=ya(i,ki)-ya(j,kj)
-!                      yij=yij-idnint(yij/Ly)*Ly !! PBC
-!                      rijsq=xij**2+yij**2
-!                      if(rijsq.lt.(dij**2)) then
-!                          NCBUD(i,ki)= NCBUD(i,ki)+1
-!                          NCBUD(j,kj)= NCBUD(j,kj)+1
-!                      endif
-!                  enddo
-!              enddo
-!          enddo
-!      enddo
-!      
-!      do i=1,N
-!          BUDCONT(i) = NCBUD(i,2)
-!          if (BUDCONT(i).eq.0)then
-!              ZEROBUDS = ZEROBUDS + 1
-!          endif
-!      enddo
-!
-!     
-!      end
+C  (C) Copr. 1986-92 Numerical Recipes Software .              

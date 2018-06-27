@@ -2,7 +2,7 @@
 
 MY_PATH=`pwd`
 run_dir=$MY_PATH"/shear_dir"
-exe_file=$MY_PATH"/../shear_yeast_linearshear"
+exe_file=$MY_PATH"/../bin/shear_yeast_linearshear"
 cd $run_dir
 
 att=0.0      # no attractions
@@ -25,7 +25,7 @@ P0=0.001
 Lx=10
 mm=1
 nn=3
-se=123
+se=234
 
 
 seed=$(($se+1000))
@@ -70,10 +70,10 @@ time $exe_file <<EOF
    $dphi
    $file_
    1e-6
-   5000
+   1000
 EOF
 
-python $MY_PATH"./estimate_G.py" "G_data_"$file_ $dphi $P0
+python $MY_PATH"/estimate_G.py" "G_data_"$file_ $dphi $P0
 
 fi   
 
