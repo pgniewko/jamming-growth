@@ -54,7 +54,6 @@ time $exe_file <<EOF
   $att
   $rate0
   $desync
-  $steps
   $SEED2
   $skip
   $dphi

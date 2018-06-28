@@ -44,7 +44,7 @@
       double precision xdiv(999,2),ydiv(999,2),thdiv(999,2)
       double precision dt, PPm(Ntot), total_growthrate
       integer dtstatus, terminate
-      integer N,Nr,seed,iter,steps,i,j,k,kk,c(Ntot,Ngen),m,skip,Nexist
+      integer N,Nr,seed,iter,i,j,k,kk,c(Ntot,Ngen),m,skip,Nexist
       integer celltype,divtype,nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
       integer age(Ntot),agehist(Ngen,2),agetot1,agetot2
       integer div,ndiv,idiv(999,2),kdiv, Nf, Nu, Nmm,Nbb,Nmb
@@ -102,7 +102,6 @@
       ! read run parameters
       read(*,*) rate0
       read(*,*) desync
-      read(*,*) steps
       read(*,*) seed
       read(*,*) skip
 
@@ -181,14 +180,7 @@
 
       ! calculate # steps until division
       tdiv=dlog10(2d0)/dlog10(1d0+rate0)
-
-      write(*,*) steps, tdiv, 2*int(steps/tdiv)
-
-      ! set histogram of cell ages to 0
-      do k=1,2*int(steps/tdiv)
-         agehist(k,1)=0
-         agehist(k,2)=0
-      enddo
+      
       
       dt = 1.0
       dtstatus = 0
