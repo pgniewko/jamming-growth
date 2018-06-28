@@ -40,7 +40,7 @@
       double precision rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
       double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT,P0
       double precision tbirth(Ntot*Ngen),cc,ss,dr(2),dd,corr,att,rat
-      double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen),distrem
+      double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
       double precision xdiv(999,2),ydiv(999,2),thdiv(999,2)
       double precision dt, PPm(Ntot), total_growthrate
       integer dtstatus, terminate
@@ -104,7 +104,6 @@
       read(*,*) desync
       read(*,*) steps
       read(*,*) seed
-      read(*,*) distrem
       read(*,*) skip
 
       ! read pdhi exponent

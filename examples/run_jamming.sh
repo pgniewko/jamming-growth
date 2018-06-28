@@ -56,7 +56,6 @@ time $exe_file <<EOF
   $desync
   $steps
   $SEED2
-  $distrem
   $skip
   $dphi
   $prodfile
