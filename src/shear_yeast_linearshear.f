@@ -1,8 +1,6 @@
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!
-      !!
-      !!
       !!      Author:  Pawel Gniewek
       !!      Email:   pawel.gniewek@berkeley.edu
       !!      License: BSD-3
@@ -21,8 +19,8 @@
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp
       double precision ftol,ftol1,fret,width,Lx,Ly
       double precision alpha(Ntot),scale(Ntot)
-      double precision phi,flow,P,PP(Ntot),D0(Ntot)
-      double precision xa(2),ya(2),PR,PT
+      double precision phi,flow,D0(Ntot)
+      double precision xa(2),ya(2)
       double precision cc,ss,dr(2),dd,att
       integer N,Nr,iter,i,kk
       integer Nf,Nu,Nmm,Nbb,Nmb
@@ -44,7 +42,6 @@
       common /f3com/ alpha
       common /f4com/ exp,att
       common /f5com/ Lx,Ly
-      common /f6com/ P,PP,PT,PR
       common /f9com/ scale
       common /f11com/ delrx
       common /f12com/ SSTRESS
@@ -109,7 +106,7 @@
          endif
          
          write(*,*) N,fret/dble(N), 
-     +     P,delrx,ddelrx,step_index,SSTRESS,SSTRESS-SSTRESS0
+     +     delrx,ddelrx,step_index,SSTRESS,SSTRESS-SSTRESS0
     
          ! convert back to angles
          do i=1,N
@@ -251,17 +248,19 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE func_dimer(N,x,y,th,D,D1,V,countn,nl)
+      IMPLICIT NONE
+      integer Ntot
       parameter(Ntot = 4096)
       double precision pi
       parameter(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,alpha(Ntot)
-      double precision rij,xij,yij,dij,exp,dlnsig,dij_up,sigma,LJ
-      double precision Lx,Ly,rijsq,dijsq_up,scale(Ntot),c(Ntot),att
+      double precision rij,xij,yij,dij,exp,dij_up,sigma,LJ
+      double precision Lx,Ly,rijsq,scale(Ntot),c(Ntot),att
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),Vij
-      double precision dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
+      double precision dk(Ntot,2),di_up(Ntot),di1j1
       double precision delrx, cory
       
-      integer countn(Ntot),nl(800,Ntot),N
+      integer countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
       common /f5com/ Lx,Ly
@@ -348,22 +347,23 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      IMPLICIT NONE
+      integer Ntot
       parameter(Ntot = 4096)
       double precision pi
       parameter(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
       double precision fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
       double precision dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y,scale(Ntot)
-      double precision fthi,fthj,fth_c,Lx,Ly,P,Pij,rijsq,dijsq_up
+      double precision fthi,fthj,fth_c,Lx,Ly,rijsq
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),att
-      double precision dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
-      double precision PP(Ntot),c(Ntot),Vij,PT,PR, delrx, cory
+      double precision dk(Ntot,2),di_up(Ntot),di1j1
+      double precision c(Ntot),Vij, delrx, cory
       double precision SSTRESS
-      integer countn(Ntot),nl(800,Ntot),N !,growth_flag
+      integer countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
       common /f5com/ Lx,Ly
-      common /f6com/ P,PP,PT,PR
       common /f9com/ scale
       common /f11com/ delrx
       common /f12com/ SSTRESS
@@ -372,9 +372,7 @@
          fx(i)=0d0
          fy(i)=0d0
          fth(i)=0d0
-         PP(i)=0d0
       enddo
-      P=0d0
       SSTRESS=0d0
 
       ! convert to from molecules to atoms
@@ -403,18 +401,13 @@
             do jj=1,countn(i)
                j=nl(jj,i)
                dij_up=(di_up(i)+di_up(j))/2d0  
-
                xij=x(i)-x(j)
                yij=y(i)-y(j)
                cory=idnint(yij/Ly)
                xij=xij-cory*delrx*Lx
                xij=xij-idnint(xij/Lx)*Lx  !! PBC
                yij=yij-cory*Ly  !! PBC
-               
                if(dabs(xij).lt.dij_up+att) then
-!                  yij=y(i)-y(j)
-!                  yij=yij-idnint(yij/Ly)*Ly !! PBC
-!                  yij=yij-idnint(xij/Lx)*Lx*delrx
                   rijsq=xij**2+yij**2
                   if(rijsq.lt.(dij_up+att)**2) then
                      di1j1=(dk(i,1)+dk(j,1))/2d0
@@ -448,17 +441,9 @@
                               fy(j)=fy(j)-f_y
                            fth(i)=fth(i)+dr(i,ki)*(c(i)*f_y-s(i)*f_x)
                            fth(j)=fth(j)-dr(j,kj)*(c(j)*f_y-s(j)*f_x)
-                              Pij=-xij*f_x-yij*f_y
-                              P=P+2d0*Pij
                               
                               SSTRESS=SSTRESS-xij*yij/rij*fc
                               
-                              if (ki.eq.2) then
-                                  PP(i)=PP(i)+Pij
-                              endif
-                              if (kj.eq.2) then
-                                  PP(j)=PP(j)+Pij
-                              endif
                               
                            endif
                         enddo
@@ -468,8 +453,6 @@
             enddo
          end if
       enddo
-
-      !write(*,*)  SSTRESS
       
       if(exp .gt. 2.9) then
          do i=1,N
@@ -477,18 +460,10 @@
             fy(i)=fy(i)/6d0
             fth(i)=fth(i)/6d0 
          enddo
-         P=P/6d0
       endif
       
       do i=1,N
          fth(i)=fth(i)/scale(i)
-      enddo
-
-      PT=PT/Lx
-      PR=PR/Ly
-      P=P/4d0/Lx/Ly
-      do i=1,N
-         PP(i)=PP(i)*dble(N)/4d0/Lx/Ly
       enddo
       
       SSTRESS=SSTRESS/Lx/Ly
@@ -527,7 +502,7 @@
       double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
       double precision xij, yij, D(Ntot), D1
       double precision exp,dij_up,dij
-      double precision Lx,Ly,rijsq,c(Ntot),att ! ,scale(Ntot)
+      double precision Lx,Ly,rijsq,c(Ntot),att
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       double precision dk(Ntot,2)
       double precision delrx,cory
@@ -536,7 +511,6 @@
       common /f4com/ exp,att
       common /f5com/ Lx,Ly
       common /f11com/ delrx
-!      common /f9com/ scale
 
       Z = 0
       Nf= 0
@@ -550,8 +524,6 @@
       
       ! convert to from molecules to atoms
       do i=1,N
-!         c(i)=dcos(th(i)/scale(i))
-!         s(i)=dsin(th(i)/scale(i))
          c(i)=dcos( th(i) )
          s(i)=dsin( th(i) )         
          dd=alpha(i)-1d0
@@ -582,10 +554,6 @@
                       xij=xij-idnint(xij/Lx)*Lx  !! PBC
                       yij=yij-cory*Ly  !! PBC
                       
-!                      xij=xa(i,ki)-xa(j,kj)
-!                      xij=xij-idnint(xij/Lx)*Lx  !! PBC
-!                      yij=ya(i,ki)-ya(j,kj)
-!                      yij=yij-idnint(yij/Ly)*Ly !! PBC
                       rijsq=xij**2+yij**2
                       if(rijsq.lt.(dij**2)) then
                           Z = Z+2
