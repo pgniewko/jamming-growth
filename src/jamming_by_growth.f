@@ -472,20 +472,21 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine CG_check(N,x,y,xp,yp,maxdis)
+      SUBROUTINE CG_check(N,x,y,xp,yp,maxdis)
+      IMPLICIT NONE
+      integer N,Ntot,i
       PARAMETER(Ntot = 4096)
       double precision maxdis,x(Ntot),y(Ntot),xp(Ntot),yp(Ntot)
-      integer N
 
       maxdis=0d0
       do i=1,N
          maxdis=max(dabs(x(i)-xp(i)),maxdis)
          maxdis=max(dabs(y(i)-yp(i)),maxdis)
       enddo
+      
       maxdis=2d0*dsqrt(2d0*maxdis*maxdis)
 
-      return
-      end
+      END
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
