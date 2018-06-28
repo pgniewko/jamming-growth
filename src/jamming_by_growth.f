@@ -111,12 +111,12 @@
       ! READ output files
       READ(*,*) file1
 
-      IF(celltype.eq.1 .or. celltype.eq.3) THEN
+      IF(celltype.EQ.1 .OR. celltype.EQ.3) THEN
            WRITE(*,*) "ELLIPSE AND DISK CELL TYPE IS NOT SUPPORTED"
            CALL EXIT(0)
       ENDif
      
-      IF(P0.eq.0d0) THEN
+      IF(P0.EQ.0d0) THEN
            WRITE(*,*) "P0 = 0 not supported"
            CALL EXIT(0)
       ENDif
@@ -206,7 +206,7 @@
          DO i=1,N
                ratei=rate(i)*dt
                
-               IF(P0.gt.0d0.and.PP(i).gt.0d0) THEN
+               IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
                   ratei=ratei*dexp(-PP(i)/P0) !* dt
                ENDif
                
@@ -214,7 +214,7 @@
      +                 (1d0+(alpha(i)-1d0)**2)-1d0)
 
 
-               IF(alpha(i).gt.2d0*alpha0) THEN
+               IF(alpha(i).GT.2d0*alpha0) THEN
                   dispcm=alpha0/2d0
                   div=1
                   
@@ -268,15 +268,15 @@
                ENDif
                
                ! types of division: ->->, <-->, -><-, random
-               IF(div.eq.1) THEN
-                  IF(divtype.eq.1) THEN
+               IF(div.EQ.1) THEN
+                  IF(divtype.EQ.1) THEN
                      th(N)=th(i)
-                  elseIF(divtype.eq.2) THEN
+                  elseIF(divtype.EQ.2) THEN
                      th(N)=th(i)+pi
-                  elseIF(divtype.eq.3) THEN
+                  elseIF(divtype.EQ.3) THEN
                      th(N)=th(i)
                      th(i)=th(i)+pi
-                  elseIF(divtype.eq.4) THEN
+                  elseIF(divtype.EQ.4) THEN
                      th(N)=(ran2(seed)-0.5d0)*2d0*pi
                      th(i)=(ran2(seed)-0.5d0)*2d0*pi
                   ENDif
@@ -286,7 +286,7 @@
                   th(N)=th(N) + 1d-4*(ran2(seed)-0.5d0)
                ENDif
 
-               IF(div.eq.1) THEN
+               IF(div.EQ.1) THEN
                   ndiv=ndiv+1
                   idiv(ndiv,1)=i
                   idiv(ndiv,2)=N
@@ -325,7 +325,7 @@
      
          
          ! REJECT THE MOVE
-         IF(dtstatus.eq.1) THEN
+         IF(dtstatus.EQ.1) THEN
          CALL copy_back_everything(Ntot, Ngen,ndiv,x,y,th,D,alpha,
      +     rate, 
      +     alphar,
@@ -349,7 +349,7 @@
             th(i)=th(i)/scale(i)
          ENDDO       
          
-         IF(mod(k,skip).eq.0) THEN
+         IF(mod(k,skip).EQ.0) THEN
             phi = calc_phi(D, alpha, D1, N) 
             WRITE(1,*) 2*N, phi
             DO i=1,N              
@@ -370,7 +370,7 @@
          
          
 
-         if ( at_jamming.eq.1 ) THEN
+         IF( at_jamming.EQ.1 ) THEN
             OPEN(unit=11,file=TRIM(file_LF_JAMM), status='replace')
       OPEN(unit=21,file=TRIM(STATS_file_LF_JAMM), status='replace')
             phi = calc_phi(D, alpha, D1, N)
@@ -535,8 +535,8 @@
             rijsq=xij*xij+yij*yij
             dij=(di_up(i)+di_up(j))/2d0
             dij=D1*( D(i) + D(j) )/2d0   
-!            IF(rijsq.lt.(2.D0*dij+(att+width)*D1)**2) THEN
-            IF(rijsq.lt.(2.D0*dij)**2) THEN
+!            IF(rijsq.LT.(2.D0*dij+(att+width)*D1)**2) THEN
+            IF(rijsq.LT.(2.D0*dij)**2) THEN
                countn(i)=countn(i)+1
                nl(countn(i),i)=j
             ENDIF
@@ -606,7 +606,7 @@
          ENDDO
          dk(i,1)=D(i)*D1
          dk(i,2)=dd*D(i)*D1
-         IF(alpha(i).lt.2d0) THEN 
+         IF(alpha(i).LT.2d0) THEN 
             di_up(i)=(dk(i,2)/2d0-dr(i,2))*2d0*D1
          else
             di_up(i)=(dk(i,1)/2d0+dr(i,1))*2d0*D1         
@@ -616,17 +616,17 @@
       ! inter-particle interactions
       V=0d0
       DO i=1,N-1
-         IF(countn(i).ge.1) THEN
+         IF(countn(i).GE.1) THEN
             DO jj=1,countn(i)
                j=nl(jj,i)
                dij_up=(di_up(i)+di_up(j))/2d0
                xij=x(i)-x(j)
                xij=xij-idnint(xij/Lx)*Lx  !! PBC
-               IF(dabs(xij).lt.dij_up+att) THEN
+               IF(dabs(xij).LT.dij_up+att) THEN
                   yij=y(i)-y(j)
                   yij=yij-idnint(yij/Ly)*Ly !! PBC 
                   rijsq=xij**2+yij**2
-                  IF(rijsq.lt.(dij_up+att)**2) THEN
+                  IF(rijsq.LT.(dij_up+att)**2) THEN
                      di1j1=(dk(i,1)+dk(j,1))/2d0
                      DO ki=1,2
                         DO kj=1,2
@@ -636,9 +636,9 @@
                            yij=ya(i,ki)-ya(j,kj)
                            yij=yij-idnint(yij/Ly)*Ly !! PBC 
                            rijsq=xij**2+yij**2
-                           IF(rijsq.lt.(dij+att)**2) THEN
+                           IF(rijsq.LT.(dij+att)**2) THEN
                               rij=dsqrt(rijsq)
-                              IF(exp .gt. 2.9) THEN
+                              IF(exp .GT. 2.9) THEN
                                  LJ=(dij/rij)*(dij/rij)
                                  LJ=LJ*LJ*LJ
                                  Vij=(LJ-1d0)*(LJ-1d0)
@@ -656,7 +656,7 @@
          ENDIF
       ENDDO
 
-      IF(exp.gt.2.9) THEN
+      IF(exp.GT.2.9) THEN
          V=V/72d0
       ENDif
 				
@@ -707,7 +707,7 @@
          ENDDO
          dk(i,1)=D(i)*D1
          dk(i,2)=dd*D(i)*D1
-         IF(alpha(i).lt.2d0) THEN 
+         IF(alpha(i).LT.2d0) THEN 
             di_up(i)=(dk(i,2)/2d0-dr(i,2))*2d0*D1
          else
             di_up(i)=(dk(i,1)/2d0+dr(i,1))*2d0*D1         
@@ -716,17 +716,17 @@
 
       ! inter-particle interactions
       DO i=1,N-1
-         IF(countn(i).ge.1) THEN
+         IF(countn(i).GE.1) THEN
             DO jj=1,countn(i)
                j=nl(jj,i)
                dij_up=(di_up(i)+di_up(j))/2d0  
                xij=x(i)-x(j)
                xij=xij-idnint(xij/Lx)*Lx  !! PBC
-               IF(dabs(xij).lt.dij_up+att) THEN
+               IF(dabs(xij).LT.dij_up+att) THEN
                   yij=y(i)-y(j)
                   yij=yij-idnint(yij/Ly)*Ly !! PBC
                   rijsq=xij**2+yij**2
-                  IF(rijsq.lt.(dij_up+att)**2) THEN
+                  IF(rijsq.LT.(dij_up+att)**2) THEN
                      di1j1=(dk(i,1)+dk(j,1))/2d0
                      DO ki=1,2
                         DO kj=1,2
@@ -736,9 +736,9 @@
                            yij=ya(i,ki)-ya(j,kj)
                            yij=yij-idnint(yij/Ly)*Ly !! PBC
                            rijsq=xij**2+yij**2
-                           IF(rijsq.lt.(dij+att)**2) THEN
+                           IF(rijsq.LT.(dij+att)**2) THEN
                               rij=dsqrt(rijsq)
-                              IF(exp .gt. 2.9) THEN
+                              IF(exp .GT. 2.9) THEN
                                  LJ=(dij/rij)*(dij/rij)
                                  LJ=LJ*LJ*LJ
                                  fc=1d0/rij*LJ*(LJ-1d0)
@@ -760,16 +760,16 @@
                               P=P+2d0*Pij
                               
                               fcontact = dsqrt(f_x * f_x + f_y * f_y)
-                              if (ki.eq.2) THEN
+                              IF(ki.EQ.2) THEN
                                   PP(i)=PP(i)+fcontact/(pi*dk(i,2)) !Pij
                               ENDif
-                              if (kj.eq.2) THEN
+                              IF(kj.EQ.2) THEN
                                   PP(j)=PP(j)+fcontact/(pi*dk(j,2)) !Pij
                               ENDif
-                              if (ki.eq.1) THEN
+                              IF(ki.EQ.1) THEN
                                   PPm(i)=PPm(i)+fcontact/(pi*dk(i,1)) !Pij
                               ENDif
-                              if (kj.eq.1) THEN
+                              IF(kj.EQ.1) THEN
                                   PPm(j)=PPm(j)+fcontact/(pi*dk(j,1)) !Pij
                               ENDif
                               
@@ -784,7 +784,7 @@
 
       
       
-      IF(exp .gt. 2.9) THEN
+      IF(exp .GT. 2.9) THEN
          DO i=1,N
             fx(i)=fx(i)/6d0
             fy(i)=fy(i)/6d0
@@ -839,7 +839,7 @@
 
       CALL makelist(N,x,y,D,D1,xp,yp,countn,nl)
       CALL func(N,x,y,th,D,D1,fp,countn,nl)
-      IF(fp.lt.ftol*dble(N).and.att.eq.0d0) THEN
+      IF(fp.LT.ftol*dble(N).AND.att.EQ.0d0) THEN
          fret=fp 
          RETURN
       ENDif
@@ -865,20 +865,20 @@
          
 c         WRITE(*,*) its, fret/dble(N), fret, fp
 
-         IF(att.eq.0d0) THEN
-            IF(dabs(fret-fp).lt.ftol1*fp.or.fret.lt.ftol*dble(N))THEN
+         IF(att.EQ.0d0) THEN
+            IF(dabs(fret-fp).LT.ftol1*fp.OR.fret.LT.ftol*dble(N))THEN
                 CALL func(N,x,y,th,D,D1,fp,countn,nl)
                RETURN
             ENDif
          else
-            IF(dabs(fret-fp).lt.ftol1) THEN
+            IF(dabs(fret-fp).LT.ftol1) THEN
                 CALL func(N,x,y,th,D,D1,fp,countn,nl)
                RETURN
             ENDIF 
          ENDif
          
          CALL CG_check(N,x,y,xp,yp,maxdis)	     
-         IF(maxdis.gt.width*D1) THEN
+         IF(maxdis.GT.width*D1) THEN
             CALL makelist(N,x,y,D,D1,xp,yp,countn,nl)
          ENDIF
          
@@ -894,7 +894,7 @@ c         WRITE(*,*) its, fret/dble(N), fret, fp
      +           +(xith(i)+gth(i))*xith(i)
          ENDDO
          
-         IF(gg.eq.0d0) THEN
+         IF(gg.EQ.0d0) THEN
             RETURN
          ENDif
          gam=dgg/gg
@@ -985,7 +985,7 @@ c      EXTERNAL func
       DOUBLE PRECISION dum,fu,q,r,u,ulim
       fa=func(ax)
       fb=func(bx)
-      IF(fb.gt.fa)THEN ! was gt
+      IF(fb.GT.fa)THEN ! was gt
         dum=ax
         ax=bx
         bx=dum
@@ -995,29 +995,29 @@ c      EXTERNAL func
       ENDif
       cx=bx+GOLD*(bx-ax)
       fc=func(cx)
-1     IF(fb.gt.fc)THEN ! was ge
+1     IF(fb.GT.fc)THEN ! was ge
         r=(bx-ax)*(fb-fc)
         q=(bx-cx)*(fb-fa)
         u=bx-((bx-cx)*q-(bx-ax)*r)/(2d0*dsign(max(dabs(q-r),TINY),q-r))
         ulim=bx+GLIMIT*(cx-bx)
-        IF((bx-u)*(u-cx).gt.0d0)THEN
+        IF((bx-u)*(u-cx).GT.0d0)THEN
           fu=func(u)
-          IF(fu.lt.fc)THEN
+          IF(fu.LT.fc)THEN
             ax=bx
             fa=fb
             bx=u
             fb=fu
             RETURN
-          else IF(fu.gt.fb)THEN
+          else IF(fu.GT.fb)THEN
             cx=u
             fc=fu
             RETURN
           ENDif
           u=cx+GOLD*(cx-bx)
           fu=func(u)
-        else IF((cx-u)*(u-ulim).gt.0d0)THEN
+        else IF((cx-u)*(u-ulim).GT.0d0)THEN
           fu=func(u)
-          IF(fu.lt.fc)THEN
+          IF(fu.LT.fc)THEN
             bx=cx
             cx=u
             u=cx+GOLD*(cx-bx)
@@ -1025,7 +1025,7 @@ c      EXTERNAL func
             fc=fu
             fu=func(u)
           ENDif
-        else IF((u-ulim)*(ulim-cx).ge.0d0)THEN ! was ge
+        else IF((u-ulim)*(ulim-cx).GE.0d0)THEN ! was ge
           u=ulim
           fu=func(u)
         else
@@ -1068,7 +1068,7 @@ c      EXTERNAL func
       ENDDO
 
       CALL CG_check(ncom,xt,yt,xp,yp,maxdis)
-      IF(maxdis.gt.width*D1com) THEN
+      IF(maxdis.GT.width*D1com) THEN
 	CALL makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
       ENDIF	
       CALL dfunc(ncom,xt,yt,tht,Dcom,D1com,fx,fy,fth,countn,nl)
@@ -1109,53 +1109,53 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
         xm=0.5*(a+b)
         tol1=tol*dabs(x)+ZEPS
         tol2=2.*tol1
-        IF(dabs(x-xm).le.(tol2-0.5d0*(b-a))) goto 3
-        IF(dabs(e).gt.tol1) THEN
+        IF(dabs(x-xm).LE.(tol2-0.5d0*(b-a))) goto 3
+        IF(dabs(e).GT.tol1) THEN
           d1=2.*(b-a)
           d2=d1
           IF(dw.ne.dx) d1=(w-x)*dx/(dx-dw)
           IF(dv.ne.dx) d2=(v-x)*dx/(dx-dv)
           u1=x+d1
           u2=x+d2
-          ok1=((a-u1)*(u1-b).gt.0d0).and.(dx*d1.le.0d0)
-          ok2=((a-u2)*(u2-b).gt.0d0).and.(dx*d2.le.0d0)
+          ok1=((a-u1)*(u1-b).GT.0d0).AND.(dx*d1.LE.0d0)
+          ok2=((a-u2)*(u2-b).GT.0d0).AND.(dx*d2.LE.0d0)
           olde=e
           e=d
-          IF(.not.(ok1.or.ok2))THEN
+          IF(.NOT.(ok1.OR.ok2))THEN
             goto 1
-          else if (ok1.and.ok2)THEN
-            IF(dabs(d1).lt.dabs(d2))THEN
+          else IF(ok1.AND.ok2)THEN
+            IF(dabs(d1).LT.dabs(d2))THEN
               d=d1
             else
               d=d2
             ENDif
-          else if (ok1)THEN
+          else IF(ok1)THEN
             d=d1
           else
             d=d2
           ENDif
-          IF(dabs(d).gt.dabs(0.5d0*olde))goto 1
+          IF(dabs(d).GT.dabs(0.5d0*olde))goto 1
           u=x+d
-          IF(u-a.lt.tol2 .or. b-u.lt.tol2) d=dsign(tol1,xm-x)
+          IF(u-a.LT.tol2 .OR. b-u.LT.tol2) d=dsign(tol1,xm-x)
           goto 2
         ENDif
-1       IF(dx.ge.0d0) THEN
+1       IF(dx.GE.0d0) THEN
           e=a-x
         else
           e=b-x
         ENDif
         d=0.5d0*e
-2        IF(dabs(d).ge.tol1) THEN
+2        IF(dabs(d).GE.tol1) THEN
           u=x+d
            fu=f(u)
         else
           u=x+dsign(tol1,d)
           fu=f(u)
-          IF(fu.gt.fx)goto 3
+          IF(fu.GT.fx)goto 3
         ENDif
         du=df(u)
-        IF(fu.le.fx) THEN
-          IF(u.ge.x) THEN
+        IF(fu.LE.fx) THEN
+          IF(u.GE.x) THEN
             a=x
           else
             b=x
@@ -1170,19 +1170,19 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
           fx=fu
           dx=du
         else
-          IF(u.lt.x) THEN
+          IF(u.LT.x) THEN
             a=u
           else
             b=u
           ENDif
-          IF(fu.le.fw .or. w.eq.x) THEN
+          IF(fu.LE.fw .OR. w.EQ.x) THEN
             v=w
             fv=fw
             dv=dw
             w=u
             fw=fu
             dw=du
-          else IF(fu.le.fv .or. v.eq.x .or. v.eq.w) THEN
+          else IF(fu.LE.fv .OR. v.EQ.x .OR. v.EQ.w) THEN
             v=u
             fv=fu
             dv=du
@@ -1220,7 +1220,7 @@ c  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       ENDDO
 
       CALL CG_check(ncom,xt,yt,xp,yp,maxdis)
-      IF(maxdis.gt.width*D1com) THEN
+      IF(maxdis.GT.width*D1com) THEN
 	CALL makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
       ENDIF
       CALL func(ncom,xt,yt,tht,Dcom,D1com,f1dim,countn,nl)
@@ -1240,27 +1240,27 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       INTEGER idum2,j,k,iv(NTAB),iy
       SAVE iv,iy,idum2
       DATA idum2/123456789/, iv/NTAB*0/, iy/0/
-      if (idum.le.0) THEN
+      IF(idum.LE.0) THEN
         idum=max(-idum,1)
         idum2=idum
         DO 11 j=NTAB+8,1,-1
           k=idum/IQ1
           idum=IA1*(idum-k*IQ1)-k*IR1
-          if (idum.lt.0) idum=idum+IM1
-          if (j.le.NTAB) iv(j)=idum
+          IF(idum.LT.0) idum=idum+IM1
+          IF(j.LE.NTAB) iv(j)=idum
 11      continue
         iy=iv(1)
       ENDif
       k=idum/IQ1
       idum=IA1*(idum-k*IQ1)-k*IR1
-      if (idum.lt.0) idum=idum+IM1
+      IF(idum.LT.0) idum=idum+IM1
       k=idum2/IQ2
       idum2=IA2*(idum2-k*IQ2)-k*IR2
-      if (idum2.lt.0) idum2=idum2+IM2
+      IF(idum2.LT.0) idum2=idum2+IM2
       j=1+iy/NDIV
       iy=iv(j)-idum2
       iv(j)=idum
-      IF(iy.lt.1)iy=iy+IMM1
+      IF(iy.LT.1)iy=iy+IMM1
       ran2=min(AM*iy,RNMX)
       RETURN
       END
@@ -1286,7 +1286,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       
       
       phi = calc_phi(D, alpha, D1, N)
-      if (fret.lt.ftol*N .or. phi.lt.0.25) THEN
+      IF(fret.LT.ftol*N .OR. phi.LT.0.25) THEN
           terminate = 0
           before_jamming = 1
           at_jamming = 0
@@ -1299,13 +1299,13 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       ENDif
       
       
-      if (above_jamming.eq.0 .and. at_jamming .eq. 0)THEN
-          if (fret.gt.(ftol * wide * N) )  THEN
+      IF(above_jamming.EQ.0 .AND. at_jamming .EQ. 0)THEN
+          IF(fret.GT.(ftol * wide * N) )  THEN
              dt = 0.5*dt
              dtstatus = 1
              terminate = 0
              RETURN 
-          else if (fret.gt.(ftol*N) .and. fret.lt.(ftol*wide*N))THEN
+          else IF(fret.GT.(ftol*N) .AND. fret.LT.(ftol*wide*N))THEN
               before_jamming = 0
               at_jamming = 1
               above_jamming = 1
@@ -1320,25 +1320,25 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       ENDif
       
       
-      if (phi_j .lt. 0.25) THEN
+      IF(phi_j .LT. 0.25) THEN
           WRITE(*,*) "ERROR: SHOULD NOT REACH THIS POINT"
       ENDif
       
-      if (at_jamming.ne.0) THEN
+      IF(at_jamming.ne.0) THEN
           WRITE(*,*) "SOMETHING WRONG: should be at_jamming = 0"
       ENDif
 
-      if (above_jamming.ne.1) THEN
+      IF(above_jamming.ne.1) THEN
           WRITE(*,*) "SOMETHING WRONG: should be above_jamming = 1"
       ENDif      
       
       at_jamming = 0
-      if (phi .lt. phi_j+dphi-delta) THEN
+      IF(phi .LT. phi_j+dphi-delta) THEN
           dt = 1
           terminate = 0
           dtstatus = 0
           RETURN
-      else if (phi .gt. phi_j+dphi+delta) THEN
+      else IF(phi .GT. phi_j+dphi+delta) THEN
           dt = 0.5 * dt
           dtstatus = 1
           terminate = 0
@@ -1390,7 +1390,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc, agecc, agehistcc,
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
-      implicit none
+      IMPLICIT NONE
       INTEGER Ntot,Ngen
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot)
       DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
@@ -1533,7 +1533,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc, agecc, agehistcc,
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
-      implicit none
+      IMPLICIT NONE
       INTEGER Ntot,Ngen
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot)
       DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
@@ -1616,13 +1616,13 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       ENDDO
 
          DO i=1,N
-            IF(celltype.eq.1) THEN
+            IF(celltype.EQ.1) THEN
                scale(i)=dsqrt(1d0+alpha(i)**2)/4d0*d(i)         
-            elseIF(celltype.eq.2) THEN
+            elseIF(celltype.EQ.2) THEN
                dd=alpha(i)-1d0
                scale(i)=dsqrt(2d0*(1d0+dd**4)/(1+dd**2)+
      +              4d0*(dd*(1d0+dd)/(1+dd**2))**2)/4d0*d(i)
-            elseIF(celltype.eq.3) THEN
+            elseIF(celltype.EQ.3) THEN
                scale(i)=dsqrt(2d0)/4d0*d(i)
             ENDif
             th(i)=th(i)*scale(i)
@@ -1660,7 +1660,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DO i=1,N
          ii=i-k
          nn=n-k
-         IF(F(ii).eq.1) THEN
+         IF(F(ii).EQ.1) THEN
             k=k+1
             DO j=ii,nn
                F(j) = F(j+1)
@@ -1730,7 +1730,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
             II=listP(i)
             DO j=1, i-1
                JJ=listP(j)	    
-!               IF(overlap(N,x,y,th,D,D1,II,JJ).lt.1.d0) THEN
+!               IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
                   c(II) = c(II)+overlap(N,x,y,th,D,D1,II,JJ) !1
                   c(JJ) = c(JJ)+overlap(N,x,y,th,D,D1,II,JJ) !1
 !               ENDif
@@ -1739,9 +1739,9 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
 
          ! Remove floaters
          i=1
-         DO while (i.le.N-R)
+         DO while (i.LE.N-R)
             II=listP(i)
-            IF(c(II).lt.3) THEN
+            IF(c(II).LT.3) THEN
                Nf = Nf + 1
                Rnew=Rnew+1
                R=R+1
@@ -1762,7 +1762,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
          II=listP(i)
          DO j=1, i-1
             JJ=listP(j)	    
-!            IF(overlap(N,x,y,th,D,D1,II,JJ).lt.1.d0) THEN
+!            IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
                Z = Z+2*overlap(N,x,y,th,D,D1,II,JJ)
 !            ENDif
          ENDDO
@@ -1800,18 +1800,18 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       COMMON /f9com/ scale
       COMMON /f10com/ celltype
       
-      if (D1.ne.1.d0) THEN
+      IF(D1.ne.1.d0) THEN
           WRITE(*,*) "SOMETHING IS WRONG. D1 SHALL BE EQ. TO 1.0"
       ENDif
       
       overlap = 0.d0
 
       ! BUDDING CELLS
-      if (celltype.eq.2) THEN
+      IF(celltype.EQ.2) THEN
           WRITE(*,*) "THERE IS SPECIAL CONTACT FUNCTION FOR YEAST"
 
       ! DISK CELLS      
-      elseif (celltype.eq.3) THEN
+      elseIF(celltype.EQ.3) THEN
                 
           xij=x(i)-x(j)
           xij=xij-idnint(xij/Lx)*Lx  !! PBC
@@ -1821,7 +1821,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           rij=dsqrt(xij**2+yij**2)  
           dij=D1*(d(i)+d(j))/2d0
 
-          IF(rij.lt.dij) THEN
+          IF(rij.LT.dij) THEN
               overlap = 1.d0
           else
               overlap = 0.d0
@@ -1891,13 +1891,13 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
                       yij=ya(i,ki)-ya(j,kj)
                       yij=yij-idnint(yij/Ly)*Ly !! PBC
                       rijsq=xij**2+yij**2
-                      IF(rijsq.lt.(dij**2)) THEN
+                      IF(rijsq.LT.(dij**2)) THEN
                           Z = Z+2
                           NCBUD(i,ki)=NCBUD(i,ki)+1
                           NCBUD(j,kj)=NCBUD(j,kj)+1
-                          if (ki.eq.1 .and. kj.eq.1) THEN
+                          IF(ki.EQ.1 .AND. kj.EQ.1) THEN
                               Nmm = Nmm + 2
-                          elseif (ki.eq.2 .and. kj.eq.2) THEN
+                          elseIF(ki.EQ.2 .AND. kj.EQ.2) THEN
                               Nbb = Nbb + 2
                           else
                               Nmb = Nmb + 2
@@ -1911,23 +1911,23 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       
       DO i=1,N
           flag = 0
-          if ( (NCBUD(i,1)+NCBUD(i,2)).lt.3 ) THEN
+          IF( (NCBUD(i,1)+NCBUD(i,2)).LT.3 ) THEN
               nf = nf + 1
               flag = 1
           ENDif
           
-          if ( (NCBUD(i,1)+NCBUD(i,2)).eq.3 ) THEN
-              if ( NCBUD(i,1).eq.2 .or. NCBUD(i,2).eq.2 ) THEN
+          IF( (NCBUD(i,1)+NCBUD(i,2)).EQ.3 ) THEN
+              IF( NCBUD(i,1).EQ.2 .OR. NCBUD(i,2).EQ.2 ) THEN
                   nf = nf + 1
                   flag = 1
               ENDif
           ENDif
           
-          if (flag.eq.0) THEN    
-              if ( NCBUD(i,1).eq.0 ) THEN
+          IF(flag.EQ.0) THEN    
+              IF( NCBUD(i,1).EQ.0 ) THEN
                   nu = nu + 1
               ENDif
-              if ( NCBUD(i,2).eq.0 ) THEN
+              IF( NCBUD(i,2).EQ.0 ) THEN
                   nu = nu + 1
               ENDif
           ENDif
@@ -1937,7 +1937,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       END
       
       SUBROUTINE out_numbers(N, Nf, Nu, Ziso)
-      implicit none
+      IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
       INTEGER N, Nf, Nu, Ziso
@@ -1996,7 +1996,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
                       yij=ya(i,ki)-ya(j,kj)
                       yij=yij-idnint(yij/Ly)*Ly !! PBC
                       rijsq=xij**2+yij**2
-                      IF(rijsq.lt.(dij**2)) THEN
+                      IF(rijsq.LT.(dij**2)) THEN
                           NCBUD(i,ki)= NCBUD(i,ki)+1
                           NCBUD(j,kj)= NCBUD(j,kj)+1
                       ENDif
@@ -2007,7 +2007,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       
       DO i=1,N
           BUDCONT(i) = NCBUD(i,2)
-          if (BUDCONT(i).eq.0)THEN
+          IF(BUDCONT(i).EQ.0)THEN
               ZEROBUDS = ZEROBUDS + 1
           ENDif
       ENDDO
@@ -2033,7 +2033,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       
       DO i=1,N
           ratei=rate(i)
-          IF(P0.gt.0d0.and.PP(i).gt.0d0) THEN
+          IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
               ratei=ratei*dexp(-PP(i)/P0)
           ENDif
           
