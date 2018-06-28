@@ -490,17 +490,16 @@
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine makelist(N,x,y,D,D1,xp,yp,countn,nl)
+      SUBROUTINE makelist(N,x,y,D,D1,xp,yp,countn,nl)
+      IMPLICIT NONE
+      INTEGER Ntot,N
       PARAMETER(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
-      double precision Lx,Ly
-      integer countn(Ntot),nl(800,Ntot),N,celltype
-      common /f10com/ celltype
-      common /f5com/ Lx,Ly
+      DOUBLE PRECISION x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
+      INTEGER countn(Ntot),nl(800,Ntot)
       
-      call makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
+      CALL makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
 
-      end
+      END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl) 
