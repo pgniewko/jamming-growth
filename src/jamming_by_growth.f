@@ -2,8 +2,8 @@
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!
       !!
-      !!   Quasi-static growth of cells in rectangular cavity with
-      !!   physical outlet via conjugate gradient energy minimization. 
+      !!   Quasi-static growth of cells in a rectangular pbc box
+      !!   via conjugate gradient energy minimization. 
       !! 
       !! 
       !!       Cell type - 1: ellipse (don't use)
@@ -18,23 +18,22 @@
       !!        Feedback - growth rate ~ e^(-P/P0)
       !!                   P0=-1: no feedback
       !!
-      !!
-      !!      Carl  Schreck
-      !!      9/17/2015
-      !!
-      !!      Pawel Gniewek
-      !!      May/2017-
+      !!      Author:   Pawel Gniewek, Carl Schreck
+      !!      Email(PG):pawel.gniewek@berkeley.edu
+      !!      Email(CS): ...
+      !!      License:  BSD-3
+      !!      Reference: "Jamming by growth"; Gniewek, P. and Schreck, C.S. and Hallatschek, O.; 2018
       !!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      program divide_cavity_physbox_combo
+      PROGRAM jammed_packing
 
       implicit none
       integer Ntot,Ngen
-      parameter(Ntot=4096,Ngen=4096)
+      PARAMETER(Ntot=4096,Ngen=4096)
       double precision pi
-      parameter(pi=3.1415926535897932d0)
+      PARAMETER(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp,ran2
       double precision ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei,ap
       double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
@@ -485,7 +484,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine CG_check(N,x,y,xp,yp,maxdis)
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       double precision maxdis,x(Ntot),y(Ntot),xp(Ntot),yp(Ntot)
       integer N
 
@@ -502,7 +501,7 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine makelist(N,x,y,D,D1,xp,yp,countn,nl)
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
       double precision Lx,Ly,ap
       integer countn(Ntot),nl(800,Ntot),N,celltype
@@ -515,7 +514,7 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl) 
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
       double precision D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
       double precision dd,dr1,dr2,dk2,di_up(Ntot),exp,att
@@ -565,7 +564,7 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine func(N,x,y,th,D,D1,V,countn,nl)
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
       integer countn(Ntot),nl(800,Ntot),N,celltype
       common /f10com/ celltype
@@ -579,7 +578,7 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
       double precision fx(Ntot),fy(Ntot),fth(Ntot)
       integer countn(Ntot),nl(800,Ntot),N,celltype
@@ -594,9 +593,9 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine func_dimer(N,x,y,th,D,D1,V,countn,nl)
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       double precision pi
-      parameter(pi=3.1415926535897932d0)
+      PARAMETER(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,alpha(Ntot)
       double precision rij,xij,yij,dij,exp,dlnsig,dij_up,sigma,LJ
       double precision Lx,Ly,ap,rijsq,dijsq_up,scale(Ntot),c(Ntot),att
@@ -681,9 +680,9 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       double precision pi
-      parameter(pi=3.1415926535897932d0)
+      PARAMETER(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
       double precision fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
       double precision dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y,scale(Ntot)
@@ -828,10 +827,10 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       integer its,iter,ITMAX
       double precision fret,ftol,EPS,ftol1
-      parameter (EPS=1d-10,ITMAX=1000000000)
+      PARAMETER (EPS=1d-10,ITMAX=1000000000)
       double precision dgg,fp,gam,gg,gx(Ntot),gy(Ntot),hx(Ntot),hy(Ntot)
       double precision D(Ntot),D1,xix(Ntot),xiy(Ntot),xith(Ntot),width
       double precision x(Ntot),y(Ntot),maxdis,xp(Ntot),yp(Ntot)
@@ -1248,12 +1247,12 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION ran2(idum)
-      INTEGER idum,IM1,IM2,IMM1,IA1,IA2,IQ1,IQ2,IR1,IR2,NTAB,NDIV
+      integer idum,IM1,IM2,IMM1,IA1,IA2,IQ1,IQ2,IR1,IR2,NTAB,NDIV
       double precision ran2,AM,EPS,RNMX
       PARAMETER (IM1=2147483563,IM2=2147483399,AM=1./IM1,IMM1=IM1-1,
      *IA1=40014,IA2=40692,IQ1=53668,IQ2=52774,IR1=12211,IR2=3791,
      *NTAB=32,NDIV=1+IMM1/NTAB,EPS=1.2e-7,RNMX=1.-EPS)
-      INTEGER idum2,j,k,iv(NTAB),iy
+      integer idum2,j,k,iv(NTAB),iy
       SAVE iv,iy,idum2
       DATA idum2/123456789/, iv/NTAB*0/, iy/0/
       if (idum.le.0) then
@@ -1280,17 +1279,17 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       ran2=min(AM*iy,RNMX)
       return
       END
-               
+C  (C) Copr. 1986-92 Numerical Recipes Software .                 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!! BELOW IS A NEW CODE ADDED BY PAWEL GNIEWEK !!!!!!!!
-      subroutine determine_system_status(N,D,D1,alpha,ftol,wide,dt,
+      SUBROUTINE determine_system_status(N,D,D1,alpha,ftol,wide,dt,
      +     fret, phi_j,dphi,
      +     dtstatus, terminate,
      +     before_jamming, at_jamming, above_jamming)
-      implicit none
+      IMPLICIT NONE
       integer Ntot, N
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       
       double precision delta, phi, calc_phi
       double precision D(Ntot),alpha(Ntot), D1
@@ -1365,35 +1364,34 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
           return
       endif
       
-      return
-      end
+      END
       
       
       
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      double precision function calc_phi(D, alpha, D1, N)
-         implicit none
-         integer Ntot
-         double precision pi
-         parameter(pi=3.1415926535897932d0)
-         parameter(Ntot = 4096)
-         double precision D(Ntot),alpha(Ntot)
-         double precision Lx,Ly,ap
-         double precision phis,D1,phit
-         integer i,N
+      DOUBLE PRECISION FUNCTION calc_phi(D, alpha, D1, N)
+      IMPLICIT NONE
+      integer Ntot
+      double precision pi
+      PARAMETER(pi=3.1415926535897932d0)
+      PARAMETER(Ntot = 4096)
+      double precision D(Ntot),alpha(Ntot)
+      double precision Lx,Ly,ap
+      double precision D1,phit
+      integer i,N
          
-         common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly,ap
          
-         phit=0d0
+      phit=0d0
          
-         do i=1,N
+      do i=1,N
              phit=phit+(1d0+(alpha(i)-1d0)**2)*D(i)**2
-         enddo
+      enddo
          
-         calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
+      calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
          
-      end function
+      END FUNCTION
       
       
       subroutine copy_everything(Ntot, Ngen, ndiv, x, y, th, D, alpha, 
@@ -1650,14 +1648,16 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 !!!!!!!!!!!!!!!! remove floaters !!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       
-      subroutine remove_floaters(x,y,th,phi,D1,D,N,F)
-      implicit none
+      SUBROUTINE remove_floaters(x,y,th,phi,D1,D,N,F)
+      IMPLICIT NONE
       integer Ntot, N 
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
+      double precision pi
+      PARAMETER(pi=3.141592653589793238d0)
       integer R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot), DoF
       double precision overlap, aspect_ratio
       integer l, F(Ntot)
-      double precision x(Ntot),y(Ntot),th(Ntot),pi,phi,alpha(Ntot)
+      double precision x(Ntot),y(Ntot),th(Ntot),phi,alpha(Ntot)
       double precision thIJ, t(3), sign(3), AR2, cont,scale(Ntot)
       double precision xij, yij, rij, D(Ntot), D1, z_ave
       double precision dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
@@ -1668,8 +1668,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       common /f3com/ alpha ! aspect ratio
       common /f5com/ Lx,Ly,ap
       common /f9com/ scale
-      
-      pi = 3.141592653589793238d0
 
       ! Remove floaters
       k=0
@@ -1698,19 +1696,19 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       enddo
       phi=pi*D1*D1*phi/Lx/Ly/4d0
       
-      end
+      END
 
       
       
 !!!!!!!!!!!!!!!! counts contacts !!!!!!!!!!!!!
-      subroutine contacts(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
-      implicit none
+      SUBROUTINE contacts(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
+      IMPLICIT NONE
       integer Ntot, N        
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       integer R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot)
       double precision overlap, aspect_ratio
       integer l, F(Ntot), Nf, Nu,Nmm,Nbb,Nmb
-      double precision x(Ntot), y(Ntot), th(Ntot), pi,alpha(Ntot)
+      double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
       double precision thIJ, t(3), sign(3),cont
       double precision xij, yij, rij, D(Ntot), D1, z_ave
       double precision dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
@@ -1718,7 +1716,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       double precision x2(Ntot), y2(Ntot), th2(Ntot)
       integer Z
       common /f3com/ alpha ! aspect ratio
-      pi = 3.141592653589793238d0
+      
       Z = 0
       R = 0
 
@@ -1758,7 +1756,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
          i=1
          do while (i.le.N-R)
             II=listP(i)
-            !write(*,*) i, II, c(II)
             if(c(II).lt.3) then
                Nf = Nf + 1
                Rnew=Rnew+1
@@ -1788,15 +1785,15 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 
       z_ave = dble(Z)/dble(N-R)
 
-      end
+      END
       
       
 !     CUSTOM OVERLAP FUNCTION
-      
-      function overlap(N,x,y,th,D,D1,i,j)
-      implicit none
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      FUNCTION overlap(N,x,y,th,D,D1,i,j)
+      IMPLICIT NONE
       integer Ntot, N     
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
       double precision rij,xij,yij,dij,ep,overlap
       double precision dtij,dthi,dthj,dtij2,dthi2,dthj2
@@ -1828,9 +1825,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       if (celltype.eq.2) then
           write(*,*) "THERE IS SPECIAL CONTACT FUNCTION FOR YEAST"
 
-!          EXIT(1)
-
-          
       ! DISK CELLS      
       elseif (celltype.eq.3) then
                 
@@ -1849,29 +1843,28 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
           end if
       endif
           
-      end
+      END FUNCTION
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! inuse
-      subroutine contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
-      implicit none
+      SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
+      IMPLICIT NONE
       integer Ntot, N 
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       integer i, j, F(Ntot), Z, NCBUD(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
       integer ki,kj,k
       double precision overlap, aspect_ratio
       double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
       double precision xij, yij, D(Ntot), D1
       double precision exp,dij_up,dij
-      double precision Lx,Ly,ap,rijsq,c(Ntot),att ! ,scale(Ntot)
+      double precision Lx,Ly,ap,rijsq,c(Ntot),att
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       double precision dk(Ntot,2)
       integer flag
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
       common /f5com/ Lx,Ly,ap
-!      common /f9com/ scale
 
       Z = 0
       Nf= 0
@@ -1885,8 +1878,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       
       ! convert to from molecules to atoms
       do i=1,N
-!         c(i)=dcos(th(i)/scale(i))
-!         s(i)=dsin(th(i)/scale(i))
          c(i)=dcos( th(i) )
          s(i)=dsin( th(i) )         
          dd=alpha(i)-1d0
@@ -1963,18 +1954,18 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       subroutine out_numbers(N, Nf, Nu, Ziso)
       implicit none
       integer Ntot
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       integer N, Nf, Nu, Ziso
       
       Ziso = 6*(N-Nf) - 2*Nu - 2
       
-      end
+      END
       
-      
-      subroutine bud_contacts(x,y,th,D1,D,N,BUDCONT,ZEROBUDS)
-      implicit none
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
+      SUBROUTINE bud_contacts(x,y,th,D1,D,N,BUDCONT,ZEROBUDS)
+      IMPLICIT NONE
       integer Ntot, N
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       integer i, j, NCBUD(Ntot,2), ZEROBUDS, BUDCONT(Ntot),k,ki,kj
       double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
       double precision xij, yij, D(Ntot), D1
@@ -2037,13 +2028,13 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       enddo
 
      
-      end
+      END
       
-      subroutine growth_rate(gr,N,rate,PP,P0,D,alpha)
-          
-      implicit none
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
+      SUBROUTINE growth_rate(gr,N,rate,PP,P0,D,alpha)    
+      IMPLICIT NONE
       integer Ntot,i,N
-      parameter(Ntot = 4096)
+      PARAMETER(Ntot = 4096)
       double precision ratei,P0
       double precision rate(Ntot),PP(Ntot),D(Ntot)
       double precision alpha(Ntot)
@@ -2069,4 +2060,4 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       
       gr = total_newmass / total_area
       
-      end
+      END
