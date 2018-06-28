@@ -3,9 +3,10 @@
       !!
       !!
       !!
-      !!      Author: Pawel Gniewek
-      !!      Email:
-      !!      License:
+      !!      Author:  Pawel Gniewek
+      !!      Email:   pawel.gniewek@berkeley.edu
+      !!      License: BSD-3
+      !!      Reference: "Jamming by growth"; Gniewek, P. and Schreck, C.S. and Hallatschek, O.; 2018
       !!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -28,7 +29,7 @@
       
       character file_conf*150
       character file_traj*150
-      character file_G*150
+      character file_G_data*150
       
       integer F(Ntot), Nc, Ziso
       double precision calc_phi, wide
@@ -78,8 +79,8 @@
       file_traj='prod_shear_' // TRIM(file_conf)
       open(unit=11,file=TRIM(file_traj), status='replace')
       
-      file_G ='G_data_' // TRIM(file_conf)
-      open(unit=12,file=TRIM(file_G), status='replace')
+      file_G_data ='G_data_' // TRIM(file_conf)
+      open(unit=12,file=TRIM(file_G_data), status='replace')
 
 !     READ PACKING FROM FILE      
       read(1, *) N, phi_init
@@ -110,8 +111,6 @@
          write(*,*) N,fret/dble(N), 
      +     P,delrx,ddelrx,step_index,SSTRESS,SSTRESS-SSTRESS0
     
-
-         flush(12)
          ! convert back to angles
          do i=1,N
             th(i)=th(i)/scale(i)
@@ -120,8 +119,8 @@
          call contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
          call out_numbers(N, Nf, Nu, Ziso)
          write(12,'(3E26.18,5I12)')delrx,SSTRESS,SSTRESS-SSTRESS0,
-     +         N,Nc,Nf,Nu,Ziso   
-       
+     +         N,Nc,Nf,Nu,Ziso
+     
          phi = calc_phi(D, alpha, D1, N) 
          write(11,*) 2*N, phi
          do i=1,N              
@@ -140,7 +139,7 @@
          
       enddo
       
-      END
+      END PROGRAM
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
