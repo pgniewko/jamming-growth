@@ -552,36 +552,33 @@
  
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine func(N,x,y,th,D,D1,V,countn,nl)
+      SUBROUTINE func(N,x,y,th,D,D1,V,countn,nl)
+      IMPLICIT NONE
+      INTEGER N,Ntot
       PARAMETER(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
-      integer countn(Ntot),nl(800,Ntot),N,celltype
-      common /f10com/ celltype
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
+      INTEGER countn(Ntot),nl(800,Ntot)
 
+      CALL func_dimer(N,x,y,th,D,D1,V,countn,nl)
 
-      call func_dimer(N,x,y,th,D,D1,V,countn,nl)
-
-
-      end
+      END
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      SUBROUTINE dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      IMPLICIT NONE
+      INTEGER N,Ntot
       PARAMETER(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
-      double precision fx(Ntot),fy(Ntot),fth(Ntot)
-      integer countn(Ntot),nl(800,Ntot),N,celltype
-      common /f10com/ celltype
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
+      DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot)
+      INTEGER countn(Ntot),nl(800,Ntot)
 
-
-      call dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
-
-
-
-      end
+      CALL dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      
+      END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine func_dimer(N,x,y,th,D,D1,V,countn,nl)
+      SUBROUTINE func_dimer(N,x,y,th,D,D1,V,countn,nl)
       PARAMETER(Ntot = 4096)
       double precision pi
       PARAMETER(pi=3.1415926535897932d0)
@@ -662,9 +659,8 @@
       if(exp.gt.2.9) then
          V=V/72d0
       endif
-
-      return				
-      end
+				
+      END
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
