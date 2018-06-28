@@ -23,7 +23,6 @@ def get_file(fname):
     data = np.loadtxt(fname)
     data = data.T
 
-
     strain = data[0]
     stress = data[2]
     contacts = data[4]
@@ -43,17 +42,18 @@ def fit(strain_, stress_):
     
     return slope, intercept
 
-fin = sys.argv[1]
 
-dphi = float(sys.argv[2])
-P0 = float(sys.argv[3])
+if __name__ == "__main__":
+    fin = sys.argv[1]
+    dphi = float(sys.argv[2])
+    P0 = float(sys.argv[3])
 
-strain, stress = get_file(fin)
-G_, c_ = fit(strain, stress)
+    strain, stress = get_file(fin)
+    G_, c_ = fit(strain, stress)
 
-foutname = 'GFIT_' + fin
-fout = open(foutname, 'w')
-fout.write(str(dphi) + " " + str(P0) + " "+ str(G_) + " " + str(c_) + "\n")
-fout.close()
+    foutname = 'GFIT_' + fin
+    fout = open(foutname, 'w')
+    fout.write(str(dphi) + " " + str(P0) + " "+ str(G_) + " " + str(c_) + "\n")
+    fout.close()
 
 
