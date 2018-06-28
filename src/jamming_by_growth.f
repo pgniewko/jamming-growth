@@ -30,95 +30,95 @@
       PROGRAM jammed_packing
 
       IMPLICIT NONE
-      integer Ntot,Ngen
+      INTEGER Ntot,Ngen
       PARAMETER(Ntot=4096,Ngen=4096)
-      double precision pi
+      DOUBLE PRECISION pi
       PARAMETER(pi=3.1415926535897932d0)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp,ran2
-      double precision ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei
-      double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
-      double precision rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
-      double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT,P0
-      double precision tbirth(Ntot*Ngen),cc,ss,dr(2),dd,corr,att,rat
-      double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
-      double precision xdiv(999,2),ydiv(999,2),thdiv(999,2)
-      double precision dt, PPm(Ntot), total_growthrate
-      integer dtstatus, terminate
-      integer N,Nr,seed,iter,i,j,k,kk,c(Ntot,Ngen),m,skip,Nexist
-      integer celltype,divtype,nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      integer age(Ntot),agehist(Ngen,2),agetot1,agetot2
-      integer div,ndiv,idiv(999,2),kdiv, Nf, Nu, Nmm,Nbb,Nmb
-      character file1*80
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp,ran2
+      DOUBLE PRECISION ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei
+      DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
+      DOUBLE PRECISION rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
+      DOUBLE PRECISION aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT,P0
+      DOUBLE PRECISION tbirth(Ntot*Ngen),cc,ss,dr(2),dd,corr,att,rat
+      DOUBLE PRECISION xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
+      DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
+      DOUBLE PRECISION dt, PPm(Ntot), total_growthrate
+      INTEGER dtstatus, terminate
+      INTEGER N,Nr,seed,iter,i,j,k,kk,c(Ntot,Ngen),m,skip,Nexist
+      INTEGER celltype,divtype,nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
+      INTEGER age(Ntot),agehist(Ngen,2),agetot1,agetot2
+      INTEGER div,ndiv,idiv(999,2),kdiv, Nf, Nu, Nmm,Nbb,Nmb
+      CHARACTER file1*80
       
 ! NEW DATA 
-      character file_LF_JAMM*120
-      character file_LF_DPHI*120
-      character STATS_file_LF_JAMM*120
-      character STATS_file_LF_DPHI*120
-      character file_NC*100
+      CHARACTER file_LF_JAMM*120
+      CHARACTER file_LF_DPHI*120
+      CHARACTER STATS_file_LF_JAMM*120
+      CHARACTER STATS_file_LF_DPHI*120
+      CHARACTER file_NC*100
       
-      double precision xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
-      double precision alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
-      double precision scalecc(Ntot)
-      double precision Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
-      double precision aclonecc(Ntot*Ngen)
-      double precision tbirthcc(Ntot*Ngen)
-      double precision xbirthcc(Ntot*Ngen),ybirthcc(Ntot*Ngen)
-      double precision xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
-      integer Ncc,ccc(Ntot,Ngen),Nexistcc
-      integer nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
-      integer agecc(Ntot),agehistcc(Ngen,2)
-      integer idivcc(999,2), ndivcc
-      integer F(Ntot), Nc, Ziso, F_e(Ntot)
-      integer BUDCONT(Ntot), BUDCONTCC(Ntot), ZEROBUDS
-      double precision phitemp, calc_phi, wide
-      integer N_j,Ziso_j,Nc_j,Nf_j,Nu_j,Nmm_j,Nbb_j,Nmb_j
-      double precision phi_j, dphi
+      DOUBLE PRECISION xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
+      DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
+      DOUBLE PRECISION scalecc(Ntot)
+      DOUBLE PRECISION Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
+      DOUBLE PRECISION aclonecc(Ntot*Ngen)
+      DOUBLE PRECISION tbirthcc(Ntot*Ngen)
+      DOUBLE PRECISION xbirthcc(Ntot*Ngen),ybirthcc(Ntot*Ngen)
+      DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
+      INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
+      INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
+      INTEGER agecc(Ntot),agehistcc(Ngen,2)
+      INTEGER idivcc(999,2), ndivcc
+      INTEGER F(Ntot), Nc, Ziso, F_e(Ntot)
+      INTEGER BUDCONT(Ntot), BUDCONTCC(Ntot), ZEROBUDS
+      DOUBLE PRECISION phitemp, calc_phi, wide
+      INTEGER N_j,Ziso_j,Nc_j,Nf_j,Nu_j,Nmm_j,Nbb_j,Nmb_j
+      DOUBLE PRECISION phi_j, dphi
       
-      integer before_jamming, at_jamming, above_jamming
+      INTEGER before_jamming, at_jamming, above_jamming
       
 ! END OF NEW DATA      
       
-      common /f2com/ width
-      common /f3com/ alpha
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
-      common /f6com/ P,PP,PT,PR,PPm
-      common /f8com/ alpha0
-      common /f9com/ scale
-      common /f10com/ celltype
+      COMMON /f2com/ width
+      COMMON /f3com/ alpha
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
+      COMMON /f6com/ P,PP,PT,PR,PPm
+      COMMON /f8com/ alpha0
+      COMMON /f9com/ scale
+      COMMON /f10com/ celltype
 
-      ! read geometric parameters
-      read(*,*) alpha0
-      read(*,*) Lx
-      read(*,*) Ly
+      ! READ geometric parameters
+      READ(*,*) alpha0
+      READ(*,*) Lx
+      READ(*,*) Ly
 
-      ! read cell parameters
-      read(*,*) celltype
-      read(*,*) divtype
-      read(*,*) P0
-      read(*,*) att
+      ! READ cell parameters
+      READ(*,*) celltype
+      READ(*,*) divtype
+      READ(*,*) P0
+      READ(*,*) att
 
-      ! read run parameters
-      read(*,*) rate0
-      read(*,*) desync
-      read(*,*) seed
-      read(*,*) skip
+      ! READ run parameters
+      READ(*,*) rate0
+      READ(*,*) desync
+      READ(*,*) seed
+      READ(*,*) skip
 
-      ! read pdhi exponent
-      read(*,*) dphi
+      ! READ pdhi exponent
+      READ(*,*) dphi
       
-      ! read output files
-      read(*,*) file1
+      ! READ output files
+      READ(*,*) file1
 
       if(celltype.eq.1 .or. celltype.eq.3) then
-           write(*,*) "ELLIPSE AND DISK CELL TYPE IS NOT SUPPORTED"
-           call EXIT(0)
+           WRITE(*,*) "ELLIPSE AND DISK CELL TYPE IS NOT SUPPORTED"
+           CALL EXIT(0)
       endif
      
       if(P0.eq.0d0) then
-           write(*,*) "P0 = 0 not supported"
-           call EXIT(0)
+           WRITE(*,*) "P0 = 0 not supported"
+           CALL EXIT(0)
       endif
       
       ! parameters
@@ -140,7 +140,7 @@
       above_jamming = 0
 
       ! FILES
- 123  open(unit=1,file=TRIM(file1), status='replace') ! CONFIGURATION FILE
+ 123  OPEN(unit=1,file=TRIM(file1), status='replace') ! CONFIGURATION FILE
       
       ! JAMMED FILES    
       file_LF_JAMM='LF_JAMM_' // TRIM(file1)            ! unit=11
@@ -149,13 +149,13 @@
       
       ! DPHI OUTPUT FILES
       file_LF_DPHI='LF_DPHI_' // TRIM(file1)
-      open(unit=12,file=TRIM(file_LF_DPHI), status='replace')
+      OPEN(unit=12,file=TRIM(file_LF_DPHI), status='replace')
       STATS_file_LF_DPHI='STATS_LF_DPHI_' // TRIM(file1)
-      open(unit=22,file=TRIM(STATS_file_LF_DPHI), status='replace')
+      OPEN(unit=22,file=TRIM(STATS_file_LF_DPHI), status='replace')
       
       ! SOME STATS
       file_NC='NC_' // TRIM(file1)
-      open(unit=13,file=TRIM(file_NC), status='replace')
+      OPEN(unit=13,file=TRIM(file_NC), status='replace')
       
       ! initial size & aspect ratios - total vol = (1+rat)*alpha0
       d(1)=1d0
@@ -190,7 +190,7 @@
       do while (terminate.ne.1)
       k=k+1
       
-      call copy_everything(Ntot,Ngen,ndiv,x,y,th,D,alpha,rate,
+      CALL copy_everything(Ntot,Ngen,ndiv,x,y,th,D,alpha,rate,
      +     alphar,
      +     scale, P, PP, D0, aclone,
      +     tbirth, xbirth, ybirth, xdiv, ydiv, thdiv,
@@ -310,15 +310,15 @@
          enddo
            
          ! minimize energy
-         call frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
+         CALL frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
         
          
          phitemp = calc_phi(D, alpha, D1, N)
          
-         write(*,*) k, N,Nc,fret/dble(N), P, dt, phitemp,
+         WRITE(*,*) k, N,Nc,fret/dble(N), P, dt, phitemp,
      +     before_jamming, at_jamming, above_jamming   
 
-         call determine_system_status(N,D,D1,alpha,ftol,wide,dt,
+         CALL determine_system_status(N,D,D1,alpha,ftol,wide,dt,
      +     fret, phi_j, dphi,
      +     dtstatus, terminate,
      +     before_jamming, at_jamming, above_jamming)
@@ -326,7 +326,7 @@
          
          ! REJECT THE MOVE
          if(dtstatus.eq.1) then
-         call copy_back_everything(Ntot, Ngen,ndiv,x,y,th,D,alpha,
+         CALL copy_back_everything(Ntot, Ngen,ndiv,x,y,th,D,alpha,
      +     rate, 
      +     alphar,
      +     scale, P, PP, D0, aclone,
@@ -341,7 +341,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!         
 
 !         phitemp = calc_phi(D, alpha, D1, N)
-!         write(*,*) "*",k, N,fret/dble(N), P, dt, phitemp,
+!         WRITE(*,*) "*",k, N,fret/dble(N), P, dt, phitemp,
 !     +     before_jamming, at_jamming, above_jamming
          
          ! convert back to angles
@@ -351,7 +351,7 @@
          
          if(mod(k,skip).eq.0) then
             phi = calc_phi(D, alpha, D1, N) 
-            write(1,*) 2*N, phi
+            WRITE(1,*) 2*N, phi
             do i=1,N              
                cc=dcos(th(i))
                ss=dsin(th(i))
@@ -362,26 +362,26 @@
                   xa(kk)=x(i)+dr(kk)*cc
                   ya(kk)=y(i)+dr(kk)*ss
                enddo
-               write(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0
-               write(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1
+               WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0
+               WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1
             enddo
-            flush(1) 
+            FLUSH(1) 
          endif
          
          
 
          if ( at_jamming.eq.1 ) then
-            open(unit=11,file=TRIM(file_LF_JAMM), status='replace')
-      open(unit=21,file=TRIM(STATS_file_LF_JAMM), status='replace')
+            OPEN(unit=11,file=TRIM(file_LF_JAMM), status='replace')
+      OPEN(unit=21,file=TRIM(STATS_file_LF_JAMM), status='replace')
             phi = calc_phi(D, alpha, D1, N)
             
-            call growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)
+            CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)
             
-            write(1,*) 2*N, phi
-            write(11,*) N, phi
-            write(21,*) 2*N, phi, total_growthrate
+            WRITE(1,*) 2*N, phi
+            WRITE(11,*) N, phi
+            WRITE(21,*) 2*N, phi, total_growthrate
             do i=1,N
-                write(11,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
+                WRITE(11,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
                 
                 cc=dcos(th(i))
                 ss=dsin(th(i))
@@ -392,28 +392,28 @@
                     xa(kk)=x(i)+dr(kk)*cc
                     ya(kk)=y(i)+dr(kk)*ss
                 enddo
-                write(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-                write(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
+                WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
+                WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
                 
-                write(21,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
+                WRITE(21,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
      +     PPm(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
-                write(21,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
+                WRITE(21,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
      +     PP(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
             enddo
-            flush(1)
-            flush(11)
+            FLUSH(1)
+            FLUSH(11)
             close(11)
-            flush(21)
+            FLUSH(21)
             close(21)
       
             close(13)
-            open(unit=13,file=TRIM(file_NC), status='replace')
-            call contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
-            call out_numbers(N, Nf, Nu, Ziso)
+            OPEN(unit=13,file=TRIM(file_NC), status='replace')
+            CALL contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
+            CALL out_numbers(N, Nf, Nu, Ziso)
 
-           write(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+           WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
      +     phi,P,fret,P0,total_growthrate
-            flush(13)
+            FLUSH(13)
             above_jamming = 1
             at_jamming = 0
          endif
@@ -424,13 +424,13 @@
       
       
       phi = calc_phi(D, alpha, D1, N)
-      call growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)   
+      CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)   
       ! save the last configuration to the file
-      write(1,*) 2*N, phi
-      write(12,*) N, phi
-      write(22,*) 2*N, phi, total_growthrate
+      WRITE(1,*) 2*N, phi
+      WRITE(12,*) N, phi
+      WRITE(22,*) 2*N, phi, total_growthrate
       do i=1,N
-          write(12,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
+          WRITE(12,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
                     
           cc=dcos(th(i))
           ss=dsin(th(i))
@@ -442,27 +442,27 @@
               ya(kk)=y(i)+dr(kk)*ss
           enddo
           
-          write(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-          write(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
+          WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
+          WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
           
 
-          write(22,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
+          WRITE(22,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
      +     PPm(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
-          write(22,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
+          WRITE(22,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
      +     PP(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
       enddo
-      flush(1)
-      flush(12)
-      flush(22)
+      FLUSH(1)
+      FLUSH(12)
+      FLUSH(22)
       
 !!!!!!!!!!!!!
 
-      call contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
-      call out_numbers(N, Nf, Nu, Ziso)
+      CALL contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
+      CALL out_numbers(N, Nf, Nu, Ziso)
 
-      write(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+      WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
      +     phi,P,fret,P0,total_growthrate
-      flush(13)
+      FLUSH(13)
       
       close(1)
       close(12)
@@ -474,9 +474,9 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE CG_check(N,x,y,xp,yp,maxdis)
       IMPLICIT NONE
-      integer N,Ntot,i
+      INTEGER N,Ntot,i
       PARAMETER(Ntot = 4096)
-      double precision maxdis,x(Ntot),y(Ntot),xp(Ntot),yp(Ntot)
+      DOUBLE PRECISION maxdis,x(Ntot),y(Ntot),xp(Ntot),yp(Ntot)
 
       maxdis=0d0
       do i=1,N
@@ -502,17 +502,17 @@
       END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl) 
+      SUBROUTINE makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl) 
       PARAMETER(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
-      double precision D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
-      double precision dd,dr1,dr2,dk2,di_up(Ntot),exp,att
-      double precision Lx,Ly
-      integer countn(Ntot),nl(800,Ntot),N
-      common /f2com/ width
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
+      DOUBLE PRECISION x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
+      DOUBLE PRECISION D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
+      DOUBLE PRECISION dd,dr1,dr2,dk2,di_up(Ntot),exp,att
+      DOUBLE PRECISION Lx,Ly
+      INTEGER countn(Ntot),nl(800,Ntot),N
+      COMMON /f2com/ width
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
 
       do i=1,N
          countn(i)=0
@@ -580,18 +580,18 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE func_dimer(N,x,y,th,D,D1,V,countn,nl)
       PARAMETER(Ntot = 4096)
-      double precision pi
+      DOUBLE PRECISION pi
       PARAMETER(pi=3.1415926535897932d0)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,alpha(Ntot)
-      double precision rij,xij,yij,dij,exp,dlnsig,dij_up,sigma,LJ
-      double precision Lx,Ly,rijsq,dijsq_up,scale(Ntot),c(Ntot),att
-      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),Vij
-      double precision dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
-      integer countn(Ntot),nl(800,Ntot),N
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
-      common /f9com/ scale
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,alpha(Ntot)
+      DOUBLE PRECISION rij,xij,yij,dij,exp,dlnsig,dij_up,sigma,LJ
+      DOUBLE PRECISION Lx,Ly,rijsq,dijsq_up,scale(Ntot),c(Ntot),att
+      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),Vij
+      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
+      INTEGER countn(Ntot),nl(800,Ntot),N
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
+      COMMON /f9com/ scale
 
       ! convert from molecules to atoms
       do i=1,N
@@ -664,25 +664,25 @@
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      SUBROUTINE dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       PARAMETER(Ntot = 4096)
-      double precision pi
+      DOUBLE PRECISION pi
       PARAMETER(pi=3.1415926535897932d0)
-      double precision x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
-      double precision fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
-      double precision dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y,scale(Ntot)
-      double precision fthi,fthj,fth_c,Lx,Ly,P,Pij,rijsq,dijsq_up
-      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),att
-      double precision dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
-      double precision PP(Ntot),c(Ntot),Vij,PT,PR,PPm(Ntot)
-      double precision fcontact
-      integer countn(Ntot),nl(800,Ntot),N !,growth_flag
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
-      common /f6com/ P,PP,PT,PR,PPm
-      common /f9com/ scale
-!      common /f11com/ growth_flag
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
+      DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
+      DOUBLE PRECISION dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y,scale(Ntot)
+      DOUBLE PRECISION fthi,fthj,fth_c,Lx,Ly,P,Pij,rijsq,dijsq_up
+      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),att
+      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
+      DOUBLE PRECISION PP(Ntot),c(Ntot),Vij,PT,PR,PPm(Ntot)
+      DOUBLE PRECISION fcontact
+      INTEGER countn(Ntot),nl(800,Ntot),N !,growth_flag
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
+      COMMON /f6com/ P,PP,PT,PR,PPm
+      COMMON /f9com/ scale
+!      COMMON /f11com/ growth_flag
 
       do i=1,N
          fx(i)=0d0
@@ -813,38 +813,38 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
       PARAMETER(Ntot = 4096)
-      integer its,iter,ITMAX
-      double precision fret,ftol,EPS,ftol1
+      INTEGER its,iter,ITMAX
+      DOUBLE PRECISION fret,ftol,EPS,ftol1
       PARAMETER (EPS=1d-10,ITMAX=1000000000)
-      double precision dgg,fp,gam,gg,gx(Ntot),gy(Ntot),hx(Ntot),hy(Ntot)
-      double precision D(Ntot),D1,xix(Ntot),xiy(Ntot),xith(Ntot),width
-      double precision x(Ntot),y(Ntot),maxdis,xp(Ntot),yp(Ntot)
-      double precision th(Ntot),hth(Ntot),gth(Ntot),exp,att,V
-      integer N,countn(Ntot),nl(800,Ntot)
+      DOUBLE PRECISION dgg,fp,gam,gg,gx(Ntot),gy(Ntot),hx(Ntot),hy(Ntot)
+      DOUBLE PRECISION D(Ntot),D1,xix(Ntot),xiy(Ntot),xith(Ntot),width
+      DOUBLE PRECISION x(Ntot),y(Ntot),maxdis,xp(Ntot),yp(Ntot)
+      DOUBLE PRECISION th(Ntot),hth(Ntot),gth(Ntot),exp,att,V
+      INTEGER N,countn(Ntot),nl(800,Ntot)
 
       ! not needed
-      double precision f1,f2,f3,fxe,fye,fthe
-      double precision xi,yi,thi,max1,max2,max3,del
-      double precision alpha(Ntot),Lx,Ly,alpha0
+      DOUBLE PRECISION f1,f2,f3,fxe,fye,fthe
+      DOUBLE PRECISION xi,yi,thi,max1,max2,max3,del
+      DOUBLE PRECISION alpha(Ntot),Lx,Ly,alpha0
 
       ! not needed
-      common /f3com/ alpha ! aspect ratio
-      common /f5com/ Lx,Ly
-      common /f8com/ alpha0
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f5com/ Lx,Ly
+      COMMON /f8com/ alpha0
 
-      common /f2com/ width      
-      common /f4com/ exp,att
+      COMMON /f2com/ width      
+      COMMON /f4com/ exp,att
 
       iter=0
 
-      call makelist(N,x,y,D,D1,xp,yp,countn,nl)
-      call func(N,x,y,th,D,D1,fp,countn,nl)
+      CALL makelist(N,x,y,D,D1,xp,yp,countn,nl)
+      CALL func(N,x,y,th,D,D1,fp,countn,nl)
       if (fp.lt.ftol*dble(N).and.att.eq.0d0) then
          fret=fp 
          return
       endif
 
-      call dfunc(N,x,y,th,D,D1,xix,xiy,xith,countn,nl)
+      CALL dfunc(N,x,y,th,D,D1,xix,xiy,xith,countn,nl)
 
       do i=1,N
         gx(i)=-xix(i)
@@ -861,29 +861,29 @@
       do its=1,ITMAX
          iter=its
 
-         call linmin(N,x,y,th,D,D1,xix,xiy,xith,fret,xp,yp,countn,nl)
+         CALL linmin(N,x,y,th,D,D1,xix,xiy,xith,fret,xp,yp,countn,nl)
          
-c         write(*,*) its, fret/dble(N), fret, fp
+c         WRITE(*,*) its, fret/dble(N), fret, fp
 
          if(att.eq.0d0) then
             if(dabs(fret-fp).lt.ftol1*fp.or.fret.lt.ftol*dble(N))then
-                call func(N,x,y,th,D,D1,fp,countn,nl)
+                CALL func(N,x,y,th,D,D1,fp,countn,nl)
                return
             endif
          else
             if(dabs(fret-fp).lt.ftol1) then
-                call func(N,x,y,th,D,D1,fp,countn,nl)
+                CALL func(N,x,y,th,D,D1,fp,countn,nl)
                return
             end if 
          endif
          
-         call CG_check(N,x,y,xp,yp,maxdis)	     
+         CALL CG_check(N,x,y,xp,yp,maxdis)	     
          if(maxdis.gt.width*D1) then
-            call makelist(N,x,y,D,D1,xp,yp,countn,nl)
+            CALL makelist(N,x,y,D,D1,xp,yp,countn,nl)
          end if
          
          fp=fret
-         call dfunc(N,x,y,th,D,D1,xix,xiy,xith,countn,nl)
+         CALL dfunc(N,x,y,th,D,D1,xix,xiy,xith,countn,nl)
          
          gg=0d0
          dgg=0d0
@@ -920,21 +920,21 @@ C (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE linmin(N,x,y,th,D,D1,xix,xiy,xith,fret,
      +     xpr,ypr,countnr,nlr)
-      double precision fret,TOL
+      DOUBLE PRECISION fret,TOL
       PARAMETER (Ntot=4096,TOL=1d-8)
 C     USES dbrent,df1dim,mnbrak
-      double precision ax,bx,fa,fb,fx,xmin,xx,xp(Ntot),yp(Ntot),dbrent
-      double precision pxcom(Ntot),pycom(Ntot),xixcom(Ntot),xiycom(Ntot)
-      double precision x(Ntot),y(Ntot),th(Ntot),xix(Ntot),xiy(Ntot)
-      double precision xith(Ntot),Dcom(Ntot),D1com,D(Ntot),D1,width
-      double precision pthcom(Ntot),xithcom(Ntot),f1dim,df1dim
-      double precision xpr(Ntot),ypr(Ntot)
-      integer countn(Ntot),nl(800,Ntot),countnr(Ntot),nlr(800,Ntot)
-      integer N,ncom
+      DOUBLE PRECISION ax,bx,fa,fb,fx,xmin,xx,xp(Ntot),yp(Ntot),dbrent
+      DOUBLE PRECISION pxcom(Ntot),pycom(Ntot),xixcom(Ntot),xiycom(Ntot)
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),xix(Ntot),xiy(Ntot)
+      DOUBLE PRECISION xith(Ntot),Dcom(Ntot),D1com,D(Ntot),D1,width
+      DOUBLE PRECISION pthcom(Ntot),xithcom(Ntot),f1dim,df1dim
+      DOUBLE PRECISION xpr(Ntot),ypr(Ntot)
+      INTEGER countn(Ntot),nl(800,Ntot),countnr(Ntot),nlr(800,Ntot)
+      INTEGER N,ncom
 
       COMMON /f1com/ pxcom,pycom,pthcom,xixcom,xiycom,xithcom,
      +     Dcom,D1com,xp,yp,thp,countn,nl,ncom
-      common /f2com/ width
+      COMMON /f2com/ width
 
       EXTERNAL df1dim
       EXTERNAL f1dim
@@ -962,7 +962,7 @@ C     USES dbrent,df1dim,mnbrak
 
       ax=0d0
       xx=1d0
-      call mnbrak(ax,xx,bx,fa,fx,fb,f1dim)
+      CALL mnbrak(ax,xx,bx,fa,fx,fb,f1dim)
       fret=dbrent(ax,xx,bx,f1dim,df1dim,TOL,xmin)
       do i=1,N
         xix(i)=xmin*xix(i)
@@ -979,10 +979,10 @@ C     USES dbrent,df1dim,mnbrak
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE mnbrak(ax,bx,cx,fa,fb,fc,func)
-      double precision ax,bx,cx,fa,fb,fc,func,GOLD,GLIMIT,TINY
+      DOUBLE PRECISION ax,bx,cx,fa,fb,fc,func,GOLD,GLIMIT,TINY
 c      EXTERNAL func
       PARAMETER (GOLD=1.618034d0, GLIMIT=100., TINY=1.d-20)
-      double precision dum,fu,q,r,u,ulim
+      DOUBLE PRECISION dum,fu,q,r,u,ulim
       fa=func(ax)
       fb=func(bx)
       if(fb.gt.fa)then ! was gt
@@ -1047,19 +1047,19 @@ c      EXTERNAL func
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION df1dim(x)
       PARAMETER (Ntot=4096)
-      double precision df1dim,x,maxdis
-      double precision fx(Ntot),fy(Ntot),fth(Ntot)
-      double precision pxcom(Ntot),pycom(Ntot),pthcom(Ntot)
-      double precision xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
-      double precision xt(Ntot),yt(Ntot),tht(Ntot)
-      double precision xp(Ntot),yp(Ntot)
-      double precision Dcom(Ntot),D1com
-      double precision alpha(Ntot),width
-      integer ncom,countn(Ntot),nl(800,Ntot)
+      DOUBLE PRECISION df1dim,x,maxdis
+      DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot)
+      DOUBLE PRECISION pxcom(Ntot),pycom(Ntot),pthcom(Ntot)
+      DOUBLE PRECISION xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
+      DOUBLE PRECISION xt(Ntot),yt(Ntot),tht(Ntot)
+      DOUBLE PRECISION xp(Ntot),yp(Ntot)
+      DOUBLE PRECISION Dcom(Ntot),D1com
+      DOUBLE PRECISION alpha(Ntot),width
+      INTEGER ncom,countn(Ntot),nl(800,Ntot)
       COMMON /f1com/ pxcom,pycom,pthcom,xixcom,xiycom,xithcom,
      +     Dcom,D1com,xp,yp,thp,countn,nl,ncom
-      common /f2com/ width
-      common /f3com/ alpha ! aspect ratio
+      COMMON /f2com/ width
+      COMMON /f3com/ alpha ! aspect ratio
 
       do i=1,ncom
         xt(i)=pxcom(i)+x*xixcom(i)
@@ -1067,11 +1067,11 @@ c      EXTERNAL func
         tht(i)=pthcom(i)+x*xithcom(i)
       enddo
 
-      call CG_check(ncom,xt,yt,xp,yp,maxdis)
+      CALL CG_check(ncom,xt,yt,xp,yp,maxdis)
       if(maxdis.gt.width*D1com) then
-	call makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
+	CALL makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
       end if	
-      call dfunc(ncom,xt,yt,tht,Dcom,D1com,fx,fy,fth,countn,nl)
+      CALL dfunc(ncom,xt,yt,tht,Dcom,D1com,fx,fy,fth,countn,nl)
 
       df1dim=0.D0
       do i=1,ncom
@@ -1086,12 +1086,12 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION dbrent(ax,bx,cx,f,df,tol,xmin)
       INTEGER ITMAX
-      double precision dbrent,ax,bx,cx,tol,xmin,df,f,ZEPS
+      DOUBLE PRECISION dbrent,ax,bx,cx,tol,xmin,df,f,ZEPS
       EXTERNAL df,f
       PARAMETER (ITMAX=10000,ZEPS=1.0e-12)
       INTEGER iter
-      double precision a,b,d,d1,d2,du,dv,dw,dx,e,fu,fv,fw
-      double precision fx,olde,tol1,tol2,u,u1,u2,v,w,x,xm
+      DOUBLE PRECISION a,b,d,d1,d2,du,dv,dw,dx,e,fu,fv,fw
+      DOUBLE PRECISION fx,olde,tol1,tol2,u,u1,u2,v,w,x,xm
       LOGICAL ok1,ok2
       a=min(ax,cx)
       b=max(ax,cx)
@@ -1200,18 +1200,18 @@ c  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION f1dim(x)
       PARAMETER (Ntot=4096)
-      double precision f1dim,x
-      double precision pxcom(Ntot),pycom(Ntot),pthcom(Ntot)
-      double precision xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
-      double precision xt(Ntot),yt(Ntot),tht(Ntot),width
-      double precision Dcom(Ntot),maxdis,D1com
-      double precision xp(Ntot),yp(Ntot),alpha(Ntot)
-      integer nl(800,Ntot),countn(Ntot),ncom
+      DOUBLE PRECISION f1dim,x
+      DOUBLE PRECISION pxcom(Ntot),pycom(Ntot),pthcom(Ntot)
+      DOUBLE PRECISION xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
+      DOUBLE PRECISION xt(Ntot),yt(Ntot),tht(Ntot),width
+      DOUBLE PRECISION Dcom(Ntot),maxdis,D1com
+      DOUBLE PRECISION xp(Ntot),yp(Ntot),alpha(Ntot)
+      INTEGER nl(800,Ntot),countn(Ntot),ncom
       COMMON /f1com/ pxcom,pycom,pthcom,xixcom,xiycom,xithcom,
      +     Dcom,D1com,xp,yp,thp,countn,nl,ncom
       
-      common /f2com/ width
-      common /f3com/ alpha ! aspect ratio
+      COMMON /f2com/ width
+      COMMON /f3com/ alpha ! aspect ratio
 
       do i=1,ncom
         xt(i)=pxcom(i)+x*xixcom(i)
@@ -1219,11 +1219,11 @@ c  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
         tht(i)=pthcom(i)+x*xithcom(i)
       enddo
 
-      call CG_check(ncom,xt,yt,xp,yp,maxdis)
+      CALL CG_check(ncom,xt,yt,xp,yp,maxdis)
       if(maxdis.gt.width*D1com) then
-	call makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
+	CALL makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
       end if
-      call func(ncom,xt,yt,tht,Dcom,D1com,f1dim,countn,nl)
+      CALL func(ncom,xt,yt,tht,Dcom,D1com,f1dim,countn,nl)
 
       return
       END
@@ -1232,12 +1232,12 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION ran2(idum)
-      integer idum,IM1,IM2,IMM1,IA1,IA2,IQ1,IQ2,IR1,IR2,NTAB,NDIV
-      double precision ran2,AM,EPS,RNMX
+      INTEGER idum,IM1,IM2,IMM1,IA1,IA2,IQ1,IQ2,IR1,IR2,NTAB,NDIV
+      DOUBLE PRECISION ran2,AM,EPS,RNMX
       PARAMETER (IM1=2147483563,IM2=2147483399,AM=1./IM1,IMM1=IM1-1,
      *IA1=40014,IA2=40692,IQ1=53668,IQ2=52774,IR1=12211,IR2=3791,
      *NTAB=32,NDIV=1+IMM1/NTAB,EPS=1.2e-7,RNMX=1.-EPS)
-      integer idum2,j,k,iv(NTAB),iy
+      INTEGER idum2,j,k,iv(NTAB),iy
       SAVE iv,iy,idum2
       DATA idum2/123456789/, iv/NTAB*0/, iy/0/
       if (idum.le.0) then
@@ -1273,14 +1273,14 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     dtstatus, terminate,
      +     before_jamming, at_jamming, above_jamming)
       IMPLICIT NONE
-      integer Ntot, N
+      INTEGER Ntot, N
       PARAMETER(Ntot = 4096)
       
-      double precision delta, phi, calc_phi
-      double precision D(Ntot),alpha(Ntot), D1
-      double precision fret,phitemp,phi_j,ftol,wide,dt,dphi
-      integer dtstatus, terminate
-      integer before_jamming, at_jamming, above_jamming
+      DOUBLE PRECISION delta, phi, calc_phi
+      DOUBLE PRECISION D(Ntot),alpha(Ntot), D1
+      DOUBLE PRECISION fret,phitemp,phi_j,ftol,wide,dt,dphi
+      INTEGER dtstatus, terminate
+      INTEGER before_jamming, at_jamming, above_jamming
       
       delta = 0.5d-8
       
@@ -1321,15 +1321,15 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       
       
       if (phi_j .lt. 0.25) then
-          write(*,*) "ERROR: SHOULD NOT REACH THIS POINT"
+          WRITE(*,*) "ERROR: SHOULD NOT REACH THIS POINT"
       endif
       
       if (at_jamming.ne.0) then
-          write(*,*) "SOMETHING WRONG: should be at_jamming = 0"
+          WRITE(*,*) "SOMETHING WRONG: should be at_jamming = 0"
       endif
 
       if (above_jamming.ne.1) then
-          write(*,*) "SOMETHING WRONG: should be above_jamming = 1"
+          WRITE(*,*) "SOMETHING WRONG: should be above_jamming = 1"
       endif      
       
       at_jamming = 0
@@ -1357,16 +1357,16 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       DOUBLE PRECISION FUNCTION calc_phi(D, alpha, D1, N)
       IMPLICIT NONE
-      integer Ntot
-      double precision pi
+      INTEGER Ntot
+      DOUBLE PRECISION pi
       PARAMETER(pi=3.1415926535897932d0)
       PARAMETER(Ntot = 4096)
-      double precision D(Ntot),alpha(Ntot)
-      double precision Lx,Ly
-      double precision D1,phit
-      integer i,N
+      DOUBLE PRECISION D(Ntot),alpha(Ntot)
+      DOUBLE PRECISION Lx,Ly
+      DOUBLE PRECISION D1,phit
+      INTEGER i,N
          
-      common /f5com/ Lx,Ly
+      COMMON /f5com/ Lx,Ly
          
       phit=0d0
          
@@ -1379,7 +1379,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       END FUNCTION
       
       
-      subroutine copy_everything(Ntot, Ngen, ndiv, x, y, th, D, alpha, 
+      SUBROUTINE copy_everything(Ntot, Ngen, ndiv, x, y, th, D, alpha, 
      +     rate, alphar,
      +     scale, P, PP, D0, aclone,
      +     tbirth, xbirth, ybirth, xdiv, ydiv, thdiv,
@@ -1391,31 +1391,31 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
       implicit none
-      integer Ntot,Ngen
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot)
-      double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
-      double precision P,PP(Ntot),D0(Ntot),PPm(Ntot)
-      double precision aclone(Ntot*Ngen)
-      double precision tbirth(Ntot*Ngen)
-      double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
-      double precision xdiv(999,2),ydiv(999,2),thdiv(999,2)
-      integer N,c(Ntot,Ngen),Nexist
-      integer nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      integer age(Ntot),agehist(Ngen,2)
-      integer idiv(999,2), ndiv
-      double precision xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
-      double precision alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
-      double precision scalecc(Ntot)
-      double precision Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
-      double precision aclonecc(Ntot*Ngen)
-      double precision tbirthcc(Ntot*Ngen)
-      double precision xbirthcc(Ntot*Ngen),ybirthcc(Ntot*Ngen)
-      double precision xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
-      integer Ncc,ccc(Ntot,Ngen),Nexistcc
-      integer nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
-      integer agecc(Ntot),agehistcc(Ngen,2)
-      integer idivcc(999,2), ndivcc
-      integer i,j, BUDCONT(Ntot), BUDCONTCC(Ntot)
+      INTEGER Ntot,Ngen
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot)
+      DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
+      DOUBLE PRECISION P,PP(Ntot),D0(Ntot),PPm(Ntot)
+      DOUBLE PRECISION aclone(Ntot*Ngen)
+      DOUBLE PRECISION tbirth(Ntot*Ngen)
+      DOUBLE PRECISION xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
+      DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
+      INTEGER N,c(Ntot,Ngen),Nexist
+      INTEGER nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
+      INTEGER age(Ntot),agehist(Ngen,2)
+      INTEGER idiv(999,2), ndiv
+      DOUBLE PRECISION xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
+      DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
+      DOUBLE PRECISION scalecc(Ntot)
+      DOUBLE PRECISION Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
+      DOUBLE PRECISION aclonecc(Ntot*Ngen)
+      DOUBLE PRECISION tbirthcc(Ntot*Ngen)
+      DOUBLE PRECISION xbirthcc(Ntot*Ngen),ybirthcc(Ntot*Ngen)
+      DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
+      INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
+      INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
+      INTEGER agecc(Ntot),agehistcc(Ngen,2)
+      INTEGER idivcc(999,2), ndivcc
+      INTEGER i,j, BUDCONT(Ntot), BUDCONTCC(Ntot)
       
 !      
       Pcc = P
@@ -1521,7 +1521,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       enddo
       end
       
-      subroutine copy_back_everything(Ntot, Ngen, ndiv, x, y, th, D, 
+      SUBROUTINE copy_back_everything(Ntot, Ngen, ndiv, x, y, th, D, 
      +     alpha, 
      +     rate, alphar,
      +     scale, P, PP, D0, aclone,
@@ -1534,33 +1534,33 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
       implicit none
-      integer Ntot,Ngen
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot)
-      double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
-      double precision P,PP(Ntot),D0(Ntot),PPm(Ntot)
-      double precision aclone(Ntot*Ngen)
-      double precision tbirth(Ntot*Ngen)
-      double precision xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
-      double precision xdiv(999,2),ydiv(999,2),thdiv(999,2)
-      integer N,c(Ntot,Ngen),Nexist
-      integer nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      integer age(Ntot),agehist(Ngen,2)
-      integer idiv(999,2), ndiv
-      double precision xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
-      double precision alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
-      double precision scalecc(Ntot)
-      double precision Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
-      double precision aclonecc(Ntot*Ngen)
-      double precision tbirthcc(Ntot*Ngen)
-      double precision xbirthcc(Ntot*Ngen),ybirthcc(Ntot*Ngen)
-      double precision xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
-      double precision dd
-      integer Ncc,ccc(Ntot,Ngen),Nexistcc
-      integer nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
-      integer agecc(Ntot),agehistcc(Ngen,2)
-      integer idivcc(999,2), ndivcc
-      integer i,j, celltype, BUDCONT(Ntot), BUDCONTCC(Ntot)
-      common /f10com/ celltype
+      INTEGER Ntot,Ngen
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot)
+      DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
+      DOUBLE PRECISION P,PP(Ntot),D0(Ntot),PPm(Ntot)
+      DOUBLE PRECISION aclone(Ntot*Ngen)
+      DOUBLE PRECISION tbirth(Ntot*Ngen)
+      DOUBLE PRECISION xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
+      DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
+      INTEGER N,c(Ntot,Ngen),Nexist
+      INTEGER nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
+      INTEGER age(Ntot),agehist(Ngen,2)
+      INTEGER idiv(999,2), ndiv
+      DOUBLE PRECISION xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
+      DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
+      DOUBLE PRECISION scalecc(Ntot)
+      DOUBLE PRECISION Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
+      DOUBLE PRECISION aclonecc(Ntot*Ngen)
+      DOUBLE PRECISION tbirthcc(Ntot*Ngen)
+      DOUBLE PRECISION xbirthcc(Ntot*Ngen),ybirthcc(Ntot*Ngen)
+      DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
+      DOUBLE PRECISION dd
+      INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
+      INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
+      INTEGER agecc(Ntot),agehistcc(Ngen,2)
+      INTEGER idivcc(999,2), ndivcc
+      INTEGER i,j, celltype, BUDCONT(Ntot), BUDCONTCC(Ntot)
+      COMMON /f10com/ celltype
             
 !
       P = Pcc
@@ -1635,24 +1635,24 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       
       SUBROUTINE remove_floaters(x,y,th,phi,D1,D,N,F)
       IMPLICIT NONE
-      integer Ntot, N 
+      INTEGER Ntot, N 
       PARAMETER(Ntot = 4096)
-      double precision pi
+      DOUBLE PRECISION pi
       PARAMETER(pi=3.141592653589793238d0)
-      integer R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot), DoF
-      double precision overlap, aspect_ratio
-      integer l, F(Ntot)
-      double precision x(Ntot),y(Ntot),th(Ntot),phi,alpha(Ntot)
-      double precision thIJ, t(3), sign(3), AR2, cont,scale(Ntot)
-      double precision xij, yij, rij, D(Ntot), D1, z_ave
-      double precision dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
-      double precision dtijthi,dtijthj,dthithj, compression
-      double precision x2(Ntot), y2(Ntot), th2(Ntot), Lx,Ly
-      integer count, Z, nn
+      INTEGER R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot), DoF
+      DOUBLE PRECISION overlap, aspect_ratio
+      INTEGER l, F(Ntot)
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),phi,alpha(Ntot)
+      DOUBLE PRECISION thIJ, t(3), sign(3), AR2, cont,scale(Ntot)
+      DOUBLE PRECISION xij, yij, rij, D(Ntot), D1, z_ave
+      DOUBLE PRECISION dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
+      DOUBLE PRECISION dtijthi,dtijthj,dthithj, compression
+      DOUBLE PRECISION x2(Ntot), y2(Ntot), th2(Ntot), Lx,Ly
+      INTEGER count, Z, nn
       
-      common /f3com/ alpha ! aspect ratio
-      common /f5com/ Lx,Ly
-      common /f9com/ scale
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f5com/ Lx,Ly
+      COMMON /f9com/ scale
 
       ! Remove floaters
       k=0
@@ -1688,19 +1688,19 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
 !!!!!!!!!!!!!!!! counts contacts !!!!!!!!!!!!!
       SUBROUTINE contacts(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
       IMPLICIT NONE
-      integer Ntot, N        
+      INTEGER Ntot, N        
       PARAMETER(Ntot = 4096)
-      integer R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot)
-      double precision overlap, aspect_ratio
-      integer l, F(Ntot), Nf, Nu,Nmm,Nbb,Nmb
-      double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-      double precision thIJ, t(3), sign(3),cont
-      double precision xij, yij, rij, D(Ntot), D1, z_ave
-      double precision dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
-      double precision dtijthi,dtijthj,dthithj
-      double precision x2(Ntot), y2(Ntot), th2(Ntot)
-      integer Z
-      common /f3com/ alpha ! aspect ratio
+      INTEGER R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot)
+      DOUBLE PRECISION overlap, aspect_ratio
+      INTEGER l, F(Ntot), Nf, Nu,Nmm,Nbb,Nmb
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
+      DOUBLE PRECISION thIJ, t(3), sign(3),cont
+      DOUBLE PRECISION xij, yij, rij, D(Ntot), D1, z_ave
+      DOUBLE PRECISION dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
+      DOUBLE PRECISION dtijthi,dtijthj,dthithj
+      DOUBLE PRECISION x2(Ntot), y2(Ntot), th2(Ntot)
+      INTEGER Z
+      COMMON /f3com/ alpha ! aspect ratio
       
       Z = 0
       R = 0
@@ -1777,38 +1777,38 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION overlap(N,x,y,th,D,D1,i,j)
       IMPLICIT NONE
-      integer Ntot, N     
+      INTEGER Ntot, N     
       PARAMETER(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
-      double precision rij,xij,yij,dij,ep,overlap
-      double precision dtij,dthi,dthj,dtij2,dthi2,dthj2
-      double precision dtijthi,dtijthj,dthithj, width
-      double precision alpha(Ntot)
-      double precision dd,dr1,dr2,dk2,exp,att
-      double precision Lx,Ly
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
+      DOUBLE PRECISION rij,xij,yij,dij,ep,overlap
+      DOUBLE PRECISION dtij,dthi,dthj,dtij2,dthi2,dthj2
+      DOUBLE PRECISION dtijthi,dtijthj,dthithj, width
+      DOUBLE PRECISION alpha(Ntot)
+      DOUBLE PRECISION dd,dr1,dr2,dk2,exp,att
+      DOUBLE PRECISION Lx,Ly
       !
-      double precision dijsq_up,scale(Ntot),c(Ntot)
-      double precision s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-      double precision dk(Ntot,2),di_up(Ntot),di1j1      
-      integer celltype, ni, i, j
+      DOUBLE PRECISION dijsq_up,scale(Ntot),c(Ntot)
+      DOUBLE PRECISION s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1      
+      INTEGER celltype, ni, i, j
  
       
-      common /f2com/ width
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
-      common /f9com/ scale
-      common /f10com/ celltype
+      COMMON /f2com/ width
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
+      COMMON /f9com/ scale
+      COMMON /f10com/ celltype
       
       if (D1.ne.1.d0) then
-          write(*,*) "SOMETHING IS WRONG. D1 SHALL BE EQ. TO 1.0"
+          WRITE(*,*) "SOMETHING IS WRONG. D1 SHALL BE EQ. TO 1.0"
       endif
       
       overlap = 0.d0
 
       ! BUDDING CELLS
       if (celltype.eq.2) then
-          write(*,*) "THERE IS SPECIAL CONTACT FUNCTION FOR YEAST"
+          WRITE(*,*) "THERE IS SPECIAL CONTACT FUNCTION FOR YEAST"
 
       ! DISK CELLS      
       elseif (celltype.eq.3) then
@@ -1835,21 +1835,21 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       ! inuse
       SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
       IMPLICIT NONE
-      integer Ntot, N 
+      INTEGER Ntot, N 
       PARAMETER(Ntot = 4096)
-      integer i, j, F(Ntot), Z, NCBUD(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
-      integer ki,kj,k
-      double precision overlap, aspect_ratio
-      double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-      double precision xij, yij, D(Ntot), D1
-      double precision exp,dij_up,dij
-      double precision Lx,Ly,rijsq,c(Ntot),att
-      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-      double precision dk(Ntot,2)
-      integer flag
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
+      INTEGER i, j, F(Ntot), Z, NCBUD(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
+      INTEGER ki,kj,k
+      DOUBLE PRECISION overlap, aspect_ratio
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
+      DOUBLE PRECISION xij, yij, D(Ntot), D1
+      DOUBLE PRECISION exp,dij_up,dij
+      DOUBLE PRECISION Lx,Ly,rijsq,c(Ntot),att
+      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dk(Ntot,2)
+      INTEGER flag
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
 
       Z = 0
       Nf= 0
@@ -1936,11 +1936,11 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       
       end
       
-      subroutine out_numbers(N, Nf, Nu, Ziso)
+      SUBROUTINE out_numbers(N, Nf, Nu, Ziso)
       implicit none
-      integer Ntot
+      INTEGER Ntot
       PARAMETER(Ntot = 4096)
-      integer N, Nf, Nu, Ziso
+      INTEGER N, Nf, Nu, Ziso
       
       Ziso = 6*(N-Nf) - 2*Nu - 2
       
@@ -1949,19 +1949,19 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
       SUBROUTINE bud_contacts(x,y,th,D1,D,N,BUDCONT,ZEROBUDS)
       IMPLICIT NONE
-      integer Ntot, N
+      INTEGER Ntot, N
       PARAMETER(Ntot = 4096)
-      integer i, j, NCBUD(Ntot,2), ZEROBUDS, BUDCONT(Ntot),k,ki,kj
-      double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-      double precision xij, yij, D(Ntot), D1
-      double precision exp,dij
-      double precision Lx,Ly,rijsq,c(Ntot),att 
-      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-      double precision dk(Ntot,2)
+      INTEGER i, j, NCBUD(Ntot,2), ZEROBUDS, BUDCONT(Ntot),k,ki,kj
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
+      DOUBLE PRECISION xij, yij, D(Ntot), D1
+      DOUBLE PRECISION exp,dij
+      DOUBLE PRECISION Lx,Ly,rijsq,c(Ntot),att 
+      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dk(Ntot,2)
 
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
 
       ZEROBUDS = 0
       
@@ -2018,14 +2018,14 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
       SUBROUTINE growth_rate(gr,N,rate,PP,P0,D,alpha)    
       IMPLICIT NONE
-      integer Ntot,i,N
+      INTEGER Ntot,i,N
       PARAMETER(Ntot = 4096)
-      double precision ratei,P0
-      double precision rate(Ntot),PP(Ntot),D(Ntot)
-      double precision alpha(Ntot)
+      DOUBLE PRECISION ratei,P0
+      DOUBLE PRECISION rate(Ntot),PP(Ntot),D(Ntot)
+      DOUBLE PRECISION alpha(Ntot)
       
-      double precision Dm, Db, dd, gr
-      double precision total_area, total_newmass
+      DOUBLE PRECISION Dm, Db, dd, gr
+      DOUBLE PRECISION total_area, total_newmass
       
       gr = 0.0d0
       total_area = 0.0d0
