@@ -12,53 +12,53 @@
       PROGRAM shear_packing
 
       IMPLICIT NONE
-      integer Ntot
-      parameter(Ntot=4096)
-      double precision pi
-      parameter(pi=3.1415926535897932d0)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp
-      double precision ftol,ftol1,fret,width,Lx,Ly
-      double precision alpha(Ntot),scale(Ntot)
-      double precision phi,flow,D0(Ntot)
-      double precision xa(2),ya(2)
-      double precision cc,ss,dr(2),dd,att
-      integer N,Nr,iter,i,kk
-      integer Nf,Nu,Nmm,Nbb,Nmb
+      INTEGER Ntot
+      PARAMETER(Ntot=4096)
+      DOUBLE PRECISION pi
+      PARAMETER(pi=3.1415926535897932d0)
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp
+      DOUBLE PRECISION ftol,ftol1,fret,width,Lx,Ly
+      DOUBLE PRECISION alpha(Ntot),scale(Ntot)
+      DOUBLE PRECISION phi,flow,D0(Ntot)
+      DOUBLE PRECISION xa(2),ya(2)
+      DOUBLE PRECISION cc,ss,dr(2),dd,att
+      INTEGER N,Nr,iter,i,kk
+      INTEGER Nf,Nu,Nmm,Nbb,Nmb
       
-      character file_conf*150
-      character file_traj*150
-      character file_G_data*150
+      CHARACTER file_conf*150
+      CHARACTER file_traj*150
+      CHARACTER file_G_data*150
       
-      integer F(Ntot), Nc, Ziso
-      double precision calc_phi, wide
-      double precision phi_init,ddelrx,delrx
+      INTEGER F(Ntot), Nc, Ziso
+      DOUBLE PRECISION calc_phi, wide
+      DOUBLE PRECISION phi_init,ddelrx,delrx
       
-      integer shear_steps, step_index
-      double precision SSTRESS, cory, SSTRESS0
+      INTEGER shear_steps, step_index
+      DOUBLE PRECISION SSTRESS, cory, SSTRESS0
 
 ! END OF NEW DATA      
       
-      common /f2com/ width
-      common /f3com/ alpha
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
-      common /f9com/ scale
-      common /f11com/ delrx
-      common /f12com/ SSTRESS
+      COMMON /f2com/ width
+      COMMON /f3com/ alpha
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
+      COMMON /f9com/ scale
+      COMMON /f11com/ delrx
+      COMMON /f12com/ SSTRESS
 
-      ! read geometric parameters
-      read(*,*) Lx
-      read(*,*) Ly
+      ! READ geometric PARAMETERs
+      READ(*,*) Lx
+      READ(*,*) Ly
 
-      ! read cell parameters
-      read(*,*) att
+      ! READ cell PARAMETERs
+      READ(*,*) att
       
-      ! read output files
-      read(*,*) file_conf
-      read(*,*) ddelrx
-      read(*,*) shear_steps
+      ! READ output files
+      READ(*,*) file_conf
+      READ(*,*) ddelrx
+      READ(*,*) shear_steps
       
-      ! parameters
+      ! PARAMETERs
       D1=1d0         ! Minor axis of particle; D1=1.0 - circle
       exp=2d0        ! 2 =  LS, 2.5 = Hertzian, >2.9 = RLJ
       width=0.1d0    ! width of neighborlist 
@@ -71,70 +71,70 @@
       SSTRESS0= 0d0
 
       ! FILES
- 123  open(unit=1,file=TRIM(file_conf)) ! CONFIGURATION FILE
+ 123  OPEN(unit=1,file=TRIM(file_conf)) ! CONFIGURATION FILE
  
       file_traj='prod_shear_' // TRIM(file_conf)
-      open(unit=11,file=TRIM(file_traj), status='replace')
+      OPEN(unit=11,file=TRIM(file_traj), status='replace')
       
       file_G_data ='G_data_' // TRIM(file_conf)
-      open(unit=12,file=TRIM(file_G_data), status='replace')
+      OPEN(unit=12,file=TRIM(file_G_data), status='replace')
 
 !     READ PACKING FROM FILE      
-      read(1, *) N, phi_init
-      do i=1,N
-          read(1, *) x(i),y(i),D(i),alpha(i),th(i)
-      enddo
+      READ(1, *) N, phi_init
+      DO i=1,N
+          READ(1, *) x(i),y(i),D(i),alpha(i),th(i)
+      ENDDO
       
-      do step_index=1,shear_steps
+      DO step_index=1,shear_steps
           
          delrx = dble(step_index-1)*ddelrx
 
          ! convert from angle to length scale = sqrt(I/m) * angle
-         do i=1,N
+         DO i=1,N
             dd=alpha(i)-1d0
             scale(i)=dsqrt(2d0*(1d0+dd**4)/(1+dd**2)+
      +              4d0*(dd*(1d0+dd)/(1+dd**2))**2)/4d0*d(i)
      
             th(i)=th(i)*scale(i)
-         enddo
+         ENDDO
          
          ! minimize energy
-         call frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
+         CALL frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
 
-         if (delrx.eq.0d0)then
+         if (delrx.eq.0d0)THEN
              SSTRESS0 = SSTRESS
-         endif
+         ENDIF
          
-         write(*,*) N,fret/dble(N), 
+         WRITE(*,*) N,fret/dble(N), 
      +     delrx,ddelrx,step_index,SSTRESS,SSTRESS-SSTRESS0
     
          ! convert back to angles
-         do i=1,N
+         DO i=1,N
             th(i)=th(i)/scale(i)
-         enddo
+         ENDDO
          
-         call contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
-         call out_numbers(N, Nf, Nu, Ziso)
-         write(12,'(3E26.18,5I12)')delrx,SSTRESS,SSTRESS-SSTRESS0,
+         CALL contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
+         CALL out_numbers(N, Nf, Nu, Ziso)
+         WRITE(12,'(3E26.18,5I12)')delrx,SSTRESS,SSTRESS-SSTRESS0,
      +         N,Nc,Nf,Nu,Ziso
      
          phi = calc_phi(D, alpha, D1, N) 
-         write(11,*) 2*N, phi
-         do i=1,N              
+         WRITE(11,*) 2*N, phi
+         DO i=1,N              
               cc=dcos(th(i))
               ss=dsin(th(i))
               dd=alpha(i)-1d0
               dr(1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)/2d0
               dr(2)=-(1d0+dd)/(1d0+dd**2)*D(i)/2d0
-              do kk=1,2
+              DO kk=1,2
                  xa(kk)=x(i)+dr(kk)*cc
                  ya(kk)=y(i)+dr(kk)*ss
-              enddo
-              write(11,'(3E26.18,I12)')xa(1),ya(1),d(i),0
-              write(11,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1
-         enddo         
+              ENDDO
+              WRITE(11,'(3E26.18,I12)')xa(1),ya(1),d(i),0
+              WRITE(11,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1
+         ENDDO         
          
-      enddo
+      ENDDO
       
       END PROGRAM
 
@@ -142,15 +142,15 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE CG_check(N,x,y,xp,yp,maxdis)
       IMPLICIT NONE
-      integer Ntot,N,i
-      parameter(Ntot = 4096)
-      double precision maxdis,x(Ntot),y(Ntot),xp(Ntot),yp(Ntot)
+      INTEGER Ntot,N,i
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION maxdis,x(Ntot),y(Ntot),xp(Ntot),yp(Ntot)
 
       maxdis=0d0
-      do i=1,N
+      DO i=1,N
          maxdis=max(dabs(x(i)-xp(i)),maxdis)
          maxdis=max(dabs(y(i)-yp(i)),maxdis)
-      enddo
+      ENDDO
       maxdis=2d0*dsqrt(2d0*maxdis*maxdis)
 
       END
@@ -159,45 +159,45 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE makelist(N,x,y,D,D1,xp,yp,countn,nl)
       IMPLICIT NONE
-      integer Ntot,N
-      parameter(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
-      integer countn(Ntot),nl(800,Ntot)
+      INTEGER Ntot,N
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
+      INTEGER countn(Ntot),nl(800,Ntot)
       
-      call makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
+      CALL makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
 
       END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
       IMPLICIT NONE
-      integer Ntot
-      parameter(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
-      double precision D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
-      double precision dd,dr1,dr2,dk2,di_up(Ntot),exp,att
-      double precision Lx,Ly,delrx,cory
-      integer countn(Ntot),nl(800,Ntot),N,i,j
-      common /f2com/ width
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
-      common /f11com/ delrx
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
+      DOUBLE PRECISION D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
+      DOUBLE PRECISION dd,dr1,dr2,dk2,di_up(Ntot),exp,att
+      DOUBLE PRECISION Lx,Ly,delrx,cory
+      INTEGER countn(Ntot),nl(800,Ntot),N,i,j
+      COMMON /f2com/ width
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
+      COMMON /f11com/ delrx
 
-      do i=1,N
+      DO i=1,N
          countn(i)=0
-      enddo
+      ENDDO
 
-      do i=1,N
+      DO i=1,N
          dd=alpha(i)-1d0
          dr1=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)/2d0
          dr2=-(1d0+dd)/(1d0+dd**2)*D(i)/2d0
          dk2=dd*D(i)
          di_up(i)=(dk2/2d0-dr2)*2d0
-      enddo
+      ENDDO
 
-      do i=1,N-1
-         do j=i+1,N
+      DO i=1,N-1
+         DO j=i+1,N
             xij=x(i)-x(j)
             yij=y(i)-y(j)
             cory=idnint(yij/Ly)
@@ -208,17 +208,17 @@
             rijsq=xij*xij+yij*yij
             dij=(di_up(i)+di_up(j))/2d0
             dij=D1*( D(i) + D(j) )/2d0   
-            if(rijsq.lt.(2.D0*dij)**2) then
+            IF(rijsq.lt.(2.D0*dij)**2) THEN
                countn(i)=countn(i)+1
                nl(countn(i),i)=j
-            end if
-         enddo
-      enddo
+            ENDIF
+         ENDDO
+      ENDDO
       
-      do i=1,N
+      DO i=1,N
          xp(i)=x(i)
          yp(i)=y(i)
-      enddo
+      ENDDO
       
       END
  
@@ -226,72 +226,72 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE func(N,x,y,th,D,D1,V,countn,nl)
       IMPLICIT NONE
-      integer Ntot,N    
-      parameter(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
-      integer countn(Ntot),nl(800,Ntot)
+      INTEGER Ntot,N    
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
+      INTEGER countn(Ntot),nl(800,Ntot)
       
-      call func_dimer(N,x,y,th,D,D1,V,countn,nl)
+      CALL func_dimer(N,x,y,th,D,D1,V,countn,nl)
       
       END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
-      parameter(Ntot = 4096)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
-      double precision fx(Ntot),fy(Ntot),fth(Ntot)
-      integer countn(Ntot),nl(800,Ntot),N
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
+      DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot)
+      INTEGER countn(Ntot),nl(800,Ntot),N
 
-      call dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      CALL dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       
       END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE func_dimer(N,x,y,th,D,D1,V,countn,nl)
       IMPLICIT NONE
-      integer Ntot
-      parameter(Ntot = 4096)
-      double precision pi
-      parameter(pi=3.1415926535897932d0)
-      double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,alpha(Ntot)
-      double precision rij,xij,yij,dij,exp,dij_up,sigma,LJ
-      double precision Lx,Ly,rijsq,scale(Ntot),c(Ntot),att
-      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),Vij
-      double precision dk(Ntot,2),di_up(Ntot),di1j1
-      double precision delrx, cory
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION pi
+      PARAMETER(pi=3.1415926535897932d0)
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,alpha(Ntot)
+      DOUBLE PRECISION rij,xij,yij,dij,exp,dij_up,sigma,LJ
+      DOUBLE PRECISION Lx,Ly,rijsq,scale(Ntot),c(Ntot),att
+      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),Vij
+      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1
+      DOUBLE PRECISION delrx, cory
       
-      integer countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
-      common /f9com/ scale
-      common /f11com/ delrx
+      INTEGER countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
+      COMMON /f9com/ scale
+      COMMON /f11com/ delrx
 
       ! convert from molecules to atoms
-      do i=1,N
+      DO i=1,N
          c(i)=dcos(th(i)/scale(i))
          s(i)=dsin(th(i)/scale(i))
          dd=alpha(i)-1d0
          dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
          dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-         do k=1,2
+         DO k=1,2
             xa(i,k)=x(i)+dr(i,k)*c(i)
             ya(i,k)=y(i)+dr(i,k)*s(i)
-         enddo
+         ENDDO
          dk(i,1)=D(i)*D1
          dk(i,2)=dd*D(i)*D1
-         if(alpha(i).lt.2d0) then 
+         IF(alpha(i).lt.2d0) THEN 
             di_up(i)=(dk(i,2)/2d0-dr(i,2))*2d0*D1
-         else
+         ELSE
             di_up(i)=(dk(i,1)/2d0+dr(i,1))*2d0*D1         
-         endif
-      enddo
+         ENDIF
+      ENDDO
 
       ! inter-particle interactions
       V=0d0
-      do i=1,N-1
-         if(countn(i).ge.1) then
-            do jj=1,countn(i)
+      DO i=1,N-1
+         IF(countn(i).ge.1) THEN
+            DO jj=1,countn(i)
                j=nl(jj,i)
                dij_up=(di_up(i)+di_up(j))/2d0
                
@@ -302,14 +302,14 @@
                xij=xij-idnint(xij/Lx)*Lx  !! PBC
                yij=yij-cory*Ly  !! PBC
 
-               if(dabs(xij).lt.dij_up+att) then
+               IF(dabs(xij).lt.dij_up+att) THEN
 !                  yij=y(i)-y(j)
 !                  yij=yij-cory*Ly  !! PBC
                   rijsq=xij**2+yij**2
-                  if(rijsq.lt.(dij_up+att)**2) then
+                  IF(rijsq.lt.(dij_up+att)**2) THEN
                      di1j1=(dk(i,1)+dk(j,1))/2d0
-                     do ki=1,2
-                        do kj=1,2
+                     DO ki=1,2
+                        DO kj=1,2
                            dij=(dk(i,ki)+dk(j,kj))/2d0
                            xij=xa(i,ki)-xa(j,kj)
                            yij=ya(i,ki)-ya(j,kj)
@@ -318,29 +318,29 @@
                            xij=xij-idnint(xij/Lx)*Lx  !! PBC
                            yij=yij-cory*Ly  !! PBC
                            rijsq=xij**2+yij**2
-                           if(rijsq.lt.(dij+att)**2) then
+                           IF(rijsq.lt.(dij+att)**2) THEN
                               rij=dsqrt(rijsq)
-                              if(exp .gt. 2.9) then
+                              IF(exp .gt. 2.9) THEN
                                  LJ=(dij/rij)*(dij/rij)
                                  LJ=LJ*LJ*LJ
                                  Vij=(LJ-1d0)*(LJ-1d0)
-                              else
+                              ELSE
                                  Vij=(1d0-rij/dij)**exp/exp-
      +                                (att/dij)**exp/exp
-                              endif 
+                              ENDIF 
                               V=V+Vij*dij**2/di1j1**2
-                           endif
-                        enddo
-                     enddo
-                  end if
-               end if
-            enddo
-         end if
-      enddo
+                           ENDIF
+                        ENDDO
+                     ENDDO
+                  ENDIF
+               ENDIF
+            ENDDO
+         ENDIF
+      ENDDO
 
-      if(exp.gt.2.9) then
+      IF(exp.gt.2.9) THEN
          V=V/72d0
-      endif
+      ENDIF
 			
       END
 
@@ -348,57 +348,57 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       IMPLICIT NONE
-      integer Ntot
-      parameter(Ntot = 4096)
-      double precision pi
-      parameter(pi=3.1415926535897932d0)
-      double precision x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
-      double precision fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
-      double precision dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y,scale(Ntot)
-      double precision fthi,fthj,fth_c,Lx,Ly,rijsq
-      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),att
-      double precision dk(Ntot,2),di_up(Ntot),di1j1
-      double precision c(Ntot),Vij, delrx, cory
-      double precision SSTRESS
-      integer countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
-      common /f9com/ scale
-      common /f11com/ delrx
-      common /f12com/ SSTRESS
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION pi
+      PARAMETER(pi=3.1415926535897932d0)
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
+      DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
+      DOUBLE PRECISION dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y,scale(Ntot)
+      DOUBLE PRECISION fthi,fthj,fth_c,Lx,Ly,rijsq
+      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),att
+      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1
+      DOUBLE PRECISION c(Ntot),Vij, delrx, cory
+      DOUBLE PRECISION SSTRESS
+      INTEGER countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
+      COMMON /f9com/ scale
+      COMMON /f11com/ delrx
+      COMMON /f12com/ SSTRESS
 
-      do i=1,N
+      DO i=1,N
          fx(i)=0d0
          fy(i)=0d0
          fth(i)=0d0
-      enddo
+      ENDDO
       SSTRESS=0d0
 
       ! convert to from molecules to atoms
-      do i=1,N
+      DO i=1,N
          c(i)=dcos(th(i)/scale(i))
          s(i)=dsin(th(i)/scale(i))
          dd=alpha(i)-1d0
          dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
          dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-         do k=1,2
+         DO k=1,2
             xa(i,k)=x(i)+dr(i,k)*c(i)
             ya(i,k)=y(i)+dr(i,k)*s(i)
-         enddo
+         ENDDO
          dk(i,1)=D(i)*D1
          dk(i,2)=dd*D(i)*D1
-         if(alpha(i).lt.2d0) then 
+         IF(alpha(i).lt.2d0) THEN 
             di_up(i)=(dk(i,2)/2d0-dr(i,2))*2d0*D1
-         else
+         ELSE
             di_up(i)=(dk(i,1)/2d0+dr(i,1))*2d0*D1         
-         endif
-      enddo
+         ENDIF
+      ENDDO
 
       ! inter-particle interactions
-      do i=1,N-1
-         if(countn(i).ge.1) then
-            do jj=1,countn(i)
+      DO i=1,N-1
+         IF(countn(i).ge.1) THEN
+            DO jj=1,countn(i)
                j=nl(jj,i)
                dij_up=(di_up(i)+di_up(j))/2d0  
                xij=x(i)-x(j)
@@ -407,12 +407,12 @@
                xij=xij-cory*delrx*Lx
                xij=xij-idnint(xij/Lx)*Lx  !! PBC
                yij=yij-cory*Ly  !! PBC
-               if(dabs(xij).lt.dij_up+att) then
+               IF(dabs(xij).lt.dij_up+att) THEN
                   rijsq=xij**2+yij**2
-                  if(rijsq.lt.(dij_up+att)**2) then
+                  IF(rijsq.lt.(dij_up+att)**2) THEN
                      di1j1=(dk(i,1)+dk(j,1))/2d0
-                     do ki=1,2
-                        do kj=1,2
+                     DO ki=1,2
+                        DO kj=1,2
                            dij=(dk(i,ki)+dk(j,kj))/2d0
                            xij=xa(i,ki)-xa(j,kj)
                            yij=ya(i,ki)-ya(j,kj)
@@ -421,15 +421,15 @@
                            xij=xij-idnint(xij/Lx)*Lx  !! PBC
                            yij=yij-cory*Ly  !! PBC
                            rijsq=xij**2+yij**2
-                           if(rijsq.lt.(dij+att)**2) then
+                           IF(rijsq.lt.(dij+att)**2) THEN
                               rij=dsqrt(rijsq)
-                              if(exp .gt. 2.9) then
+                              IF(exp .gt. 2.9) THEN
                                  LJ=(dij/rij)*(dij/rij)
                                  LJ=LJ*LJ*LJ
                                  fc=1d0/rij*LJ*(LJ-1d0)
-                              else
+                              ELSE
                                  fc=(1d0-rij/dij)**(exp-1d0)/dij
-                              endif
+                              ENDIF
                               
                               fr=-fc/rij*dij**2/di1j1**2
                               
@@ -445,26 +445,26 @@
                               SSTRESS=SSTRESS-xij*yij/rij*fc
                               
                               
-                           endif
-                        enddo
-                     enddo
-                  end if
-               end if
-            enddo
-         end if
-      enddo
+                           ENDIF
+                        ENDDO
+                     ENDDO
+                  ENDIF
+               ENDIF
+            ENDDO
+         ENDIF
+      ENDDO
       
-      if(exp .gt. 2.9) then
-         do i=1,N
+      IF(exp .gt. 2.9) THEN
+         DO i=1,N
             fx(i)=fx(i)/6d0
             fy(i)=fy(i)/6d0
             fth(i)=fth(i)/6d0 
-         enddo
-      endif
+         ENDDO
+      ENDIF
       
-      do i=1,N
+      DO i=1,N
          fth(i)=fth(i)/scale(i)
-      enddo
+      ENDDO
       
       SSTRESS=SSTRESS/Lx/Ly
 							
@@ -473,19 +473,19 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       DOUBLE PRECISION FUNCTION calc_phi(D, alpha, D1, N)
       IMPLICIT NONE
-      integer Ntot
-      parameter(Ntot = 4096)
-      double precision pi
-      parameter(pi=3.1415926535897932d0)
-      double precision D(Ntot),alpha(Ntot)
-      double precision Lx,Ly,phis,D1,phit
-      integer N,i
-      common /f5com/ Lx,Ly
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION pi
+      PARAMETER(pi=3.1415926535897932d0)
+      DOUBLE PRECISION D(Ntot),alpha(Ntot)
+      DOUBLE PRECISION Lx,Ly,phis,D1,phit
+      INTEGER N,i
+      COMMON /f5com/ Lx,Ly
          
       phit=0d0
-      do i=1,N
+      DO i=1,N
          phit=phit+(1d0+(alpha(i)-1d0)**2)*D(i)**2
-      enddo
+      ENDDO
          
       calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
       END FUNCTION
@@ -494,23 +494,23 @@
       ! INUSE
       SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
       IMPLICIT NONE
-      integer Ntot, N 
-      parameter(Ntot = 4096)
-      integer i, j, F(Ntot), Z, NCBUD(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
-      integer ki,kj,k
-      double precision overlap, aspect_ratio
-      double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-      double precision xij, yij, D(Ntot), D1
-      double precision exp,dij_up,dij
-      double precision Lx,Ly,rijsq,c(Ntot),att
-      double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-      double precision dk(Ntot,2)
-      double precision delrx,cory
-      integer flag
-      common /f3com/ alpha ! aspect ratio
-      common /f4com/ exp,att
-      common /f5com/ Lx,Ly
-      common /f11com/ delrx
+      INTEGER Ntot, N 
+      PARAMETER(Ntot = 4096)
+      INTEGER i, j, F(Ntot), Z, NCBUD(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
+      INTEGER ki,kj,k
+      DOUBLE PRECISION overlap, aspect_ratio
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
+      DOUBLE PRECISION xij, yij, D(Ntot), D1
+      DOUBLE PRECISION exp,dij_up,dij
+      DOUBLE PRECISION Lx,Ly,rijsq,c(Ntot),att
+      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dk(Ntot,2)
+      DOUBLE PRECISION delrx,cory
+      INTEGER flag
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f4com/ exp,att
+      COMMON /f5com/ Lx,Ly
+      COMMON /f11com/ delrx
 
       Z = 0
       Nf= 0
@@ -523,29 +523,29 @@
       flag = 0
       
       ! convert to from molecules to atoms
-      do i=1,N
+      DO i=1,N
          c(i)=dcos( th(i) )
          s(i)=dsin( th(i) )         
          dd=alpha(i)-1d0
          dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
          dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-         do k=1,2
+         DO k=1,2
             xa(i,k)=x(i)+dr(i,k)*c(i)
             ya(i,k)=y(i)+dr(i,k)*s(i)
-         enddo
+         ENDDO
          dk(i,1)=D(i)*D1
          dk(i,2)=dd*D(i)*D1
-      enddo
+      ENDDO
       
-      do i=1,N
+      DO i=1,N
          NCBUD(i,1)=0
          NCBUD(i,2)=0
-      enddo
+      ENDDO
 
-      do i=1,N-1
-          do j=i+1, N
-              do ki=1,2
-                  do kj=1,2
+      DO i=1,N-1
+          DO j=i+1, N
+              DO ki=1,2
+                  DO kj=1,2
                       dij=(dk(i,ki)+dk(j,kj))/2d0
                       xij=xa(i,ki)-xa(j,kj)
                       yij=ya(i,ki)-ya(j,kj)
@@ -555,57 +555,57 @@
                       yij=yij-cory*Ly  !! PBC
                       
                       rijsq=xij**2+yij**2
-                      if(rijsq.lt.(dij**2)) then
+                      IF(rijsq.lt.(dij**2)) THEN
                           Z = Z+2
                           NCBUD(i,ki)=NCBUD(i,ki)+1
                           NCBUD(j,kj)=NCBUD(j,kj)+1
-                          if (ki.eq.1 .and. kj.eq.1) then
+                          if (ki.eq.1 .and. kj.eq.1) THEN
                               Nmm = Nmm + 2
-                          elseif (ki.eq.2 .and. kj.eq.2) then
+                          ELSEif (ki.eq.2 .and. kj.eq.2) THEN
                               Nbb = Nbb + 2
-                          else
+                          ELSE
                               Nmb = Nmb + 2
-                          endif
-                      endif
-                  enddo
-              enddo
-          enddo
-      enddo
+                          ENDIF
+                      ENDIF
+                  ENDDO
+              ENDDO
+          ENDDO
+      ENDDO
 
       
-      do i=1,N
+      DO i=1,N
           flag = 0
-          if ( (NCBUD(i,1)+NCBUD(i,2)).lt.3 ) then
+          if ( (NCBUD(i,1)+NCBUD(i,2)).lt.3 ) THEN
               nf = nf + 1
               flag = 1
-          endif
+          ENDIF
           
-          if ( (NCBUD(i,1)+NCBUD(i,2)).eq.3 ) then
-              if ( NCBUD(i,1).eq.2 .or. NCBUD(i,2).eq.2 ) then
+          if ( (NCBUD(i,1)+NCBUD(i,2)).eq.3 ) THEN
+              if ( NCBUD(i,1).eq.2 .or. NCBUD(i,2).eq.2 ) THEN
                   nf = nf + 1
                   flag = 1
-              endif
-          endif
+              ENDIF
+          ENDIF
           
-          if (flag.eq.0) then    
-              if ( NCBUD(i,1).eq.0 ) then
+          if (flag.eq.0) THEN    
+              if ( NCBUD(i,1).eq.0 ) THEN
                   nu = nu + 1
-              endif
-              if ( NCBUD(i,2).eq.0 ) then
+              ENDIF
+              if ( NCBUD(i,2).eq.0 ) THEN
                   nu = nu + 1
-              endif
-          endif
+              ENDIF
+          ENDIF
           
-      enddo
+      ENDDO
       
       END
       
-      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE out_numbers(N, Nf, Nu, Ziso)
       IMPLICIT NONE
-      integer Ntot
-      parameter(Ntot = 4096)
-      integer N, Nf, Nu, Ziso
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, Nf, Nu, Ziso
       
       Ziso = 6*(N-Nf) - 2*Nu - 2
       
@@ -616,40 +616,40 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       
       SUBROUTINE frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
-      parameter(Ntot = 4096)
-      integer its,iter,ITMAX
-      double precision fret,ftol,EPS,ftol1
-      parameter (EPS=1d-10,ITMAX=1000000000)
-      double precision dgg,fp,gam,gg,gx(Ntot),gy(Ntot),hx(Ntot),hy(Ntot)
-      double precision D(Ntot),D1,xix(Ntot),xiy(Ntot),xith(Ntot),width
-      double precision x(Ntot),y(Ntot),maxdis,xp(Ntot),yp(Ntot)
-      double precision th(Ntot),hth(Ntot),gth(Ntot),exp,att,V
-      integer N,countn(Ntot),nl(800,Ntot)
+      PARAMETER(Ntot = 4096)
+      INTEGER its,iter,ITMAX
+      DOUBLE PRECISION fret,ftol,EPS,ftol1
+      PARAMETER (EPS=1d-10,ITMAX=1000000000)
+      DOUBLE PRECISION dgg,fp,gam,gg,gx(Ntot),gy(Ntot),hx(Ntot),hy(Ntot)
+      DOUBLE PRECISION D(Ntot),D1,xix(Ntot),xiy(Ntot),xith(Ntot),width
+      DOUBLE PRECISION x(Ntot),y(Ntot),maxdis,xp(Ntot),yp(Ntot)
+      DOUBLE PRECISION th(Ntot),hth(Ntot),gth(Ntot),exp,att,V
+      INTEGER N,countn(Ntot),nl(800,Ntot)
 
       ! not needed
-      double precision f1,f2,f3,fxe,fye,fthe
-      double precision xi,yi,thi,max1,max2,max3,del
-      double precision alpha(Ntot),Lx,Ly
+      DOUBLE PRECISION f1,f2,f3,fxe,fye,fthe
+      DOUBLE PRECISION xi,yi,thi,max1,max2,max3,del
+      DOUBLE PRECISION alpha(Ntot),Lx,Ly
 
       ! not needed
-      common /f3com/ alpha ! aspect ratio
-      common /f5com/ Lx,Ly
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f5com/ Lx,Ly
 
-      common /f2com/ width      
-      common /f4com/ exp,att
+      COMMON /f2com/ width      
+      COMMON /f4com/ exp,att
 
       iter=0
 
-      call makelist(N,x,y,D,D1,xp,yp,countn,nl)
-      call func(N,x,y,th,D,D1,fp,countn,nl)
-      if (fp.lt.ftol*dble(N).and.att.eq.0d0) then
+      CALL makelist(N,x,y,D,D1,xp,yp,countn,nl)
+      CALL func(N,x,y,th,D,D1,fp,countn,nl)
+      if (fp.lt.ftol*dble(N).and.att.eq.0d0) THEN
          fret=fp 
-         return
-      endif
+         RETURN
+      ENDIF
 
-      call dfunc(N,x,y,th,D,D1,xix,xiy,xith,countn,nl)
+      CALL dfunc(N,x,y,th,D,D1,xix,xiy,xith,countn,nl)
 
-      do i=1,N
+      DO i=1,N
         gx(i)=-xix(i)
 	gy(i)=-xiy(i)
         gth(i)=-xith(i)
@@ -659,49 +659,49 @@
         xix(i)=hx(i)
 	xiy(i)=hy(i)
         xith(i)=hth(i)
-      enddo
+      ENDDO
 
-      do its=1,ITMAX
+      DO its=1,ITMAX
          iter=its
 
-         call linmin(N,x,y,th,D,D1,xix,xiy,xith,fret,xp,yp,countn,nl)
+         CALL linmin(N,x,y,th,D,D1,xix,xiy,xith,fret,xp,yp,countn,nl)
          
-c         write(*,*) its, fret/dble(N), fret, fp
+c         WRITE(*,*) its, fret/dble(N), fret, fp
 
-         if(att.eq.0d0) then
-            if(dabs(fret-fp).lt.ftol1*fp.or.fret.lt.ftol*dble(N)) then
-                call func(N,x,y,th,D,D1,fp,countn,nl)
-               return
-            endif
-         else
-            if(dabs(fret-fp).lt.ftol1) then
-                call func(N,x,y,th,D,D1,fp,countn,nl)
-               return
-            end if 
-         endif
+         IF(att.eq.0d0) THEN
+            IF(dabs(fret-fp).lt.ftol1*fp.or.fret.lt.ftol*dble(N)) THEN
+                CALL func(N,x,y,th,D,D1,fp,countn,nl)
+               RETURN
+            ENDIF
+         ELSE
+            IF(dabs(fret-fp).lt.ftol1) THEN
+                CALL func(N,x,y,th,D,D1,fp,countn,nl)
+               RETURN
+            ENDIF 
+         ENDIF
          
-         call CG_check(N,x,y,xp,yp,maxdis)	     
-         if(maxdis.gt.width*D1) then
-            call makelist(N,x,y,D,D1,xp,yp,countn,nl)
-         end if
+         CALL CG_check(N,x,y,xp,yp,maxdis)	     
+         IF(maxdis.gt.width*D1) THEN
+            CALL makelist(N,x,y,D,D1,xp,yp,countn,nl)
+         ENDIF
          
          fp=fret
-         call dfunc(N,x,y,th,D,D1,xix,xiy,xith,countn,nl)
+         CALL dfunc(N,x,y,th,D,D1,xix,xiy,xith,countn,nl)
          
          gg=0d0
          dgg=0d0
          
-         do i=1,N
+         DO i=1,N
             gg=gg+gx(i)*gx(i)+gy(i)*gy(i)+gth(i)*gth(i)
             dgg=dgg+(xix(i)+gx(i))*xix(i)+(xiy(i)+gy(i))*xiy(i)
      +           +(xith(i)+gth(i))*xith(i)
-         enddo
+         ENDDO
          
-         if(gg.eq.0d0) then
-            return
-         endif
+         IF(gg.eq.0d0) THEN
+            RETURN
+         ENDIF
          gam=dgg/gg
-         do i=1,N
+         DO i=1,N
             gx(i)=-xix(i)
             gy(i)=-xiy(i)
             gth(i)=-xith(i)
@@ -711,11 +711,11 @@ c         write(*,*) its, fret/dble(N), fret, fp
             xix(i)=hx(i)
             xiy(i)=hy(i)
             xith(i)=hth(i)
-         enddo
-      enddo
+         ENDDO
+      ENDDO
       
 c     pause 'frprmn maximum iterations exceeded'
-      return
+      RETURN
       END
 C (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       
@@ -723,26 +723,26 @@ C (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE linmin(N,x,y,th,D,D1,xix,xiy,xith,fret,
      +     xpr,ypr,countnr,nlr)
-      double precision fret,TOL
+      DOUBLE PRECISION fret,TOL
       PARAMETER (Ntot=4096,TOL=1d-8)
 C     USES dbrent,df1dim,mnbrak
-      double precision ax,bx,fa,fb,fx,xmin,xx,xp(Ntot),yp(Ntot),dbrent
-      double precision pxcom(Ntot),pycom(Ntot),xixcom(Ntot),xiycom(Ntot)
-      double precision x(Ntot),y(Ntot),th(Ntot),xix(Ntot),xiy(Ntot)
-      double precision xith(Ntot),Dcom(Ntot),D1com,D(Ntot),D1,width
-      double precision pthcom(Ntot),xithcom(Ntot),f1dim,df1dim
-      double precision xpr(Ntot),ypr(Ntot)
-      integer countn(Ntot),nl(800,Ntot),countnr(Ntot),nlr(800,Ntot)
-      integer N,ncom
+      DOUBLE PRECISION ax,bx,fa,fb,fx,xmin,xx,xp(Ntot),yp(Ntot),dbrent
+      DOUBLE PRECISION pxcom(Ntot),pycom(Ntot),xixcom(Ntot),xiycom(Ntot)
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),xix(Ntot),xiy(Ntot)
+      DOUBLE PRECISION xith(Ntot),Dcom(Ntot),D1com,D(Ntot),D1,width
+      DOUBLE PRECISION pthcom(Ntot),xithcom(Ntot),f1dim,df1dim
+      DOUBLE PRECISION xpr(Ntot),ypr(Ntot)
+      INTEGER countn(Ntot),nl(800,Ntot),countnr(Ntot),nlr(800,Ntot)
+      INTEGER N,ncom
 
       COMMON /f1com/ pxcom,pycom,pthcom,xixcom,xiycom,xithcom,
      +     Dcom,D1com,xp,yp,thp,countn,nl,ncom
-      common /f2com/ width
+      COMMON /f2com/ width
 
       EXTERNAL df1dim
       EXTERNAL f1dim
 
-      do i=1,N
+      DO i=1,N
         pxcom(i)=x(i)
         pycom(i)=y(i)
         pthcom(i)=th(i)
@@ -750,91 +750,91 @@ C     USES dbrent,df1dim,mnbrak
 	xiycom(i)=xiy(i)
         xithcom(i)=xith(i)
         Dcom(i)=D(i)
-      enddo
+      ENDDO
       D1com=D1
       ncom=N
 
-      do i=1,N
+      DO i=1,N
          xp(i)=xpr(i)
          yp(i)=ypr(i)
          countn(i)=countnr(i)
-         do j=1,countn(i)
+         DO j=1,countn(i)
             nl(j,i)=nlr(j,i)
-         enddo
-      enddo
+         ENDDO
+      ENDDO
 
       ax=0d0
       xx=1d0
-      call mnbrak(ax,xx,bx,fa,fx,fb,f1dim)
+      CALL mnbrak(ax,xx,bx,fa,fx,fb,f1dim)
       fret=dbrent(ax,xx,bx,f1dim,df1dim,TOL,xmin)
-      do i=1,N
+      DO i=1,N
         xix(i)=xmin*xix(i)
         xiy(i)=xmin*xiy(i)
         xith(i)=xmin*xith(i)
         x(i)=x(i)+xix(i)
 	y(i)=y(i)+xiy(i)
         th(i)=th(i)+xith(i)
-      enddo
+      ENDDO
 
-      return
+      RETURN
       END
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE mnbrak(ax,bx,cx,fa,fb,fc,func)
-      double precision ax,bx,cx,fa,fb,fc,func,GOLD,GLIMIT,TINY
+      DOUBLE PRECISION ax,bx,cx,fa,fb,fc,func,GOLD,GLIMIT,TINY
 c      EXTERNAL func
       PARAMETER (GOLD=1.618034d0, GLIMIT=100., TINY=1.d-20)
-      double precision dum,fu,q,r,u,ulim
+      DOUBLE PRECISION dum,fu,q,r,u,ulim
       fa=func(ax)
       fb=func(bx)
-      if(fb.gt.fa)then ! was gt
+      IF(fb.gt.fa)THEN ! was gt
         dum=ax
         ax=bx
         bx=dum
         dum=fb
         fb=fa
         fa=dum
-      endif
+      ENDIF
       cx=bx+GOLD*(bx-ax)
       fc=func(cx)
-1     if(fb.gt.fc)then ! was ge
+1     IF(fb.gt.fc)THEN ! was ge
         r=(bx-ax)*(fb-fc)
         q=(bx-cx)*(fb-fa)
         u=bx-((bx-cx)*q-(bx-ax)*r)/(2d0*dsign(max(dabs(q-r),TINY),q-r))
         ulim=bx+GLIMIT*(cx-bx)
-        if((bx-u)*(u-cx).gt.0d0)then
+        IF((bx-u)*(u-cx).gt.0d0)THEN
           fu=func(u)
-          if(fu.lt.fc)then
+          IF(fu.lt.fc)THEN
             ax=bx
             fa=fb
             bx=u
             fb=fu
-            return
-          else if(fu.gt.fb)then
+            RETURN
+          ELSE IF(fu.gt.fb)THEN
             cx=u
             fc=fu
-            return
-          endif
+            RETURN
+          ENDIF
           u=cx+GOLD*(cx-bx)
           fu=func(u)
-        else if((cx-u)*(u-ulim).gt.0d0)then
+        ELSE IF((cx-u)*(u-ulim).gt.0d0)THEN
           fu=func(u)
-          if(fu.lt.fc)then
+          IF(fu.lt.fc)THEN
             bx=cx
             cx=u
             u=cx+GOLD*(cx-bx)
             fb=fc
             fc=fu
             fu=func(u)
-          endif
-        else if((u-ulim)*(ulim-cx).ge.0d0)then ! was ge
+          ENDIF
+        ELSE IF((u-ulim)*(ulim-cx).ge.0d0)THEN ! was ge
           u=ulim
           fu=func(u)
-        else
+        ELSE
           u=cx+GOLD*(cx-bx)
           fu=func(u)
-        endif
+        ENDIF
         ax=bx
         bx=cx
         cx=u
@@ -842,46 +842,46 @@ c      EXTERNAL func
         fb=fc
         fc=fu
         goto 1
-      endif
-      return
+      ENDIF
+      RETURN
       END
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION df1dim(x)
       PARAMETER (Ntot=4096)
-      double precision df1dim,x,maxdis
-      double precision fx(Ntot),fy(Ntot),fth(Ntot)
-      double precision pxcom(Ntot),pycom(Ntot),pthcom(Ntot)
-      double precision xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
-      double precision xt(Ntot),yt(Ntot),tht(Ntot)
-      double precision xp(Ntot),yp(Ntot)
-      double precision Dcom(Ntot),D1com
-      double precision alpha(Ntot),width
-      integer ncom,countn(Ntot),nl(800,Ntot)
+      DOUBLE PRECISION df1dim,x,maxdis
+      DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot)
+      DOUBLE PRECISION pxcom(Ntot),pycom(Ntot),pthcom(Ntot)
+      DOUBLE PRECISION xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
+      DOUBLE PRECISION xt(Ntot),yt(Ntot),tht(Ntot)
+      DOUBLE PRECISION xp(Ntot),yp(Ntot)
+      DOUBLE PRECISION Dcom(Ntot),D1com
+      DOUBLE PRECISION alpha(Ntot),width
+      INTEGER ncom,countn(Ntot),nl(800,Ntot)
       COMMON /f1com/ pxcom,pycom,pthcom,xixcom,xiycom,xithcom,
      +     Dcom,D1com,xp,yp,thp,countn,nl,ncom
-      common /f2com/ width
-      common /f3com/ alpha ! aspect ratio
+      COMMON /f2com/ width
+      COMMON /f3com/ alpha ! aspect ratio
 
-      do i=1,ncom
+      DO i=1,ncom
         xt(i)=pxcom(i)+x*xixcom(i)
         yt(i)=pycom(i)+x*xiycom(i)
         tht(i)=pthcom(i)+x*xithcom(i)
-      enddo
+      ENDDO
 
-      call CG_check(ncom,xt,yt,xp,yp,maxdis)
-      if(maxdis.gt.width*D1com) then
-	call makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
-      end if	
-      call dfunc(ncom,xt,yt,tht,Dcom,D1com,fx,fy,fth,countn,nl)
+      CALL CG_check(ncom,xt,yt,xp,yp,maxdis)
+      IF(maxdis.gt.width*D1com) THEN
+	CALL makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
+      ENDIF	
+      CALL dfunc(ncom,xt,yt,tht,Dcom,D1com,fx,fy,fth,countn,nl)
 
       df1dim=0.D0
-      do i=1,ncom
+      DO i=1,ncom
         df1dim=df1dim+fx(i)*xixcom(i)+fy(i)*xiycom(i)+fth(i)*xithcom(i)
-      enddo
+      ENDDO
 
-      return
+      RETURN
       END
 C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 
@@ -889,12 +889,12 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION dbrent(ax,bx,cx,f,df,tol,xmin)
       INTEGER ITMAX
-      double precision dbrent,ax,bx,cx,tol,xmin,df,f,ZEPS
+      DOUBLE PRECISION dbrent,ax,bx,cx,tol,xmin,df,f,ZEPS
       EXTERNAL df,f
       PARAMETER (ITMAX=10000,ZEPS=1.0e-12)
       INTEGER iter
-      double precision a,b,d,d1,d2,du,dv,dw,dx,e,fu,fv,fw
-      double precision fx,olde,tol1,tol2,u,u1,u2,v,w,x,xm
+      DOUBLE PRECISION a,b,d,d1,d2,du,dv,dw,dx,e,fu,fv,fw
+      DOUBLE PRECISION fx,olde,tol1,tol2,u,u1,u2,v,w,x,xm
       LOGICAL ok1,ok2
       a=min(ax,cx)
       b=max(ax,cx)
@@ -908,61 +908,61 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       dx=df(x)
       dv=dx
       dw=dx
-      do 11 iter=1,ITMAX
+      DO 11 iter=1,ITMAX
         xm=0.5*(a+b)
         tol1=tol*dabs(x)+ZEPS
         tol2=2.*tol1
-        if(dabs(x-xm).le.(tol2-0.5d0*(b-a))) goto 3
-        if(dabs(e).gt.tol1) then
+        IF(dabs(x-xm).le.(tol2-0.5d0*(b-a))) goto 3
+        IF(dabs(e).gt.tol1) THEN
           d1=2.*(b-a)
           d2=d1
-          if(dw.ne.dx) d1=(w-x)*dx/(dx-dw)
-          if(dv.ne.dx) d2=(v-x)*dx/(dx-dv)
+          IF(dw.ne.dx) d1=(w-x)*dx/(dx-dw)
+          IF(dv.ne.dx) d2=(v-x)*dx/(dx-dv)
           u1=x+d1
           u2=x+d2
           ok1=((a-u1)*(u1-b).gt.0d0).and.(dx*d1.le.0d0)
           ok2=((a-u2)*(u2-b).gt.0d0).and.(dx*d2.le.0d0)
           olde=e
           e=d
-          if(.not.(ok1.or.ok2))then
+          IF(.not.(ok1.or.ok2))THEN
             goto 1
-          else if (ok1.and.ok2)then
-            if(dabs(d1).lt.dabs(d2))then
+          ELSE if (ok1.and.ok2)THEN
+            IF(dabs(d1).lt.dabs(d2))THEN
               d=d1
-            else
+            ELSE
               d=d2
-            endif
-          else if (ok1)then
+            ENDIF
+          ELSE if (ok1)THEN
             d=d1
-          else
+          ELSE
             d=d2
-          endif
-          if(dabs(d).gt.dabs(0.5d0*olde))goto 1
+          ENDIF
+          IF(dabs(d).gt.dabs(0.5d0*olde))goto 1
           u=x+d
-          if(u-a.lt.tol2 .or. b-u.lt.tol2) d=dsign(tol1,xm-x)
+          IF(u-a.lt.tol2 .or. b-u.lt.tol2) d=dsign(tol1,xm-x)
           goto 2
-        endif
-1       if(dx.ge.0d0) then
+        ENDIF
+1       IF(dx.ge.0d0) THEN
           e=a-x
-        else
+        ELSE
           e=b-x
-        endif
+        ENDIF
         d=0.5d0*e
-2        if(dabs(d).ge.tol1) then
+2        IF(dabs(d).ge.tol1) THEN
           u=x+d
            fu=f(u)
-        else
+        ELSE
           u=x+dsign(tol1,d)
           fu=f(u)
-          if(fu.gt.fx)goto 3
-        endif
+          IF(fu.gt.fx)goto 3
+        ENDIF
         du=df(u)
-        if(fu.le.fx) then
-          if(u.ge.x) then
+        IF(fu.le.fx) THEN
+          IF(u.ge.x) THEN
             a=x
-          else
+          ELSE
             b=x
-          endif
+          ENDIF
           v=w
           fv=fw
           dv=dw
@@ -972,30 +972,30 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
           x=u
           fx=fu
           dx=du
-        else
-          if(u.lt.x) then
+        ELSE
+          IF(u.lt.x) THEN
             a=u
-          else
+          ELSE
             b=u
-          endif
-          if(fu.le.fw .or. w.eq.x) then
+          ENDIF
+          IF(fu.le.fw .or. w.eq.x) THEN
             v=w
             fv=fw
             dv=dw
             w=u
             fw=fu
             dw=du
-          else if(fu.le.fv .or. v.eq.x .or. v.eq.w) then
+          ELSE IF(fu.le.fv .or. v.eq.x .or. v.eq.w) THEN
             v=u
             fv=fu
             dv=du
-          endif
-        endif
+          ENDIF
+        ENDIF
 11    continue
 c      pause 'dbrent exceeded maximum iterations'
 3     xmin=x
       dbrent=fx
-      return
+      RETURN
       END
 c  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 
@@ -1003,31 +1003,31 @@ c  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION f1dim(x)
       PARAMETER (Ntot=4096)
-      double precision f1dim,x
-      double precision pxcom(Ntot),pycom(Ntot),pthcom(Ntot)
-      double precision xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
-      double precision xt(Ntot),yt(Ntot),tht(Ntot),width
-      double precision Dcom(Ntot),maxdis,D1com
-      double precision xp(Ntot),yp(Ntot),alpha(Ntot)
-      integer nl(800,Ntot),countn(Ntot),ncom
+      DOUBLE PRECISION f1dim,x
+      DOUBLE PRECISION pxcom(Ntot),pycom(Ntot),pthcom(Ntot)
+      DOUBLE PRECISION xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
+      DOUBLE PRECISION xt(Ntot),yt(Ntot),tht(Ntot),width
+      DOUBLE PRECISION Dcom(Ntot),maxdis,D1com
+      DOUBLE PRECISION xp(Ntot),yp(Ntot),alpha(Ntot)
+      INTEGER nl(800,Ntot),countn(Ntot),ncom
       COMMON /f1com/ pxcom,pycom,pthcom,xixcom,xiycom,xithcom,
      +     Dcom,D1com,xp,yp,thp,countn,nl,ncom
       
-      common /f2com/ width
-      common /f3com/ alpha ! aspect ratio
+      COMMON /f2com/ width
+      COMMON /f3com/ alpha ! aspect ratio
 
-      do i=1,ncom
+      DO i=1,ncom
         xt(i)=pxcom(i)+x*xixcom(i)
         yt(i)=pycom(i)+x*xiycom(i)
         tht(i)=pthcom(i)+x*xithcom(i)
-      enddo
+      ENDDO
 
-      call CG_check(ncom,xt,yt,xp,yp,maxdis)
-      if(maxdis.gt.width*D1com) then
-	call makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
-      end if
-      call func(ncom,xt,yt,tht,Dcom,D1com,f1dim,countn,nl)
+      CALL CG_check(ncom,xt,yt,xp,yp,maxdis)
+      IF(maxdis.gt.width*D1com) THEN
+	CALL makelist(ncom,xt,yt,Dcom,D1com,xp,yp,countn,nl)
+      ENDIF
+      CALL func(ncom,xt,yt,tht,Dcom,D1com,f1dim,countn,nl)
 
-      return
+      RETURN
       END
 C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.              
