@@ -21,7 +21,7 @@
       !!      Author:   Pawel Gniewek, Carl Schreck
       !!      Email(PG):pawel.gniewek@berkeley.edu
       !!      Email(CS): ...
-      !!      License:  BSD-3
+      !!      License:  BSD 3
       !!      Reference: "Jamming by growth"; Gniewek, P. and Schreck, C.S. and Hallatschek, O.; 2018
       !!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -29,13 +29,13 @@
 
       PROGRAM jammed_packing
 
-      implicit none
+      IMPLICIT NONE
       integer Ntot,Ngen
       PARAMETER(Ntot=4096,Ngen=4096)
       double precision pi
       PARAMETER(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp,ran2
-      double precision ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei,ap
+      double precision ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei
       double precision alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
       double precision rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
       double precision aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT,P0
@@ -53,7 +53,6 @@
 ! NEW DATA 
       character file_LF_JAMM*120
       character file_LF_DPHI*120
-!      character STATS_PROD_file*120
       character STATS_file_LF_JAMM*120
       character STATS_file_LF_DPHI*120
       character file_NC*100
@@ -83,7 +82,7 @@
       common /f2com/ width
       common /f3com/ alpha
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f6com/ P,PP,PT,PR,PPm
       common /f8com/ alpha0
       common /f9com/ scale
@@ -93,7 +92,6 @@
       read(*,*) alpha0
       read(*,*) Lx
       read(*,*) Ly
-      read(*,*) ap
 
       ! read cell parameters
       read(*,*) celltype
@@ -503,10 +501,10 @@
       subroutine makelist(N,x,y,D,D1,xp,yp,countn,nl)
       PARAMETER(Ntot = 4096)
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
-      double precision Lx,Ly,ap
+      double precision Lx,Ly
       integer countn(Ntot),nl(800,Ntot),N,celltype
       common /f10com/ celltype
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       
       call makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
 
@@ -518,12 +516,12 @@
       double precision x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
       double precision D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
       double precision dd,dr1,dr2,dk2,di_up(Ntot),exp,att
-      double precision Lx,Ly,ap
+      double precision Lx,Ly
       integer countn(Ntot),nl(800,Ntot),N
       common /f2com/ width
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
 
       do i=1,N
          countn(i)=0
@@ -598,13 +596,13 @@
       PARAMETER(pi=3.1415926535897932d0)
       double precision x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,alpha(Ntot)
       double precision rij,xij,yij,dij,exp,dlnsig,dij_up,sigma,LJ
-      double precision Lx,Ly,ap,rijsq,dijsq_up,scale(Ntot),c(Ntot),att
+      double precision Lx,Ly,rijsq,dijsq_up,scale(Ntot),c(Ntot),att
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),Vij
       double precision dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
       integer countn(Ntot),nl(800,Ntot),N
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f9com/ scale
 
       ! convert from molecules to atoms
@@ -686,7 +684,7 @@
       double precision x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
       double precision fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
       double precision dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y,scale(Ntot)
-      double precision fthi,fthj,fth_c,Lx,Ly,ap,P,Pij,rijsq,dijsq_up
+      double precision fthi,fthj,fth_c,Lx,Ly,P,Pij,rijsq,dijsq_up
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),att
       double precision dk(Ntot,2),di_up(Ntot),di1j1,xhit,yhit,yhitout
       double precision PP(Ntot),c(Ntot),Vij,PT,PR,PPm(Ntot)
@@ -694,7 +692,7 @@
       integer countn(Ntot),nl(800,Ntot),N !,growth_flag
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f6com/ P,PP,PT,PR,PPm
       common /f9com/ scale
 !      common /f11com/ growth_flag
@@ -840,11 +838,11 @@
       ! not needed
       double precision f1,f2,f3,fxe,fye,fthe
       double precision xi,yi,thi,max1,max2,max3,del
-      double precision alpha(Ntot),Lx,Ly,ap,alpha0
+      double precision alpha(Ntot),Lx,Ly,alpha0
 
       ! not needed
       common /f3com/ alpha ! aspect ratio
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f8com/ alpha0
 
       common /f2com/ width      
@@ -1377,11 +1375,11 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       PARAMETER(pi=3.1415926535897932d0)
       PARAMETER(Ntot = 4096)
       double precision D(Ntot),alpha(Ntot)
-      double precision Lx,Ly,ap
+      double precision Lx,Ly
       double precision D1,phit
       integer i,N
          
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
          
       phit=0d0
          
@@ -1662,11 +1660,11 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       double precision xij, yij, rij, D(Ntot), D1, z_ave
       double precision dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
       double precision dtijthi,dtijthj,dthithj, compression
-      double precision x2(Ntot), y2(Ntot), th2(Ntot), Lx,Ly,ap
+      double precision x2(Ntot), y2(Ntot), th2(Ntot), Lx,Ly
       integer count, Z, nn
       
       common /f3com/ alpha ! aspect ratio
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f9com/ scale
 
       ! Remove floaters
@@ -1800,7 +1798,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       double precision dtijthi,dtijthj,dthithj, width
       double precision alpha(Ntot)
       double precision dd,dr1,dr2,dk2,exp,att
-      double precision Lx,Ly,ap
+      double precision Lx,Ly
       !
       double precision dijsq_up,scale(Ntot),c(Ntot)
       double precision s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
@@ -1811,7 +1809,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       common /f2com/ width
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
       common /f9com/ scale
       common /f10com/ celltype
       
@@ -1858,13 +1856,13 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
       double precision xij, yij, D(Ntot), D1
       double precision exp,dij_up,dij
-      double precision Lx,Ly,ap,rijsq,c(Ntot),att
+      double precision Lx,Ly,rijsq,c(Ntot),att
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       double precision dk(Ntot,2)
       integer flag
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
 
       Z = 0
       Nf= 0
@@ -1970,13 +1968,13 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       double precision x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
       double precision xij, yij, D(Ntot), D1
       double precision exp,dij
-      double precision Lx,Ly,ap,rijsq,c(Ntot),att 
+      double precision Lx,Ly,rijsq,c(Ntot),att 
       double precision s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       double precision dk(Ntot,2)
 
       common /f3com/ alpha ! aspect ratio
       common /f4com/ exp,att
-      common /f5com/ Lx,Ly,ap
+      common /f5com/ Lx,Ly
 
       ZEROBUDS = 0
       

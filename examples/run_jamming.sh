@@ -20,10 +20,10 @@ divtype=4
 
 
 P0=0.001
-Lx=10
+Lx=8
 mm=1
 nn=3
-se=123
+se=234
 
 
 seed=$(($se+1000))
@@ -48,7 +48,6 @@ time $exe_file <<EOF
   $ar
   $Lx
   $Ly
-  $AP
   $celltype
   $divtype
   $P0
