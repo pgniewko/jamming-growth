@@ -36,16 +36,15 @@
       PARAMETER(pi=3.1415926535897932d0)
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp,ran2
       DOUBLE PRECISION ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei
-      DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
-      DOUBLE PRECISION rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
-      DOUBLE PRECISION aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT,P0
+      DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
+      DOUBLE PRECISION rate0,desync,phi,flow,P,PP(Ntot),D0(Ntot)
+      DOUBLE PRECISION dispcm,xa(2),ya(2),PR,PT,P0
       DOUBLE PRECISION cc,ss,dr(2),dd,corr,att,rat
-      DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
       DOUBLE PRECISION dt, PPm(Ntot), total_growthrate
       INTEGER dtstatus, terminate
-      INTEGER N,Nr,seed,iter,i,j,k,kk,c(Ntot,Ngen),m,skip,Nexist
-      INTEGER celltype,divtype,nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      INTEGER div,ndiv,idiv(999,2),kdiv, Nf, Nu, Nmm,Nbb,Nmb
+      INTEGER N,Nr,seed,iter,i,j,k,kk,m,skip
+      INTEGER celltype,divtype
+      INTEGER div, Nf, Nu, Nmm,Nbb,Nmb
       CHARACTER file1*80
       
 ! NEW DATA 
@@ -56,14 +55,10 @@
       CHARACTER file_NC*100
       
       DOUBLE PRECISION xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
-      DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
+      DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot)
       DOUBLE PRECISION scalecc(Ntot)
       DOUBLE PRECISION Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
-      DOUBLE PRECISION aclonecc(Ntot*Ngen)
-      DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
-      INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
-      INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
-      INTEGER idivcc(999,2), ndivcc
+      INTEGER Ncc
       INTEGER F(Ntot), Nc, Ziso, F_e(Ntot)
       INTEGER BUDCONT(Ntot), BUDCONTCC(Ntot), ZEROBUDS
       DOUBLE PRECISION phitemp, calc_phi, wide
@@ -161,20 +156,13 @@
 
       ! random initial config
       N=2
-      Nexist=2
       DO i=1,N 
-         c(i,1)=1
-         c(i,2)=i
          x(i)=Lx/2 + 0d0
          y(i)=Ly/2 + (dble(i)-1.5d0)*d(i)*D1
          th(i)=(ran2(seed)-0.5d0)*2d0*pi
          D0(i)=D1
          rate(i)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0
       ENDDO
-
-      ! calculate # steps until division
-      tdiv=dlog10(2d0)/dlog10(1d0+rate0)
-      
       
       dt = 1.0
       dtstatus = 0
@@ -184,19 +172,15 @@
       DO WHILE (terminate.NE.1)
       k=k+1
       
-      CALL copy_everything(Ntot,Ngen,ndiv,x,y,th,D,alpha,rate,
-     +     alphar,
-     +     scale, P, PP, D0, aclone,
-     +     xdiv, ydiv, thdiv,
-     +     N, c, Nexist, nclone, nclonebox, idiv,
-     +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
-     +     scalecc, Pcc, PPcc, D0cc, aclonecc,
-     +     xdivcc, ydivcc, thdivcc,
-     +     Ncc,ccc,Nexistcc,nclonecc,ncloneboxcc,
-     +     idivcc, BUDCONT, BUDCONTCC, PPm,PPmcc)
+      CALL copy_everything(Ntot,Ngen,x,y,th,D,alpha,rate,
+     +     scale, P, PP, D0,
+     +     N,
+     +     xcc, ycc, thcc, Dcc, alphacc, ratecc,
+     +     scalecc, Pcc, PPcc, D0cc,
+     +     Ncc,
+     +     BUDCONT, BUDCONTCC, PPm,PPmcc)
     
          ! GROW PARTICLES
-         ndiv=0
          DO i=1,N
                ratei=rate(i)*dt
                
@@ -213,12 +197,7 @@
                   div=1
                   
                   ! divide into 2 - 1st assigned index N+1
-                  N=N+1
-                  c(N,1)=c(i,1)+1
-                  DO j=2,c(N,1)
-                     c(N,j)=c(i,j)
-                  ENDDO
-                  c(N,c(N,1)+1)=Nexist+1                  
+                  N=N+1                  
                   D(N)=D(i)
                   x(N)=x(i)+dispcm*dcos(th(i))
                   y(N)=y(i)+dispcm*dsin(th(i))
@@ -226,27 +205,11 @@
                   alpha(N)=alpha0
                   
                   ! divide into 2 - 1st assigned index i
-                  c(i,1)=c(i,1)+1
-                  c(i,c(i,1)+1)=Nexist+2
                   x(i)=x(i)-dispcm*dcos(th(i))
                   y(i)=y(i)-dispcm*dsin(th(i))
                   rate(i)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0 
                   alpha(i)=alpha0
 
-                  ! initialize # & area of clones
-                  nclone(Nexist+1)=0
-                  nclone(Nexist+2)=0
-                  aclone(Nexist+1)=0d0
-                  aclone(Nexist+2)=0d0
-
-                  ! keep track of clones in system
-                  nclonebox(Nexist+1)=1
-                  nclonebox(Nexist+2)=1
-                  DO j=2,c(i,1)
-                     nclonebox(c(i,j))=nclonebox(c(i,j))+1
-                  ENDDO
-
-                  Nexist=Nexist+2
                ELSE
                    div=0
                ENDif
@@ -268,18 +231,6 @@
                   ! temp, remove
                   th(i)=th(i) + 1d-4*(ran2(seed)-0.5d0)
                   th(N)=th(N) + 1d-4*(ran2(seed)-0.5d0)
-               ENDif
-
-               IF(div.EQ.1) THEN
-                  ndiv=ndiv+1
-                  idiv(ndiv,1)=i
-                  idiv(ndiv,2)=N
-                  xdiv(ndiv,1)=x(i)
-                  xdiv(ndiv,2)=x(N)
-                  ydiv(ndiv,1)=y(i)
-                  ydiv(ndiv,2)=y(N)
-                  thdiv(ndiv,1)=th(i)
-                  thdiv(ndiv,2)=th(N)
                ENDif
          ENDDO
          
@@ -310,17 +261,14 @@
          
          ! REJECT THE MOVE
          IF(dtstatus.EQ.1) THEN
-         CALL copy_back_everything(Ntot, Ngen,ndiv,x,y,th,D,alpha,
+         CALL copy_back_everything(Ntot, Ngen,x,y,th,D,alpha,
      +     rate, 
-     +     alphar,
-     +     scale, P, PP, D0, aclone,
-     +     xdiv, ydiv, thdiv,
-     +     N, c, Nexist, nclone, nclonebox,idiv,
-     +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
-     +     scalecc, Pcc, PPcc, D0cc, aclonecc,
-     +     xdivcc, ydivcc, thdivcc,
-     +     Ncc, ccc,Nexistcc,nclonecc,ncloneboxcc,
-     +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)       
+     +     scale, P, PP, D0,
+     +     N,
+     +     xcc, ycc, thcc, Dcc, alphacc, ratecc,
+     +     scalecc, Pcc, PPcc, D0cc,
+     +     Ncc,
+     +     BUDCONT, BUDCONTCC,PPm,PPmcc)       
          ENDIF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!         
 
@@ -1363,43 +1311,31 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       END FUNCTION
       
       
-      SUBROUTINE copy_everything(Ntot, Ngen, ndiv, x, y, th, D, alpha, 
-     +     rate, alphar,
-     +     scale, P, PP, D0, aclone,
-     +     xdiv, ydiv, thdiv,
-     +     N, c, Nexist, nclone, nclonebox, idiv,
-     +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
-     +     scalecc, Pcc, PPcc, D0cc, aclonecc,
-     +     xdivcc, ydivcc, thdivcc,
-     +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc,
-     +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
+      SUBROUTINE copy_everything(Ntot, Ngen, x, y, th, D, alpha, 
+     +     rate,
+     +     scale, P, PP, D0,
+     +     N,
+     +     xcc, ycc, thcc, Dcc, alphacc, ratecc,
+     +     scalecc, Pcc, PPcc, D0cc,
+     +     Ncc,
+     +     BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
       IMPLICIT NONE
       INTEGER Ntot,Ngen
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot)
-      DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
+      DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
       DOUBLE PRECISION P,PP(Ntot),D0(Ntot),PPm(Ntot)
-      DOUBLE PRECISION aclone(Ntot*Ngen)
-      DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
-      INTEGER N,c(Ntot,Ngen),Nexist
-      INTEGER nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      INTEGER idiv(999,2), ndiv
+      INTEGER N
       DOUBLE PRECISION xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
-      DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
+      DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot)
       DOUBLE PRECISION scalecc(Ntot)
       DOUBLE PRECISION Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
-      DOUBLE PRECISION aclonecc(Ntot*Ngen)
-      DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
-      INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
-      INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
-      INTEGER idivcc(999,2), ndivcc
+      INTEGER Ncc
       INTEGER i,j, BUDCONT(Ntot), BUDCONTCC(Ntot)
       
 !      
       Pcc = P
-      Ncc = N
-      Nexistcc = Nexist
-      ndivcc = ndiv     
+      Ncc = N   
       
 ! ZERO EVERYTHING !!!
       DO i=1,Ntot
@@ -1409,36 +1345,11 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           Dcc(i) = 0d0
           alphacc(i) = 0d0
           ratecc(i) = 0d0
-          alpharcc(i) = 0d0
           scalecc(i) = 0d0
           PPcc(i) = 0d0
           PPmcc(i) = 0d0
           D0cc(i) = 0d0
           BUDCONTCC(i) = 0
-      ENDDO
-      
-      DO i=1,999
-          xdivcc(i,1) = 0d0
-          ydivcc(i,1) = 0d0
-          thdivcc(i,1) = 0d0
-          idivcc(i,1) = 0d0
-          xdivcc(i,2) = 0d0
-          ydivcc(i,2) = 0d0
-          thdivcc(i,2) = 0d0
-          idivcc(i,2) = 0d0
-      ENDDO
-      
-      
-      DO i=1,Nexistcc+2!Ntot*Ngen
-          aclonecc(i) = 0d0
-          nclonecc(i) = 0d0
-          ncloneboxcc(i) = 0d0
-      ENDDO 
-      
-      DO i=1,Nexistcc+2!Ntot
-          DO j=1,Nexistcc+2!Ngen
-              ccc(i,j) = 0
-          ENDDO
       ENDDO
      
 
@@ -1450,7 +1361,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           Dcc(i) = D(i)
           alphacc(i) = alpha(i)
           ratecc(i) = rate(i)
-          alpharcc(i) = alphar(i)
           scalecc(i) = scale(i)
           PPcc(i) = PP(i)
           PPmcc(i) = PPm(i)
@@ -1458,70 +1368,37 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           BUDCONTCC(i) = BUDCONT(i)
       ENDDO
       
-      DO i=1,999
-          xdivcc(i,1) = xdiv(i,1)
-          ydivcc(i,1) = ydiv(i,1)
-          thdivcc(i,1) = thdiv(i,1) 
-          idivcc(i,1) = idiv(i,1)
-          xdivcc(i,2) = xdiv(i,2)
-          ydivcc(i,2) = ydiv(i,2)
-          thdivcc(i,2) = thdiv(i,2) 
-          idivcc(i,2) = idiv(i,2) 
-      ENDDO
       
-      DO i=1,Nexistcc+2!Ntot*Ngen
-          aclonecc(i) = aclone(i)          
-          nclonecc(i) = nclone(i)
-          ncloneboxcc(i) = nclonebox(i)
-      ENDDO
-      
-      DO i=1,Nexistcc+2!Ntot
-          DO j=1,Nexistcc+2!Ngen
-              ccc(i,j) = c(i,j)
-          ENDDO
-      ENDDO
       END
       
-      SUBROUTINE copy_back_everything(Ntot, Ngen, ndiv, x, y, th, D, 
+      SUBROUTINE copy_back_everything(Ntot, Ngen, x, y, th, D, 
      +     alpha, 
-     +     rate, alphar,
-     +     scale, P, PP, D0, aclone,
-     +     xdiv, ydiv, thdiv,
-     +     N, c, Nexist, nclone, nclonebox,idiv,
-     +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
-     +     scalecc, Pcc, PPcc, D0cc, aclonecc,
-     +     xdivcc, ydivcc, thdivcc,
-     +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc,
-     +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
+     +     rate,
+     +     scale, P, PP, D0,
+     +     N,
+     +     xcc, ycc, thcc, Dcc, alphacc, ratecc,
+     +     scalecc, Pcc, PPcc, D0cc,
+     +     Ncc,
+     +     BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
       IMPLICIT NONE
       INTEGER Ntot,Ngen
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot)
-      DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
+      DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
       DOUBLE PRECISION P,PP(Ntot),D0(Ntot),PPm(Ntot)
-      DOUBLE PRECISION aclone(Ntot*Ngen)
-      DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
-      INTEGER N,c(Ntot,Ngen),Nexist
-      INTEGER nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      INTEGER idiv(999,2), ndiv
+      INTEGER N
       DOUBLE PRECISION xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
-      DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
+      DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot)
       DOUBLE PRECISION scalecc(Ntot)
       DOUBLE PRECISION Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
-      DOUBLE PRECISION aclonecc(Ntot*Ngen)
-      DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
       DOUBLE PRECISION dd
-      INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
-      INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
-      INTEGER idivcc(999,2), ndivcc
+      INTEGER Ncc
       INTEGER i,j, celltype, BUDCONT(Ntot), BUDCONTCC(Ntot)
       COMMON /f10com/ celltype
             
 !
       P = Pcc
       N = Ncc
-      Nexist = Nexistcc
-      ndiv = ndivcc
 !
       DO i=1,Ntot
           x(i) = xcc(i)
@@ -1530,7 +1407,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           D(i) = Dcc(i)
           alpha(i) = alphacc(i)
           rate(i) = ratecc(i)
-          alphar(i) = alpharcc(i)
           scale(i) = scalecc(i)
           PP(i) = PPcc(i)
           PPm(i) = PPmcc(i)
@@ -1538,28 +1414,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           BUDCONT(i) = BUDCONTCC(i)
       ENDDO
       
-      DO i=1,999
-          xdiv(i,1) = xdivcc(i,1)
-          ydiv(i,1) = ydivcc(i,1)
-          thdiv(i,1) = thdivcc(i,1) 
-          idiv(i,1) = idivcc(i,1)
-          xdiv(i,2) = xdivcc(i,2)
-          ydiv(i,2) = ydivcc(i,2)
-          thdiv(i,2) = thdivcc(i,2) 
-          idiv(i,2) = idivcc(i,2) 
-      ENDDO
-      
-      DO i=1,Nexist+2!Ntot*Ngen
-          aclone(i) = aclonecc(i)          
-          nclone(i) = nclonecc(i)
-          nclonebox(i) = ncloneboxcc(i)
-      ENDDO
-      
-      DO i=1,Nexist+2!Ntot
-          DO j=1,Nexist+2!Ngen
-              c(i,j) = ccc(i,j)
-          ENDDO
-      ENDDO
 
          DO i=1,N
             IF(celltype.EQ.1) THEN
