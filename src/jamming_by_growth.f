@@ -39,8 +39,7 @@
       DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
       DOUBLE PRECISION rate0,desync,phi,flow,tdiv,P,PP(Ntot),D0(Ntot)
       DOUBLE PRECISION aclone(Ntot*Ngen),dispcm,xa(2),ya(2),PR,PT,P0
-      DOUBLE PRECISION tbirth(Ntot*Ngen),cc,ss,dr(2),dd,corr,att,rat
-      DOUBLE PRECISION xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
+      DOUBLE PRECISION cc,ss,dr(2),dd,corr,att,rat
       DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
       DOUBLE PRECISION dt, PPm(Ntot), total_growthrate
       INTEGER dtstatus, terminate
@@ -191,7 +190,7 @@
       CALL copy_everything(Ntot,Ngen,ndiv,x,y,th,D,alpha,rate,
      +     alphar,
      +     scale, P, PP, D0, aclone,
-     +     tbirth, xbirth, ybirth, xdiv, ydiv, thdiv,
+     +     xdiv, ydiv, thdiv,
      +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
@@ -251,14 +250,6 @@
                   DO j=2,c(i,1)
                      nclonebox(c(i,j))=nclonebox(c(i,j))+1
                   ENDDO
-
-                  ! keep track of cell position at birth
-                  tbirth(Nexist+1)=dble(k)/tdiv
-                  tbirth(Nexist+2)=dble(k)/tdiv
-                  xbirth(Nexist+1)=x(N)
-                  xbirth(Nexist+2)=x(i)
-                  ybirth(Nexist+1)=y(N)
-                  ybirth(Nexist+2)=y(i)
 
                   Nexist=Nexist+2
                ELSE
@@ -328,7 +319,7 @@
      +     rate, 
      +     alphar,
      +     scale, P, PP, D0, aclone,
-     +     tbirth, xbirth, ybirth, xdiv, ydiv, thdiv,
+     +     xdiv, ydiv, thdiv,
      +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
@@ -1380,7 +1371,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       SUBROUTINE copy_everything(Ntot, Ngen, ndiv, x, y, th, D, alpha, 
      +     rate, alphar,
      +     scale, P, PP, D0, aclone,
-     +     tbirth, xbirth, ybirth, xdiv, ydiv, thdiv,
+     +     xdiv, ydiv, thdiv,
      +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
@@ -1394,8 +1385,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
       DOUBLE PRECISION P,PP(Ntot),D0(Ntot),PPm(Ntot)
       DOUBLE PRECISION aclone(Ntot*Ngen)
-      DOUBLE PRECISION tbirth(Ntot*Ngen)
-      DOUBLE PRECISION xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
       DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
       INTEGER N,c(Ntot,Ngen),Nexist
       INTEGER nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
@@ -1515,7 +1504,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     alpha, 
      +     rate, alphar,
      +     scale, P, PP, D0, aclone,
-     +     tbirth, xbirth, ybirth, xdiv, ydiv, thdiv,
+     +     xdiv, ydiv, thdiv,
      +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
@@ -1529,8 +1518,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DOUBLE PRECISION alpha(Ntot),rate(Ntot),alphar(Ntot),scale(Ntot)
       DOUBLE PRECISION P,PP(Ntot),D0(Ntot),PPm(Ntot)
       DOUBLE PRECISION aclone(Ntot*Ngen)
-      DOUBLE PRECISION tbirth(Ntot*Ngen)
-      DOUBLE PRECISION xbirth(Ntot*Ngen),ybirth(Ntot*Ngen)
       DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
       INTEGER N,c(Ntot,Ngen),Nexist
       INTEGER nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
