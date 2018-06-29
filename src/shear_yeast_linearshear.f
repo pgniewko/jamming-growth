@@ -34,9 +34,7 @@
       DOUBLE PRECISION phi_init,ddelrx,delrx
       
       INTEGER shear_steps, step_index
-      DOUBLE PRECISION SSTRESS, cory, SSTRESS0
-
-! END OF NEW DATA      
+      DOUBLE PRECISION shear_stress, cory, shear_stress_0    
       
       COMMON /f2com/ width
       COMMON /f3com/ alpha
@@ -44,7 +42,7 @@
       COMMON /f5com/ Lx,Ly
       COMMON /f9com/ scale
       COMMON /f11com/ delrx
-      COMMON /f12com/ SSTRESS
+      COMMON /f12com/ shear_stress
 
       ! READ geometric PARAMETERs
       READ(*,*) Lx
@@ -67,8 +65,8 @@
       
       wide = 2.0d0
 
-      SSTRESS = 0d0
-      SSTRESS0= 0d0
+      shear_stress = 0d0
+      shear_stress_0= 0d0
 
       ! FILES
  123  OPEN(unit=1,file=TRIM(file_conf)) ! CONFIGURATION FILE
@@ -102,12 +100,13 @@
          CALL frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
 
          IF(delrx.EQ.0d0)THEN
-             SSTRESS0 = SSTRESS
+             shear_stress_0 = shear_stress
          ENDIF
          
          WRITE(*,*) N,fret/dble(N), 
-     +     delrx,ddelrx,step_index,SSTRESS,SSTRESS-SSTRESS0
-    
+     +     delrx,ddelrx,step_index,shear_stress,
+     +     shear_stress-shear_stress_0
+     
          ! convert back to angles
          DO i=1,N
             th(i)=th(i)/scale(i)
@@ -115,8 +114,8 @@
          
          CALL contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
          CALL out_numbers(N, Nf, Nu, Ziso)
-         WRITE(12,'(3E26.18,5I12)')delrx,SSTRESS,SSTRESS-SSTRESS0,
-     +         N,Nc,Nf,Nu,Ziso
+         WRITE(12,'(3E26.18,5I12)')delrx,shear_stress,
+     +         shear_stress-shear_stress_0,N,Nc,Nf,Nu,Ziso
      
          phi = calc_phi(D, alpha, D1, N) 
          WRITE(11,*) 2*N, phi
@@ -253,11 +252,11 @@
       PARAMETER(Ntot = 4096)
       DOUBLE PRECISION pi
       PARAMETER(pi=3.1415926535897932d0)
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V,alpha(Ntot)
-      DOUBLE PRECISION rij,xij,yij,dij,exp,dij_up,sigma,LJ
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),alpha(Ntot)
+      DOUBLE PRECISION rij,xij,yij,dij,exp,dij_up,sigma,LJ,D1,V
       DOUBLE PRECISION Lx,Ly,rijsq,scale(Ntot),c(Ntot),att
-      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),Vij
-      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1
+      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1,Vij
       DOUBLE PRECISION delrx, cory
       
       INTEGER countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
@@ -303,8 +302,6 @@
                yij=yij-cory*Ly  !! PBC
 
                IF(dabs(xij).LT.dij_up+att) THEN
-!                  yij=y(i)-y(j)
-!                  yij=yij-cory*Ly  !! PBC
                   rijsq=xij**2+yij**2
                   IF(rijsq.LT.(dij_up+att)**2) THEN
                      di1j1=(dk(i,1)+dk(j,1))/2d0
@@ -354,26 +351,27 @@
       PARAMETER(pi=3.1415926535897932d0)
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
       DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
-      DOUBLE PRECISION dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y,scale(Ntot)
+      DOUBLE PRECISION dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y
+      DOUBLE PRECISION scale(Ntot)
       DOUBLE PRECISION fthi,fthj,fth_c,Lx,Ly,rijsq
-      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2),att
+      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1
-      DOUBLE PRECISION c(Ntot),Vij, delrx, cory
-      DOUBLE PRECISION SSTRESS
+      DOUBLE PRECISION c(Ntot),Vij, delrx,cory,att
+      DOUBLE PRECISION shear_stress
       INTEGER countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
       COMMON /f3com/ alpha ! aspect ratio
       COMMON /f4com/ exp,att
       COMMON /f5com/ Lx,Ly
       COMMON /f9com/ scale
       COMMON /f11com/ delrx
-      COMMON /f12com/ SSTRESS
+      COMMON /f12com/ shear_stress
 
       DO i=1,N
          fx(i)=0d0
          fy(i)=0d0
          fth(i)=0d0
       ENDDO
-      SSTRESS=0d0
+      shear_stress=0d0
 
       ! convert to from molecules to atoms
       DO i=1,N
@@ -442,7 +440,7 @@
                            fth(i)=fth(i)+dr(i,ki)*(c(i)*f_y-s(i)*f_x)
                            fth(j)=fth(j)-dr(j,kj)*(c(j)*f_y-s(j)*f_x)
                               
-                              SSTRESS=SSTRESS-xij*yij/rij*fc
+                             shear_stress=shear_stress-xij*yij/rij*fc
                               
                               
                            ENDIF
@@ -466,7 +464,7 @@
          fth(i)=fth(i)/scale(i)
       ENDDO
       
-      SSTRESS=SSTRESS/Lx/Ly
+      shear_stress=shear_stress/Lx/Ly
 							
       END
 
@@ -496,7 +494,7 @@
       IMPLICIT NONE
       INTEGER Ntot, N 
       PARAMETER(Ntot = 4096)
-      INTEGER i, j, F(Ntot), Z, NCBUD(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
+      INTEGER i, j, F(Ntot), Z, nc_bud(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
       INTEGER ki,kj,k
       DOUBLE PRECISION overlap, aspect_ratio
       DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
@@ -538,8 +536,8 @@
       ENDDO
       
       DO i=1,N
-         NCBUD(i,1)=0
-         NCBUD(i,2)=0
+         nc_bud(i,1)=0
+         nc_bud(i,2)=0
       ENDDO
 
       DO i=1,N-1
@@ -557,8 +555,8 @@
                       rijsq=xij**2+yij**2
                       IF(rijsq.LT.(dij**2)) THEN
                           Z = Z+2
-                          NCBUD(i,ki)=NCBUD(i,ki)+1
-                          NCBUD(j,kj)=NCBUD(j,kj)+1
+                          nc_bud(i,ki)=nc_bud(i,ki)+1
+                          nc_bud(j,kj)=nc_bud(j,kj)+1
                           IF(ki.EQ.1 .AND. kj.EQ.1) THEN
                               Nmm = Nmm + 2
                           ELSEIF(ki.EQ.2 .AND. kj.EQ.2) THEN
@@ -575,23 +573,23 @@
       
       DO i=1,N
           flag = 0
-          IF( (NCBUD(i,1)+NCBUD(i,2)).LT.3 ) THEN
+          IF( (nc_bud(i,1)+nc_bud(i,2)).LT.3 ) THEN
               nf = nf + 1
               flag = 1
           ENDIF
           
-          IF( (NCBUD(i,1)+NCBUD(i,2)).EQ.3 ) THEN
-              IF( NCBUD(i,1).EQ.2 .OR. NCBUD(i,2).EQ.2 ) THEN
+          IF( (nc_bud(i,1)+nc_bud(i,2)).EQ.3 ) THEN
+              IF( nc_bud(i,1).EQ.2 .OR. nc_bud(i,2).EQ.2 ) THEN
                   nf = nf + 1
                   flag = 1
               ENDIF
           ENDIF
           
           IF(flag.EQ.0) THEN    
-              IF( NCBUD(i,1).EQ.0 ) THEN
+              IF( nc_bud(i,1).EQ.0 ) THEN
                   nu = nu + 1
               ENDIF
-              IF( NCBUD(i,2).EQ.0 ) THEN
+              IF( nc_bud(i,2).EQ.0 ) THEN
                   nu = nu + 1
               ENDIF
           ENDIF
@@ -611,17 +609,17 @@
       
       END      
       
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!   BELOW THERE IS STANDARD NUMERICAL CODE   !!!!!!!!!!!!!!      
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!    STANDARD NUMERICAL CODE   !!!!!!!!!!!!!!      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
       PARAMETER(Ntot = 4096)
       INTEGER its,iter,ITMAX
       DOUBLE PRECISION fret,ftol,EPS,ftol1
       PARAMETER (EPS=1d-10,ITMAX=1000000000)
-      DOUBLE PRECISION dgg,fp,gam,gg,gx(Ntot),gy(Ntot),hx(Ntot),hy(Ntot)
-      DOUBLE PRECISION D(Ntot),D1,xix(Ntot),xiy(Ntot),xith(Ntot),width
+      DOUBLE PRECISION dgg,fp,gam,gg,width
+      DOUBLE PRECISION gx(Ntot),gy(Ntot),hx(Ntot),hy(Ntot)
+      DOUBLE PRECISION D(Ntot),D1,xix(Ntot),xiy(Ntot),xith(Ntot)
       DOUBLE PRECISION x(Ntot),y(Ntot),maxdis,xp(Ntot),yp(Ntot)
       DOUBLE PRECISION th(Ntot),hth(Ntot),gth(Ntot),exp,att,V
       INTEGER N,countn(Ntot),nl(800,Ntot)
@@ -669,7 +667,7 @@
 c         WRITE(*,*) its, fret/dble(N), fret, fp
 
          IF(att.EQ.0d0) THEN
-            IF(dabs(fret-fp).LT.ftol1*fp.OR.fret.LT.ftol*dble(N)) THEN
+            IF(dabs(fret-fp).LT.ftol1*fp.OR.fret.LT.ftol*dble(N))THEN
                 CALL func(N,x,y,th,D,D1,fp,countn,nl)
                RETURN
             ENDIF
@@ -726,8 +724,10 @@ C (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       DOUBLE PRECISION fret,TOL
       PARAMETER (Ntot=4096,TOL=1d-8)
 C     USES dbrent,df1dim,mnbrak
-      DOUBLE PRECISION ax,bx,fa,fb,fx,xmin,xx,xp(Ntot),yp(Ntot),dbrent
-      DOUBLE PRECISION pxcom(Ntot),pycom(Ntot),xixcom(Ntot),xiycom(Ntot)
+      DOUBLE PRECISION ax,bx,fa,fb,fx,xmin,xx
+      DOUBLE PRECISION xp(Ntot),yp(Ntot),dbrent
+      DOUBLE PRECISION pxcom(Ntot),pycom(Ntot)
+      DOUBLE PRECISION xixcom(Ntot),xiycom(Ntot)
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),xix(Ntot),xiy(Ntot)
       DOUBLE PRECISION xith(Ntot),Dcom(Ntot),D1com,D(Ntot),D1,width
       DOUBLE PRECISION pthcom(Ntot),xithcom(Ntot),f1dim,df1dim

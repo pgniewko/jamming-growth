@@ -62,8 +62,6 @@
       DOUBLE PRECISION scalecc(Ntot)
       DOUBLE PRECISION Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
       DOUBLE PRECISION aclonecc(Ntot*Ngen)
-      DOUBLE PRECISION tbirthcc(Ntot*Ngen)
-      DOUBLE PRECISION xbirthcc(Ntot*Ngen),ybirthcc(Ntot*Ngen)
       DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
       INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
       INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
@@ -114,12 +112,12 @@
       IF(celltype.EQ.1 .OR. celltype.EQ.3) THEN
            WRITE(*,*) "ELLIPSE AND DISK CELL TYPE IS NOT SUPPORTED"
            CALL EXIT(0)
-      ENDif
+      ENDIF
      
       IF(P0.EQ.0d0) THEN
            WRITE(*,*) "P0 = 0 not supported"
            CALL EXIT(0)
-      ENDif
+      ENDIF
       
       ! parameters
       D1=1d0       ! Minor axis of particle; D1=1.0 - circle
@@ -197,7 +195,7 @@
      +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
-     +     tbirthcc, xbirthcc, ybirthcc, xdivcc, ydivcc, thdivcc,
+     +     xdivcc, ydivcc, thdivcc,
      +     Ncc,ccc,Nexistcc,nclonecc,ncloneboxcc,agecc,agehistcc,
      +     idivcc, BUDCONT, BUDCONTCC, PPm,PPmcc)
     
@@ -334,7 +332,7 @@
      +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
-     +     tbirthcc, xbirthcc, ybirthcc, xdivcc, ydivcc, thdivcc,
+     +     xdivcc, ydivcc, thdivcc,
      +     Ncc, ccc,Nexistcc,nclonecc,ncloneboxcc,agecc,agehistcc,
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)       
          ENDIF
@@ -1386,7 +1384,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
-     +     tbirthcc, xbirthcc, ybirthcc, xdivcc, ydivcc, thdivcc,
+     +     xdivcc, ydivcc, thdivcc,
      +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc, agecc, agehistcc,
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
@@ -1408,8 +1406,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DOUBLE PRECISION scalecc(Ntot)
       DOUBLE PRECISION Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
       DOUBLE PRECISION aclonecc(Ntot*Ngen)
-      DOUBLE PRECISION tbirthcc(Ntot*Ngen)
-      DOUBLE PRECISION xbirthcc(Ntot*Ngen),ybirthcc(Ntot*Ngen)
       DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
       INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
       INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
@@ -1457,9 +1453,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       ENDDO
       
       DO i=1,Nexistcc+2!Ntot*Ngen
-          tbirthcc(i) = 0d0
-          xbirthcc(i) = 0d0
-          ybirthcc(i) = 0d0
           aclonecc(i) = 0d0
           nclonecc(i) = 0d0
           ncloneboxcc(i) = 0d0
@@ -1506,9 +1499,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       ENDDO
       
       DO i=1,Nexistcc+2!Ntot*Ngen
-          tbirthcc(i) = tbirth(i)
-          xbirthcc(i) = xbirth(i)
-          ybirthcc(i) = ybirth(i)
           aclonecc(i) = aclone(i)          
           nclonecc(i) = nclone(i)
           ncloneboxcc(i) = nclonebox(i)
@@ -1529,7 +1519,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
-     +     tbirthcc, xbirthcc, ybirthcc, xdivcc, ydivcc, thdivcc,
+     +     xdivcc, ydivcc, thdivcc,
      +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc, agecc, agehistcc,
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
@@ -1551,8 +1541,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DOUBLE PRECISION scalecc(Ntot)
       DOUBLE PRECISION Pcc,PPcc(Ntot),D0cc(Ntot),PPmcc(Ntot)
       DOUBLE PRECISION aclonecc(Ntot*Ngen)
-      DOUBLE PRECISION tbirthcc(Ntot*Ngen)
-      DOUBLE PRECISION xbirthcc(Ntot*Ngen),ybirthcc(Ntot*Ngen)
       DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
       DOUBLE PRECISION dd
       INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
@@ -1601,9 +1589,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       ENDDO
       
       DO i=1,Nexist+2!Ntot*Ngen
-          tbirth(i) = tbirthcc(i)
-          xbirth(i) = xbirthcc(i)
-          ybirth(i) = ybirthcc(i)
           aclone(i) = aclonecc(i)          
           nclone(i) = nclonecc(i)
           nclonebox(i) = ncloneboxcc(i)
@@ -1787,7 +1772,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DOUBLE PRECISION dd,dr1,dr2,dk2,exp,att
       DOUBLE PRECISION Lx,Ly
       !
-      DOUBLE PRECISION dijsq_up,scale(Ntot),c(Ntot)
+      DOUBLE PRECISION dijsq_up,scale(Ntot)
       DOUBLE PRECISION s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1      
       INTEGER celltype, ni, i, j
