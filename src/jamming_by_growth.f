@@ -45,7 +45,6 @@
       INTEGER dtstatus, terminate
       INTEGER N,Nr,seed,iter,i,j,k,kk,c(Ntot,Ngen),m,skip,Nexist
       INTEGER celltype,divtype,nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      INTEGER age(Ntot),agehist(Ngen,2),agetot1,agetot2
       INTEGER div,ndiv,idiv(999,2),kdiv, Nf, Nu, Nmm,Nbb,Nmb
       CHARACTER file1*80
       
@@ -64,7 +63,6 @@
       DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
       INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
       INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
-      INTEGER agecc(Ntot),agehistcc(Ngen,2)
       INTEGER idivcc(999,2), ndivcc
       INTEGER F(Ntot), Nc, Ziso, F_e(Ntot)
       INTEGER BUDCONT(Ntot), BUDCONTCC(Ntot), ZEROBUDS
@@ -171,8 +169,7 @@
          y(i)=Ly/2 + (dble(i)-1.5d0)*d(i)*D1
          th(i)=(ran2(seed)-0.5d0)*2d0*pi
          D0(i)=D1
-         rate(i)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0 
-         age(i)=0
+         rate(i)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0
       ENDDO
 
       ! calculate # steps until division
@@ -191,11 +188,11 @@
      +     alphar,
      +     scale, P, PP, D0, aclone,
      +     xdiv, ydiv, thdiv,
-     +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
+     +     N, c, Nexist, nclone, nclonebox, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
      +     xdivcc, ydivcc, thdivcc,
-     +     Ncc,ccc,Nexistcc,nclonecc,ncloneboxcc,agecc,agehistcc,
+     +     Ncc,ccc,Nexistcc,nclonecc,ncloneboxcc,
      +     idivcc, BUDCONT, BUDCONTCC, PPm,PPmcc)
     
          ! GROW PARTICLES
@@ -227,7 +224,6 @@
                   y(N)=y(i)+dispcm*dsin(th(i))
                   rate(N)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0 
                   alpha(N)=alpha0
-                  age(N)=0
                   
                   ! divide into 2 - 1st assigned index i
                   c(i,1)=c(i,1)+1
@@ -236,7 +232,6 @@
                   y(i)=y(i)-dispcm*dsin(th(i))
                   rate(i)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0 
                   alpha(i)=alpha0
-                  age(i)=age(i)+1
 
                   ! initialize # & area of clones
                   nclone(Nexist+1)=0
@@ -320,11 +315,11 @@
      +     alphar,
      +     scale, P, PP, D0, aclone,
      +     xdiv, ydiv, thdiv,
-     +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
+     +     N, c, Nexist, nclone, nclonebox,idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
      +     xdivcc, ydivcc, thdivcc,
-     +     Ncc, ccc,Nexistcc,nclonecc,ncloneboxcc,agecc,agehistcc,
+     +     Ncc, ccc,Nexistcc,nclonecc,ncloneboxcc,
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)       
          ENDIF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!         
@@ -1372,11 +1367,11 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     rate, alphar,
      +     scale, P, PP, D0, aclone,
      +     xdiv, ydiv, thdiv,
-     +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
+     +     N, c, Nexist, nclone, nclonebox, idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
      +     xdivcc, ydivcc, thdivcc,
-     +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc, agecc, agehistcc,
+     +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc,
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
       IMPLICIT NONE
@@ -1388,7 +1383,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
       INTEGER N,c(Ntot,Ngen),Nexist
       INTEGER nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      INTEGER age(Ntot),agehist(Ngen,2)
       INTEGER idiv(999,2), ndiv
       DOUBLE PRECISION xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
       DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
@@ -1398,7 +1392,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DOUBLE PRECISION xdivcc(999,2),ydivcc(999,2),thdivcc(999,2)
       INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
       INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
-      INTEGER agecc(Ntot),agehistcc(Ngen,2)
       INTEGER idivcc(999,2), ndivcc
       INTEGER i,j, BUDCONT(Ntot), BUDCONTCC(Ntot)
       
@@ -1421,7 +1414,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           PPcc(i) = 0d0
           PPmcc(i) = 0d0
           D0cc(i) = 0d0
-          agecc(i) = 0d0
           BUDCONTCC(i) = 0
       ENDDO
       
@@ -1436,10 +1428,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           idivcc(i,2) = 0d0
       ENDDO
       
-      DO i=1,Ngen
-          agehistcc(i,1) = 0d0
-          agehistcc(i,2) = 0d0
-      ENDDO
       
       DO i=1,Nexistcc+2!Ntot*Ngen
           aclonecc(i) = 0d0
@@ -1467,7 +1455,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           PPcc(i) = PP(i)
           PPmcc(i) = PPm(i)
           D0cc(i) = D0(i)
-          agecc(i) = age(i)
           BUDCONTCC(i) = BUDCONT(i)
       ENDDO
       
@@ -1480,11 +1467,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           ydivcc(i,2) = ydiv(i,2)
           thdivcc(i,2) = thdiv(i,2) 
           idivcc(i,2) = idiv(i,2) 
-      ENDDO
-      
-      DO i=1,Ngen
-          agehistcc(i,1) = agehist(i,1)
-          agehistcc(i,2) = agehist(i,2)
       ENDDO
       
       DO i=1,Nexistcc+2!Ntot*Ngen
@@ -1505,11 +1487,11 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +     rate, alphar,
      +     scale, P, PP, D0, aclone,
      +     xdiv, ydiv, thdiv,
-     +     N, c, Nexist, nclone, nclonebox, age, agehist, idiv,
+     +     N, c, Nexist, nclone, nclonebox,idiv,
      +     xcc, ycc, thcc, Dcc, alphacc, ratecc, alpharcc,
      +     scalecc, Pcc, PPcc, D0cc, aclonecc,
      +     xdivcc, ydivcc, thdivcc,
-     +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc, agecc, agehistcc,
+     +     Ncc, ccc, Nexistcc, nclonecc, ncloneboxcc,
      +     idivcc, BUDCONT, BUDCONTCC,PPm,PPmcc)
 ! ...cc stands for copy
       IMPLICIT NONE
@@ -1521,7 +1503,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DOUBLE PRECISION xdiv(999,2),ydiv(999,2),thdiv(999,2)
       INTEGER N,c(Ntot,Ngen),Nexist
       INTEGER nclone(Ntot*Ngen),nclonebox(Ntot*Ngen)
-      INTEGER age(Ntot),agehist(Ngen,2)
       INTEGER idiv(999,2), ndiv
       DOUBLE PRECISION xcc(Ntot),ycc(Ntot),thcc(Ntot),Dcc(Ntot)
       DOUBLE PRECISION alphacc(Ntot),ratecc(Ntot),alpharcc(Ntot)
@@ -1532,7 +1513,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       DOUBLE PRECISION dd
       INTEGER Ncc,ccc(Ntot,Ngen),Nexistcc
       INTEGER nclonecc(Ntot*Ngen),ncloneboxcc(Ntot*Ngen)
-      INTEGER agecc(Ntot),agehistcc(Ngen,2)
       INTEGER idivcc(999,2), ndivcc
       INTEGER i,j, celltype, BUDCONT(Ntot), BUDCONTCC(Ntot)
       COMMON /f10com/ celltype
@@ -1555,7 +1535,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           PP(i) = PPcc(i)
           PPm(i) = PPmcc(i)
           D0(i) = D0cc(i)
-          age(i) = agecc(i)
           BUDCONT(i) = BUDCONTCC(i)
       ENDDO
       
@@ -1568,11 +1547,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           ydiv(i,2) = ydivcc(i,2)
           thdiv(i,2) = thdivcc(i,2) 
           idiv(i,2) = idivcc(i,2) 
-      ENDDO
-      
-      DO i=1,Ngen
-          agehist(i,1) = agehistcc(i,1)
-          agehist(i,2) = agehistcc(i,2)
       ENDDO
       
       DO i=1,Nexist+2!Ntot*Ngen
