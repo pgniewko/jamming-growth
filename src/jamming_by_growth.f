@@ -183,7 +183,7 @@
                
                IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
                   ratei=ratei*dexp(-PP(i)/P0) !* dt
-               ENDif
+               ENDIF
                
                alpha(i)=1d0+dsqrt((1d0+ratei)*
      +                 (1d0+(alpha(i)-1d0)**2)-1d0)
@@ -209,7 +209,7 @@
 
                ELSE
                    div=0
-               ENDif
+               ENDIF
                
                ! types of division: ->->, <-->, -><-, random
                IF(div.EQ.1) THEN
@@ -223,12 +223,12 @@
                   ELSEIF(divtype.EQ.4) THEN
                      th(N)=(ran2(seed)-0.5d0)*2d0*pi
                      th(i)=(ran2(seed)-0.5d0)*2d0*pi
-                  ENDif
+                  ENDIF
 
                   ! temp, remove
                   th(i)=th(i) + 1d-4*(ran2(seed)-0.5d0)
                   th(N)=th(N) + 1d-4*(ran2(seed)-0.5d0)
-               ENDif
+               ENDIF
          ENDDO
          
          
@@ -288,7 +288,7 @@
                WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1
             ENDDO
             FLUSH(1) 
-         ENDif
+         ENDIF
          
          
 
@@ -338,7 +338,7 @@
             FLUSH(13)
             above_jamming = 1
             at_jamming = 0
-         ENDif
+         ENDIF
       ENDDO
       
 !!!!!! THE MAIN LOOP ENDS HERE  !!!!!!!!
@@ -530,7 +530,7 @@
             di_up(i)=(dk(i,2)/2d0-dr(i,2))*2d0*D1
          ELSE
             di_up(i)=(dk(i,1)/2d0+dr(i,1))*2d0*D1         
-         ENDif
+         ENDIF
       ENDDO
 
       ! inter-particle interactions
@@ -565,9 +565,9 @@
                               ELSE
                                  Vij=(1d0-rij/dij)**exp/exp-
      +                                (att/dij)**exp/exp
-                              ENDif 
+                              ENDIF 
                               V=V+Vij*dij**2/di1j1**2
-                           ENDif
+                           ENDIF
                         ENDDO
                      ENDDO
                   ENDIF
@@ -578,7 +578,7 @@
 
       IF(exp.GT.2.9) THEN
          V=V/72d0
-      ENDif
+      ENDIF
 				
       END
 
@@ -630,7 +630,7 @@
             di_up(i)=(dk(i,2)/2d0-dr(i,2))*2d0*D1
          ELSE
             di_up(i)=(dk(i,1)/2d0+dr(i,1))*2d0*D1         
-         ENDif
+         ENDIF
       ENDDO
 
       ! inter-particle interactions
@@ -663,7 +663,7 @@
                                  fc=1d0/rij*LJ*(LJ-1d0)
                               ELSE
                                  fc=(1d0-rij/dij)**(exp-1d0)/dij
-                              ENDif
+                              ENDIF
                               
                               fr=-fc/rij*dij**2/di1j1**2
                               
@@ -681,18 +681,18 @@
                               fcontact = dsqrt(f_x * f_x + f_y * f_y)
                               IF(ki.EQ.2) THEN
                                   PP(i)=PP(i)+fcontact/(pi*dk(i,2)) !Pij
-                              ENDif
+                              ENDIF
                               IF(kj.EQ.2) THEN
                                   PP(j)=PP(j)+fcontact/(pi*dk(j,2)) !Pij
-                              ENDif
+                              ENDIF
                               IF(ki.EQ.1) THEN
                                   PPm(i)=PPm(i)+fcontact/(pi*dk(i,1)) !Pij
-                              ENDif
+                              ENDIF
                               IF(kj.EQ.1) THEN
                                   PPm(j)=PPm(j)+fcontact/(pi*dk(j,1)) !Pij
-                              ENDif
+                              ENDIF
                               
-                           ENDif
+                           ENDIF
                         ENDDO
                      ENDDO
                   ENDIF
@@ -710,7 +710,7 @@
             fth(i)=fth(i)/6d0 
          ENDDO
          P=P/6d0
-      ENDif
+      ENDIF
       
       DO i=1,N
          fth(i)=fth(i)/scale(i)
@@ -757,7 +757,7 @@
       IF(fp.LT.ftol*dble(N).AND.att.EQ.0d0) THEN
          fret=fp 
          RETURN
-      ENDif
+      ENDIF
 
       CALL dfunc(N,x,y,th,D,D1,xix,xiy,xith,countn,nl)
 
@@ -784,13 +784,13 @@ c         WRITE(*,*) its, fret/dble(N), fret, fp
             IF(dabs(fret-fp).LT.ftol1*fp.OR.fret.LT.ftol*dble(N))THEN
                 CALL func(N,x,y,th,D,D1,fp,countn,nl)
                RETURN
-            ENDif
+            ENDIF
          ELSE
             IF(dabs(fret-fp).LT.ftol1) THEN
                 CALL func(N,x,y,th,D,D1,fp,countn,nl)
                RETURN
             ENDIF 
-         ENDif
+         ENDIF
          
          CALL CG_check(N,x,y,xp,yp,maxdis)	     
          IF(maxdis.GT.width*D1) THEN
@@ -811,7 +811,7 @@ c         WRITE(*,*) its, fret/dble(N), fret, fp
          
          IF(gg.EQ.0d0) THEN
             RETURN
-         ENDif
+         ENDIF
          gam=dgg/gg
          DO i=1,N
             gx(i)=-xix(i)
@@ -907,7 +907,7 @@ c      EXTERNAL func
         dum=fb
         fb=fa
         fa=dum
-      ENDif
+      ENDIF
       cx=bx+GOLD*(bx-ax)
       fc=func(cx)
 1     IF(fb.GT.fc)THEN ! was ge
@@ -927,7 +927,7 @@ c      EXTERNAL func
             cx=u
             fc=fu
             RETURN
-          ENDif
+          ENDIF
           u=cx+GOLD*(cx-bx)
           fu=func(u)
         ELSE IF((cx-u)*(u-ulim).GT.0d0)THEN
@@ -939,14 +939,14 @@ c      EXTERNAL func
             fb=fc
             fc=fu
             fu=func(u)
-          ENDif
+          ENDIF
         ELSE IF((u-ulim)*(ulim-cx).GE.0d0)THEN ! was ge
           u=ulim
           fu=func(u)
         ELSE
           u=cx+GOLD*(cx-bx)
           fu=func(u)
-        ENDif
+        ENDIF
         ax=bx
         bx=cx
         cx=u
@@ -954,7 +954,7 @@ c      EXTERNAL func
         fb=fc
         fc=fu
         goto 1
-      ENDif
+      ENDIF
       RETURN
       END
 
@@ -1043,22 +1043,22 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
               d=d1
             ELSE
               d=d2
-            ENDif
+            ENDIF
           ELSE IF(ok1)THEN
             d=d1
           ELSE
             d=d2
-          ENDif
+          ENDIF
           IF(dabs(d).GT.dabs(0.5d0*olde))goto 1
           u=x+d
           IF(u-a.LT.tol2 .OR. b-u.LT.tol2) d=dsign(tol1,xm-x)
           goto 2
-        ENDif
+        ENDIF
 1       IF(dx.GE.0d0) THEN
           e=a-x
         ELSE
           e=b-x
-        ENDif
+        ENDIF
         d=0.5d0*e
 2        IF(dabs(d).GE.tol1) THEN
           u=x+d
@@ -1067,14 +1067,14 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
           u=x+dsign(tol1,d)
           fu=f(u)
           IF(fu.GT.fx)goto 3
-        ENDif
+        ENDIF
         du=df(u)
         IF(fu.LE.fx) THEN
           IF(u.GE.x) THEN
             a=x
           ELSE
             b=x
-          ENDif
+          ENDIF
           v=w
           fv=fw
           dv=dw
@@ -1089,7 +1089,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
             a=u
           ELSE
             b=u
-          ENDif
+          ENDIF
           IF(fu.LE.fw .OR. w.EQ.x) THEN
             v=w
             fv=fw
@@ -1101,8 +1101,8 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
             v=u
             fv=fu
             dv=du
-          ENDif
-        ENDif
+          ENDIF
+        ENDIF
 11    continue
 c      pause 'dbrent exceeded maximum iterations'
 3     xmin=x
@@ -1165,7 +1165,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
           IF(j.LE.NTAB) iv(j)=idum
 11      continue
         iy=iv(1)
-      ENDif
+      ENDIF
       k=idum/IQ1
       idum=IA1*(idum-k*IQ1)-k*IR1
       IF(idum.LT.0) idum=idum+IM1
@@ -1199,7 +1199,6 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       
       delta = 0.5d-8
       
-      
       phi = calc_phi(D, alpha, D1, N)
       IF(fret.LT.ftol*N .OR. phi.LT.0.25) THEN
           terminate = 0
@@ -1211,7 +1210,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           dt = 1d0
           phi_j = 0d0
           RETURN
-      ENDif
+      ENDIF
       
       
       IF(above_jamming.EQ.0 .AND. at_jamming .EQ. 0)THEN
@@ -1231,21 +1230,21 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
               RETURN
           ! ELSE - not needed. this point should never been reached!
               
-        ENDif
-      ENDif
+        ENDIF
+      ENDIF
       
       
       IF(phi_j .LT. 0.25) THEN
           WRITE(*,*) "ERROR: SHOULD NOT REACH THIS POINT"
-      ENDif
+      ENDIF
       
       IF(at_jamming.NE.0) THEN
           WRITE(*,*) "SOMETHING WRONG: should be at_jamming = 0"
-      ENDif
+      ENDIF
 
       IF(above_jamming.NE.1) THEN
           WRITE(*,*) "SOMETHING WRONG: should be above_jamming = 1"
-      ENDif      
+      ENDIF      
       
       at_jamming = 0
       IF(phi .LT. phi_j+dphi-delta) THEN
@@ -1262,7 +1261,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           dtstatus = 0
           terminate = 1
           RETURN
-      ENDif
+      ENDIF
       
       END
       
@@ -1403,7 +1402,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
      +              4d0*(dd*(1d0+dd)/(1+dd**2))**2)/4d0*d(i)
             ELSEIF(celltype.EQ.3) THEN
                scale(i)=dsqrt(2d0)/4d0*d(i)
-            ENDif
+            ENDIF
             th(i)=th(i)*scale(i)
          ENDDO
       END
@@ -1450,7 +1449,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
                alpha(j) = alpha(j+1)
                scale(j) = scale(j+1)              
             ENDDO
-         ENDif
+         ENDIF
       ENDDO
 
       N=N-k
@@ -1512,7 +1511,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
 !               IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
                   c(II) = c(II)+overlap(N,x,y,th,D,D1,II,JJ) !1
                   c(JJ) = c(JJ)+overlap(N,x,y,th,D,D1,II,JJ) !1
-!               ENDif
+!               ENDIF
             ENDDO
          ENDDO
 
@@ -1530,7 +1529,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
                F(II) = 1
             ELSE
                i=i+1
-            ENDif
+            ENDIF
          ENDDO
       ENDDO
       
@@ -1543,7 +1542,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
             JJ=listP(j)	    
 !            IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
                Z = Z+2*overlap(N,x,y,th,D,D1,II,JJ)
-!            ENDif
+!            ENDIF
          ENDDO
       ENDDO
 
@@ -1581,7 +1580,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
       
       IF(D1.NE.1.d0) THEN
           WRITE(*,*) "SOMETHING IS WRONG. D1 SHALL BE EQ. TO 1.0"
-      ENDif
+      ENDIF
       
       overlap = 0.d0
 
@@ -1605,7 +1604,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           ELSE
               overlap = 0.d0
           ENDIF
-      ENDif
+      ENDIF
           
       END FUNCTION
 
@@ -1677,8 +1676,8 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
                               Nbb = Nbb + 2
                           ELSE
                               Nmb = Nmb + 2
-                          ENDif
-                      ENDif
+                          ENDIF
+                      ENDIF
                   ENDDO
               ENDDO
           ENDDO
@@ -1690,23 +1689,23 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           IF( (nc_bud(i,1)+nc_bud(i,2)).LT.3 ) THEN
               Nf = Nf + 1
               flag = 1
-          ENDif
+          ENDIF
           
           IF( (nc_bud(i,1)+nc_bud(i,2)).EQ.3 ) THEN
               IF( nc_bud(i,1).EQ.2 .OR. nc_bud(i,2).EQ.2 ) THEN
                   Nf = Nf + 1
                   flag = 1
-              ENDif
-          ENDif
+              ENDIF
+          ENDIF
           
           IF(flag.EQ.0) THEN    
               IF( nc_bud(i,1).EQ.0 ) THEN
                   nu = nu + 1
-              ENDif
+              ENDIF
               IF( nc_bud(i,2).EQ.0 ) THEN
                   nu = nu + 1
-              ENDif
-          ENDif
+              ENDIF
+          ENDIF
           
       ENDDO
       
@@ -1773,7 +1772,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
                       IF(rijsq.LT.(dij**2)) THEN
                           nc_bud(i,ki)= nc_bud(i,ki)+1
                           nc_bud(j,kj)= nc_bud(j,kj)+1
-                      ENDif
+                      ENDIF
                   ENDDO
               ENDDO
           ENDDO
@@ -1783,7 +1782,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           bud_count(i) = nc_bud(i,2)
           IF(bud_count(i).EQ.0)THEN
               num_zero_buds = num_zero_buds + 1
-          ENDif
+          ENDIF
       ENDDO
 
      
@@ -1809,7 +1808,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software .
           ratei=rate(i)
           IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
               ratei=ratei*dexp(-PP(i)/P0)
-          ENDif
+          ENDIF
           
           Dm = D(i)
           Db = alpha(i)-1d0
