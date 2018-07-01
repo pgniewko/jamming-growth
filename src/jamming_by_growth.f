@@ -1,6 +1,4 @@
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!f
       !!
       !!   Quasi-static growth of cells in a rectangular box
       !!   with Periodic Boundary Conditions and
@@ -21,9 +19,8 @@
       !!      Reference: "Jamming by growth"; Gniewek, P. and Schreck, C.S. and Hallatschek, O.; 2018
       !!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      PROGRAM jammed_packing
+      PROGRAM jam_budding_yeast
 
       IMPLICIT NONE
       ! CONSTANT PARAMETERS
@@ -46,7 +43,7 @@
       DOUBLE PRECISION dispcm,xa(2),ya(2),PR,PT,P0
       DOUBLE PRECISION cc,ss,dr(2),dd,att,rat
       DOUBLE PRECISION dt, PPm(Ntot), total_growthrate
-      INTEGER dtstatus, terminate
+      INTEGER reject_time_step, terminate_sim
       INTEGER N,Nr,seed,iter,i,j,k,kk,m,skip
       INTEGER divtype
       INTEGER div, Nf, Nu, Nmm,Nbb,Nmb
@@ -153,11 +150,11 @@
       ENDDO
       
       dt = 1.0
-      dtstatus = 0
-      terminate = 0
+      reject_time_step = 0
+      terminate_sim = 0
       
       k=0
-      DO WHILE (terminate.NE.1)
+      DO WHILE (terminate_sim.NE.1)
           k=k+1
           CALL copy_everything(Ntot,Ngen,
      +     x,y,th,D,alpha,rate,
@@ -238,14 +235,14 @@
          WRITE(*,*) k, N, Nc,fret/dble(N), P, dt, phitemp,
      +     before_jamming, at_jamming, above_jamming   
 
-         CALL determine_system_status(N,D,D1,alpha,ftol,wide,dt,
+         CALL system_status(N,D,D1,alpha,ftol,wide,dt,
      +     fret, phi_j, dphi,
-     +     dtstatus, terminate,
+     +     reject_time_step, terminate_sim,
      +     before_jamming, at_jamming, above_jamming)
      
          
          ! REJECT THE MOVE
-         IF(dtstatus.EQ.1) THEN
+         IF(reject_time_step.EQ.1) THEN
          CALL copy_back_everything(Ntot, Ngen,
      +     x, y, th, D, alpha, rate,
      +     scale, P, PP, D0, N,
@@ -338,7 +335,7 @@
       phi = calc_phi(D, alpha, D1, N)
       CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)   
       ! save the last configuration to the file
-      WRITE(1,*) 2*N, phi
+      WRITE(1,*)  2*N, phi
       WRITE(12,*) N, phi
       WRITE(22,*) 2*N, phi, total_growthrate
       DO i=1,N
@@ -357,11 +354,11 @@
           WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
           WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
           
-
           WRITE(22,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
      +     PPm(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
           WRITE(22,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
      +     PP(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
+     
       ENDDO
       FLUSH(1)
       FLUSH(12)
@@ -674,9 +671,9 @@
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE determine_system_status(N,D,D1,alpha,ftol,wide,dt,
+      SUBROUTINE system_status(N,D,D1,alpha,ftol,wide,dt,
      +     fret, phi_j,dphi,
-     +     dtstatus, terminate,
+     +     reject_time_step, terminate_sim,
      +     before_jamming, at_jamming, above_jamming)
       IMPLICIT NONE
       INTEGER Ntot, N
@@ -685,38 +682,39 @@
       DOUBLE PRECISION delta, phi, calc_phi
       DOUBLE PRECISION D(Ntot),alpha(Ntot), D1
       DOUBLE PRECISION fret,phitemp,phi_j,ftol,wide,dt,dphi
-      INTEGER dtstatus, terminate
+      INTEGER reject_time_step, terminate_sim
       INTEGER before_jamming, at_jamming, above_jamming
       
-      delta = 0.5d-8
-      
+      delta = 0.5d-8  
       phi = calc_phi(D, alpha, D1, N)
+      
+      ! PACKING NOT JAMMED YET
       IF(fret.LT.ftol*N) THEN
-          terminate = 0
+          terminate_sim = 0
           before_jamming = 1
           at_jamming = 0
           above_jamming = 0
-          dtstatus = 0
-          
+          reject_time_step = 0
           dt = 1d0
           phi_j = 0d0
           RETURN
       ENDIF
       
       
-      IF(above_jamming.EQ.0 .AND. at_jamming .EQ. 0)THEN
-          IF(fret.GT.(ftol * wide * N) )  THEN
+      ! ITERATING TIME-STEP TO FIND A JAMMED PACKING
+      IF(at_jamming.EQ.0 .AND. above_jamming.EQ.0)THEN
+          IF(fret.GT.(ftol * wide * N) ) THEN
              dt = 0.5*dt
-             dtstatus = 1
-             terminate = 0
+             reject_time_step = 1
+             terminate_sim = 0
              RETURN 
           ELSE IF(fret.GT.(ftol*N) .AND. fret.LT.(ftol*wide*N))THEN
              before_jamming = 0
              at_jamming = 1
              above_jamming = 1
              dt = 1d0
-             dtstatus = 0
-             terminate = 0
+             reject_time_step = 0
+             terminate_sim = 0
              phi_j = phi
              RETURN
         ENDIF
@@ -724,19 +722,20 @@
            
       
       at_jamming = 0
+      ! ITERATE TIME-STEP TO FIND PROPER DPHI
       IF(phi .LT. phi_j+dphi-delta) THEN
           dt = 1
-          terminate = 0
-          dtstatus = 0
+          terminate_sim = 0
+          reject_time_step = 0
           RETURN
       ELSE IF(phi .GT. phi_j+dphi+delta) THEN
           dt = 0.5 * dt
-          dtstatus = 1
-          terminate = 0
+          reject_time_step = 1
+          terminate_sim = 0
           RETURN
       ELSE
-          dtstatus = 0
-          terminate = 1
+          reject_time_step = 0
+          terminate_sim = 1
           RETURN
       ENDIF
       
