@@ -154,21 +154,8 @@
 
       END
 
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE makelist(N,x,y,D,D1,xp,yp,countn,nl)
-      IMPLICIT NONE
-      INTEGER Ntot,N
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
-      INTEGER countn(Ntot),nl(800,Ntot)
-      
-      CALL makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
-
-      END
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
@@ -220,33 +207,9 @@
       ENDDO
       
       END
- 
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE func(N,x,y,th,D,D1,V,countn,nl)
-      IMPLICIT NONE
-      INTEGER Ntot,N    
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
-      INTEGER countn(Ntot),nl(800,Ntot)
-      
-      CALL func_dimer(N,x,y,th,D,D1,V,countn,nl)
-      
-      END
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
-      DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot)
-      INTEGER countn(Ntot),nl(800,Ntot),N
-
-      CALL dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
-      
-      END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE func_dimer(N,x,y,th,D,D1,V,countn,nl)
+      SUBROUTINE func(N,x,y,th,D,D1,V,countn,nl)
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
@@ -343,7 +306,7 @@
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      SUBROUTINE dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
