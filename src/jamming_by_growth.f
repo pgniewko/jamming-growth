@@ -6,11 +6,6 @@
       !!   with Periodic Boundary Conditions and
       !!   via conjugate gradient energy minimization. 
       !! 
-      !! 
-      !!       Cell type - 1: ellipse ( NOT SUPPORTED! )
-      !!                   2: budding
-      !!                   3: disk    ( NOT SUPPORTED! )
-      !!
       !!   Division type - 1: -> ->
       !!                   2: -> <-
       !!                   3: <- ->
@@ -53,7 +48,7 @@
       DOUBLE PRECISION dt, PPm(Ntot), total_growthrate
       INTEGER dtstatus, terminate
       INTEGER N,Nr,seed,iter,i,j,k,kk,m,skip
-      INTEGER celltype,divtype
+      INTEGER divtype
       INTEGER div, Nf, Nu, Nmm,Nbb,Nmb
       
       DOUBLE PRECISION x_copy(Ntot),y_copy(Ntot),th_copy(Ntot)
@@ -76,7 +71,6 @@
       COMMON /f6com/ P,PP,PT,PR,PPm
       COMMON /f8com/ alpha0
       COMMON /f9com/ scale
-      COMMON /f10com/ celltype
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
 
       ! READ geometric parameters
@@ -85,7 +79,6 @@
       READ(*,*) Ly
 
       ! READ cell parameters
-      READ(*,*) celltype
       READ(*,*) divtype
       READ(*,*) P0
       READ(*,*) att
@@ -101,12 +94,6 @@
       
       ! READ output files
       READ(*,*) file1
-
-      IF(celltype.EQ.1 .OR. celltype.EQ.3) THEN
-          WRITE(*,*) "ELLIPSE AND DISK CELL TYPE IS NOT SUPPORTED"
-          WRITE(*,*) "PLEASE SET >CELLTYPE< TO 2"
-          CALL EXIT(0)
-      ENDIF
      
       IF(P0.EQ.0d0) THEN
           WRITE(*,*) "P0 = 0 not supported"
@@ -124,8 +111,6 @@
       phitemp = 0.0d0
       wide = 2.0d0
       total_growthrate = 0.0d0
-      
-      !dphi = 1d-6
 
       before_jamming =  0 
       at_jamming = 0
@@ -228,7 +213,6 @@
                      th(i)=(ran2(seed)-0.5d0)*2d0*pi
                   ENDIF
 
-                  ! temp, remove
                   th(i)=th(i) + 1d-4*(ran2(seed)-0.5d0)
                   th(N)=th(N) + 1d-4*(ran2(seed)-0.5d0)
                ENDIF
@@ -268,7 +252,7 @@
      +     scale_copy, P_copy, PP_copy, D0_copy, N_copy,
      +     bud_count, bud_count_copy,PPm,PPm_copy)       
          ENDIF
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         
          ! convert back to angles
          DO i=1,N
             th(i)=th(i)/scale(i)
@@ -378,8 +362,6 @@
       FLUSH(1)
       FLUSH(12)
       FLUSH(22)
-      
-!!!!!!!!!!!!!
 
       CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
       CALL out_numbers(N, Nf, Nu, Ziso)
@@ -394,7 +376,6 @@
       CLOSE(22)
       END
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE CG_check(N,x,y,xp,yp,maxdis)
       IMPLICIT NONE
@@ -412,21 +393,8 @@
 
       END
 
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE makelist(N,x,y,D,D1,xp,yp,countn,nl)
-      IMPLICIT NONE
-      INTEGER Ntot,N
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot),D1
-      INTEGER countn(Ntot),nl(800,Ntot)
-      
-      CALL makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl)
-
-      END
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE makelist_dimer(N,x,y,D,D1,xp,yp,countn,nl) 
+      SUBROUTINE makelist(N,x,y,D,D1,xp,yp,countn,nl) 
       PARAMETER(Ntot = 4096)
       DOUBLE PRECISION x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
       DOUBLE PRECISION D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
@@ -471,36 +439,10 @@
       ENDDO
       RETURN
       END
- 
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE func(N,x,y,th,D,D1,V,countn,nl)
-      IMPLICIT NONE
-      INTEGER N,Ntot
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,V
-      INTEGER countn(Ntot),nl(800,Ntot)
-
-      CALL func_dimer(N,x,y,th,D,D1,V,countn,nl)
-
-      END
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
-      IMPLICIT NONE
-      INTEGER N,Ntot
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
-      DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot)
-      INTEGER countn(Ntot),nl(800,Ntot)
-
-      CALL dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       
-      END
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE func_dimer(N,x,y,th,D,D1,V,countn,nl)
+      SUBROUTINE func(N,x,y,th,D,D1,V,countn,nl)
       PARAMETER(Ntot = 4096)
       DOUBLE PRECISION pi
       PARAMETER(pi=3.1415926535897932d0)
@@ -587,7 +529,7 @@
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE dfunc_dimer(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
+      SUBROUTINE dfunc(N,x,y,th,D,D1,fx,fy,fth,countn,nl)
       PARAMETER(Ntot = 4096)
       DOUBLE PRECISION pi
       PARAMETER(pi=3.1415926535897932d0)
@@ -775,19 +717,7 @@
              RETURN
         ENDIF
       ENDIF
-      
-      
-!      IF(phi_j .LT. 0.25) THEN
-!          WRITE(*,*) "ERROR: SHOULD NOT REACH THIS POINT"
-!      ENDIF
-!      
-!      IF(at_jamming.NE.0) THEN
-!          WRITE(*,*) "SOMETHING WRONG: should be at_jamming = 0"
-!      ENDIF
-!
-!      IF(above_jamming.NE.1) THEN
-!          WRITE(*,*) "SOMETHING WRONG: should be above_jamming = 1"
-!      ENDIF      
+           
       
       at_jamming = 0
       IF(phi .LT. phi_j+dphi-delta) THEN
@@ -807,9 +737,7 @@
       ENDIF
       
       END
-      
-      
-      
+ 
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       DOUBLE PRECISION FUNCTION calc_phi(D, alpha, D1, N)
@@ -899,7 +827,6 @@
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, D0_copy, N_copy,
      +     bud_count, bud_count_copy, PPm, PPm_copy)
-! ...cc stands for copy
       IMPLICIT NONE
       INTEGER Ntot,Ngen
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot)
@@ -933,222 +860,17 @@
       
 
       DO i=1,N
-          
-!          IF(celltype.EQ.1) THEN
-!              scale(i)=dsqrt(1d0+alpha(i)**2)/4d0*d(i)
-!          ELSEIF(celltype.EQ.2) THEN
-           dd=alpha(i)-1d0
-           scale(i)=dsqrt(2d0*(1d0+dd**4)/(1+dd**2)+
+          dd=alpha(i)-1d0
+          scale(i)=dsqrt(2d0*(1d0+dd**4)/(1+dd**2)+
      +              4d0*(dd*(1d0+dd)/(1+dd**2))**2)/4d0*d(i)
-!          ELSEIF(celltype.EQ.3) THEN
-!              scale(i)=dsqrt(2d0)/4d0*d(i)
-!          ENDIF    
+     
           th(i)=th(i)*scale(i)
-      
       ENDDO
       
       
       END
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!! remove floaters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!      SUBROUTINE remove_floaters(x,y,th,phi,D1,D,N,F)
-!      IMPLICIT NONE
-!      INTEGER Ntot, N 
-!      PARAMETER(Ntot = 4096)
-!      DOUBLE PRECISION pi
-!      PARAMETER(pi=3.141592653589793238d0)
-!      INTEGER R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot), DoF
-!      DOUBLE PRECISION aspect_ratio
-!      INTEGER l, F(Ntot)
-!      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),phi,alpha(Ntot)
-!      DOUBLE PRECISION t(3), sign(3), cont,scale(Ntot)
-!      DOUBLE PRECISION xij, yij, rij, D(Ntot), D1, z_ave
-!      DOUBLE PRECISION dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
-!      DOUBLE PRECISION dtijthi,dtijthj,dthithj, compression
-!      DOUBLE PRECISION x2(Ntot), y2(Ntot), th2(Ntot), Lx,Ly
-!      INTEGER count, Z, nn
-!      
-!      COMMON /f3com/ alpha ! aspect ratio
-!      COMMON /f5com/ Lx,Ly
-!      COMMON /f9com/ scale
-!
-!      ! Remove floaters
-!      k=0
-!      phi=0.d0
-!      DO i=1,N
-!         ii=i-k
-!         nn=n-k
-!         IF(F(ii).EQ.1) THEN
-!            k=k+1
-!            DO j=ii,nn
-!               F(j) = F(j+1)
-!               x(j) = x(j+1)
-!               y(j) = y(j+1)
-!               th(j) = th(j+1)
-!               D(j) = D(j+1)
-!               alpha(j) = alpha(j+1)
-!               scale(j) = scale(j+1)              
-!            ENDDO
-!         ENDIF
-!      ENDDO
-!
-!      N=N-k
-!      
-!      DO i=1,N
-!         phi=phi+D(i)*D(i)
-!      ENDDO
-!      phi=pi*D1*D1*phi/Lx/Ly/4d0
-!      
-!      END
-!
-!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!      SUBROUTINE contacts(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
-!      IMPLICIT NONE
-!      INTEGER Ntot, N        
-!      PARAMETER(Ntot = 4096)
-!      INTEGER R, Rnew,i,j,k,II,JJ,c(Ntot), listP(Ntot),Z
-!      INTEGER l, F(Ntot), Nf, Nu,Nmm,Nbb,Nmb
-!      DOUBLE PRECISION overlap, aspect_ratio
-!      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-!      DOUBLE PRECISION thIJ, t(3), sign(3),cont
-!      DOUBLE PRECISION xij, yij, rij, D(Ntot), D1, z_ave
-!      DOUBLE PRECISION dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
-!      DOUBLE PRECISION dtijthi,dtijthj,dthithj
-!      DOUBLE PRECISION x2(Ntot), y2(Ntot), th2(Ntot)
-!      COMMON /f3com/ alpha ! aspect ratio
-!      
-!      Z = 0
-!      R = 0
-!
-!      Rnew = 1
-!      Nf=0
-!      Nu=0
-!      Nmm = 0 
-!      Nbb = 0 
-!      Nmb = 0
-!      
-!      DO i=1, N
-!         c(i)=0
-!         listP(i)=i
-!         F(i) = 0
-!      ENDDO
-!      
-!      DO WHILE(Rnew>0)
-!         Rnew = 0
-!         DO i=1, N-R
-!            II=listP(i)
-!            c(II)=0
-!         ENDDO
-!         
-!         ! Find Contacts
-!         DO i=1,N-R
-!            II=listP(i)
-!            DO j=1, i-1
-!               JJ=listP(j)	    
-!!               IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
-!                  c(II) = c(II)+overlap(N,x,y,th,D,D1,II,JJ) !1
-!                  c(JJ) = c(JJ)+overlap(N,x,y,th,D,D1,II,JJ) !1
-!!               ENDIF
-!            ENDDO
-!         ENDDO
-!
-!         ! Remove floaters
-!         i=1
-!         DO WHILE (i.LE.N-R)
-!            II=listP(i)
-!            IF(c(II).LT.3) THEN
-!               Nf = Nf + 1
-!               Rnew=Rnew+1
-!               R=R+1
-!               DO j=i, N-R
-!                  listP(j) = listP(j+1)
-!               ENDDO
-!               F(II) = 1
-!            ELSE
-!               i=i+1
-!            ENDIF
-!         ENDDO
-!      ENDDO
-!      
-!      
-!      !Count Contacts
-!      Z=0
-!      DO i=1, N-R
-!         II=listP(i)
-!         DO j=1, i-1
-!            JJ=listP(j)	    
-!!            IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
-!               Z = Z+2*overlap(N,x,y,th,D,D1,II,JJ)
-!!            ENDIF
-!         ENDDO
-!      ENDDO
-!
-!      z_ave = dble(Z)/dble(N-R)
-!
-!      END
-!      
-!      
-!!     CUSTOM OVERLAP FUNCTION
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!      FUNCTION overlap(N,x,y,th,D,D1,i,j)
-!      IMPLICIT NONE
-!      INTEGER Ntot, N     
-!      PARAMETER(Ntot = 4096)
-!      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
-!      DOUBLE PRECISION rij,xij,yij,dij,ep,overlap
-!      DOUBLE PRECISION dtij,dthi,dthj,dtij2,dthi2,dthj2
-!      DOUBLE PRECISION dtijthi,dtijthj,dthithj, width
-!      DOUBLE PRECISION alpha(Ntot)
-!      DOUBLE PRECISION dd,dr1,dr2,dk2,exp,att
-!      DOUBLE PRECISION Lx,Ly
-!      !
-!      DOUBLE PRECISION dijsq_up,scale(Ntot)
-!      DOUBLE PRECISION s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-!      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1      
-!      INTEGER celltype, ni, i, j
-! 
-!      
-!      COMMON /f2com/ width
-!      COMMON /f3com/ alpha ! aspect ratio
-!      COMMON /f4com/ exp,att
-!      COMMON /f5com/ Lx,Ly
-!      COMMON /f9com/ scale
-!      COMMON /f10com/ celltype
-!      
-!      IF(D1.NE.1.d0) THEN
-!          WRITE(*,*) "SOMETHING WENT WRONG. D1 MUST BE EQ. TO 1.0"
-!      ENDIF
-!      
-!      overlap = 0.d0
-!
-!      ! BUDDING CELLS
-!      IF(celltype.EQ.2) THEN
-!          WRITE(*,*) "THERE IS A FUNCTION FOR YEAST-LIKE CELLS"
-!
-!      ! DISK CELLS      
-!      ELSEIF(celltype.EQ.3) THEN
-!                
-!          xij=x(i)-x(j)
-!          xij=xij-idnint(xij/Lx)*Lx  !! PBC
-!          yij=y(i)-y(j)
-!          yij=yij-idnint(yij/Ly)*Ly  !! PBC
-!          
-!          rij=dsqrt(xij**2+yij**2)  
-!          dij=D1*(d(i)+d(j))/2d0
-!
-!          IF(rij.LT.dij) THEN
-!              overlap = 1.d0
-!          ELSE
-!              overlap = 0.d0
-!          ENDIF
-!      ENDIF
-!          
-!      END FUNCTION
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      
+      
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,Nf,Nu,Nmm,Nbb,Nmb)
       IMPLICIT NONE
