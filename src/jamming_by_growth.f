@@ -125,6 +125,7 @@
       
       
       ! FILES FOR PACKIG AT DPHI
+      ! LF = LAST FRAME
       file_LF_DPHI='LF_DPHI_' // TRIM(file1)
       OPEN(unit=12,file=TRIM(file_LF_DPHI), status='replace')
       STATS_file_LF_DPHI='STATS_LF_DPHI_' // TRIM(file1)
@@ -281,14 +282,16 @@
 
          IF( at_jamming.EQ.1 ) THEN
             OPEN(unit=11,file=TRIM(file_LF_JAMM), status='replace')
-      OPEN(unit=21,file=TRIM(STATS_file_LF_JAMM), status='replace')
+            OPEN(unit=21,file=TRIM(STATS_file_LF_JAMM), 
+     +                                            status='replace')
+     
             phi = calc_phi(D, alpha, D1, N)
             
             CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)
             
-            WRITE(1,*) 2*N, phi
-            WRITE(11,*) N, phi
-            WRITE(21,*) 2*N, phi, total_growthrate
+            WRITE(1,*)  2*N,phi
+            WRITE(11,*) N,phi
+            WRITE(21,*) 2*N,phi,total_growthrate
             DO i=1,N
                 WRITE(11,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
                 
@@ -304,10 +307,11 @@
                 WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
                 WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
                 
-              WRITE(21,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
-     +     PPm(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
-              WRITE(21,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
-     +     PP(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
+                WRITE(21,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
+     +                   PPm(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
+                WRITE(21,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,
+     +                  1,PP(i),rate(i)*dexp(-PP(i)/P0),rate(i),P0
+     
             ENDDO
             FLUSH(1)
             FLUSH(11)
@@ -320,8 +324,8 @@
             CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
             CALL out_numbers(N, Nf, Nu, Ziso)
 
-           WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
-     +     phi,P,fret,P0,total_growthrate
+            WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+     +      phi,P,fret,P0,total_growthrate
             FLUSH(13)
             above_jamming = 1
             at_jamming = 0
