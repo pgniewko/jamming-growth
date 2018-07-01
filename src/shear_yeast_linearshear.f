@@ -257,9 +257,9 @@
       DOUBLE PRECISION Lx,Ly,rijsq,scale(Ntot),c(Ntot),att
       DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1,Vij
-      DOUBLE PRECISION delrx, cory
-      
+      DOUBLE PRECISION delrx,cory
       INTEGER countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
+      
       COMMON /f3com/ alpha ! aspect ratio
       COMMON /f4com/ exp,att
       COMMON /f5com/ Lx,Ly
@@ -468,7 +468,7 @@
 							
       END
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       DOUBLE PRECISION FUNCTION calc_phi(D, alpha, D1, N)
       IMPLICIT NONE
       INTEGER Ntot
@@ -489,16 +489,16 @@
       END FUNCTION
      
       
-      ! INUSE
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
       IMPLICIT NONE
       INTEGER Ntot, N 
       PARAMETER(Ntot = 4096)
-      INTEGER i, j, F(Ntot), Z, nc_bud(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
+      INTEGER i,j,F(Ntot),Z,nc_bud(Ntot,2),Nf,Nu,Nmm,Nbb,Nmb
       INTEGER ki,kj,k
-      DOUBLE PRECISION overlap, aspect_ratio
-      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-      DOUBLE PRECISION xij, yij, D(Ntot), D1
+      DOUBLE PRECISION overlap,aspect_ratio
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),alpha(Ntot)
+      DOUBLE PRECISION xij,yij,D(Ntot),D1
       DOUBLE PRECISION exp,dij_up,dij
       DOUBLE PRECISION Lx,Ly,rijsq,c(Ntot),att
       DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
@@ -601,8 +601,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE out_numbers(N, Nf, Nu, Ziso)
       IMPLICIT NONE
-      INTEGER Ntot
-      PARAMETER(Ntot = 4096)
       INTEGER N, Nf, Nu, Ziso
       
       Ziso = 6*(N-Nf) - 2*Nu - 2

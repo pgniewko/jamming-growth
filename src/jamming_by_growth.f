@@ -7,9 +7,9 @@
       !!   via conjugate gradient energy minimization. 
       !! 
       !! 
-      !!       Cell type - 1: ellipse (don't use)
+      !!       Cell type - 1: ellipse ( NOT SUPPORTED! )
       !!                   2: budding
-      !!                   3: disk (don't use)
+      !!                   3: disk    ( NOT SUPPORTED! )
       !!
       !!   Division type - 1: -> ->
       !!                   2: -> <-
@@ -31,10 +31,19 @@
       PROGRAM jammed_packing
 
       IMPLICIT NONE
+      ! CONSTANT PARAMETERS
       INTEGER Ntot,Ngen
       PARAMETER(Ntot=4096,Ngen=4096)
       DOUBLE PRECISION pi
-      PARAMETER(pi=3.1415926535897932d0)
+      PARAMETER(pi=3.1415926535897932d0)      
+      ! FILE NAMES
+      CHARACTER file1*80     
+      CHARACTER file_LF_JAMM*120
+      CHARACTER file_LF_DPHI*120
+      CHARACTER STATS_file_LF_JAMM*120
+      CHARACTER STATS_file_LF_DPHI*120
+      CHARACTER file_NC*100      
+      
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp,ran2
       DOUBLE PRECISION ftol,ftol1,fret,alpha0,width,Lx,Ly,ratei
       DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
@@ -46,13 +55,6 @@
       INTEGER N,Nr,seed,iter,i,j,k,kk,m,skip
       INTEGER celltype,divtype
       INTEGER div, Nf, Nu, Nmm,Nbb,Nmb
-      CHARACTER file1*80
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
-      CHARACTER file_LF_JAMM*120
-      CHARACTER file_LF_DPHI*120
-      CHARACTER STATS_file_LF_JAMM*120
-      CHARACTER STATS_file_LF_DPHI*120
-      CHARACTER file_NC*100
       
       DOUBLE PRECISION x_copy(Ntot),y_copy(Ntot),th_copy(Ntot)
       DOUBLE PRECISION D_copy(Ntot),D0_copy(Ntot)
@@ -62,11 +64,10 @@
       DOUBLE PRECISION phitemp, calc_phi, wide
       DOUBLE PRECISION phi_j, dphi
       INTEGER N_copy
-      INTEGER F(Ntot), Nc, Ziso, F_e(Ntot)
+      INTEGER F(Ntot), Nc, Ziso
       INTEGER bud_count(Ntot), bud_count_copy(Ntot), num_zero_buds
       INTEGER N_j,Ziso_j,Nc_j,Nf_j,Nu_j,Nmm_j,Nbb_j,Nmb_j
-      INTEGER before_jamming, at_jamming, above_jamming
-            
+      INTEGER before_jamming, at_jamming, above_jamming   
       
       COMMON /f2com/ width
       COMMON /f3com/ alpha
@@ -76,6 +77,7 @@
       COMMON /f8com/ alpha0
       COMMON /f9com/ scale
       COMMON /f10com/ celltype
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
 
       ! READ geometric parameters
       READ(*,*) alpha0
@@ -94,20 +96,21 @@
       READ(*,*) seed
       READ(*,*) skip
 
-      ! READ pdhi exponent
+      ! READ \delta\phi
       READ(*,*) dphi
       
       ! READ output files
       READ(*,*) file1
 
       IF(celltype.EQ.1 .OR. celltype.EQ.3) THEN
-           WRITE(*,*) "ELLIPSE AND DISK CELL TYPE IS NOT SUPPORTED"
-           CALL EXIT(0)
+          WRITE(*,*) "ELLIPSE AND DISK CELL TYPE IS NOT SUPPORTED"
+          WRITE(*,*) "PLEASE SET >CELLTYPE< TO 2"
+          CALL EXIT(0)
       ENDIF
      
       IF(P0.EQ.0d0) THEN
-           WRITE(*,*) "P0 = 0 not supported"
-           CALL EXIT(0)
+          WRITE(*,*) "P0 = 0 not supported"
+          CALL EXIT(0)
       ENDIF
       
       ! parameters
@@ -128,21 +131,21 @@
       at_jamming = 0
       above_jamming = 0
 
-      ! FILES
+      ! TRAJECTORY FILE
  123  OPEN(unit=1,file=TRIM(file1), status='replace') ! CONFIGURATION FILE
       
-      ! JAMMED FILES    
+      ! FILES FOR JAMMED PACKING   
       file_LF_JAMM='LF_JAMM_' // TRIM(file1)            ! unit=11
       STATS_file_LF_JAMM='STATS_LF_JAMM_' // TRIM(file1)! unit=21
       
       
-      ! DPHI OUTPUT FILES
+      ! FILES FOR PACKIG AT DPHI
       file_LF_DPHI='LF_DPHI_' // TRIM(file1)
       OPEN(unit=12,file=TRIM(file_LF_DPHI), status='replace')
       STATS_file_LF_DPHI='STATS_LF_DPHI_' // TRIM(file1)
       OPEN(unit=22,file=TRIM(STATS_file_LF_DPHI), status='replace')
       
-      ! SOME STATS
+      ! CONTACT STATISTICS (AND OTHER)
       file_NC='NC_' // TRIM(file1)
       OPEN(unit=13,file=TRIM(file_NC), status='replace')
       
@@ -724,7 +727,643 @@
       END
 
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE determine_system_status(N,D,D1,alpha,ftol,wide,dt,
+     +     fret, phi_j,dphi,
+     +     dtstatus, terminate,
+     +     before_jamming, at_jamming, above_jamming)
+      IMPLICIT NONE
+      INTEGER Ntot, N
+      PARAMETER(Ntot = 4096)
+      
+      DOUBLE PRECISION delta, phi, calc_phi
+      DOUBLE PRECISION D(Ntot),alpha(Ntot), D1
+      DOUBLE PRECISION fret,phitemp,phi_j,ftol,wide,dt,dphi
+      INTEGER dtstatus, terminate
+      INTEGER before_jamming, at_jamming, above_jamming
+      
+      delta = 0.5d-8
+      
+      phi = calc_phi(D, alpha, D1, N)
+      IF(fret.LT.ftol*N) THEN
+          terminate = 0
+          before_jamming = 1
+          at_jamming = 0
+          above_jamming = 0
+          dtstatus = 0
+          
+          dt = 1d0
+          phi_j = 0d0
+          RETURN
+      ENDIF
+      
+      
+      IF(above_jamming.EQ.0 .AND. at_jamming .EQ. 0)THEN
+          IF(fret.GT.(ftol * wide * N) )  THEN
+             dt = 0.5*dt
+             dtstatus = 1
+             terminate = 0
+             RETURN 
+          ELSE IF(fret.GT.(ftol*N) .AND. fret.LT.(ftol*wide*N))THEN
+             before_jamming = 0
+             at_jamming = 1
+             above_jamming = 1
+             dt = 1d0
+             dtstatus = 0
+             terminate = 0
+             phi_j = phi
+             RETURN
+        ENDIF
+      ENDIF
+      
+      
+!      IF(phi_j .LT. 0.25) THEN
+!          WRITE(*,*) "ERROR: SHOULD NOT REACH THIS POINT"
+!      ENDIF
+!      
+!      IF(at_jamming.NE.0) THEN
+!          WRITE(*,*) "SOMETHING WRONG: should be at_jamming = 0"
+!      ENDIF
+!
+!      IF(above_jamming.NE.1) THEN
+!          WRITE(*,*) "SOMETHING WRONG: should be above_jamming = 1"
+!      ENDIF      
+      
+      at_jamming = 0
+      IF(phi .LT. phi_j+dphi-delta) THEN
+          dt = 1
+          terminate = 0
+          dtstatus = 0
+          RETURN
+      ELSE IF(phi .GT. phi_j+dphi+delta) THEN
+          dt = 0.5 * dt
+          dtstatus = 1
+          terminate = 0
+          RETURN
+      ELSE
+          dtstatus = 0
+          terminate = 1
+          RETURN
+      ENDIF
+      
+      END
+      
+      
+      
+      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      DOUBLE PRECISION FUNCTION calc_phi(D, alpha, D1, N)
+      IMPLICIT NONE
+      INTEGER Ntot
+      DOUBLE PRECISION pi
+      PARAMETER(pi=3.1415926535897932d0)
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION D(Ntot),alpha(Ntot)
+      DOUBLE PRECISION Lx,Ly
+      DOUBLE PRECISION D1,phit
+      INTEGER i,N
+         
+      COMMON /f5com/ Lx,Ly
+         
+      phit=0d0
+         
+      DO i=1,N
+             phit=phit+(1d0+(alpha(i)-1d0)**2)*D(i)**2
+      ENDDO
+         
+      calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
+         
+      END FUNCTION
+      
+      
+      SUBROUTINE copy_everything(Ntot, Ngen,
+     +     x, y, th, D, alpha, rate,      
+     +     scale, P, PP, D0,N,
+     +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
+     +     scale_copy, P_copy, PP_copy, D0_copy, N_copy,
+     +     bud_count, bud_count_copy,PPm,PPm_copy)
+! ...cc stands for copy
+      IMPLICIT NONE
+      INTEGER Ntot,Ngen
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot)
+      DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
+      DOUBLE PRECISION P,PP(Ntot),D0(Ntot),PPm(Ntot)
+      DOUBLE PRECISION x_copy(Ntot),y_copy(Ntot),th_copy(Ntot)
+      DOUBLE PRECISION D_copy(Ntot),D0_copy(Ntot)
+      DOUBLE PRECISION alpha_copy(Ntot),rate_copy(Ntot)
+      DOUBLE PRECISION scale_copy(Ntot)
+      DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
+      INTEGER N, N_copy,i,j
+      INTEGER bud_count(Ntot), bud_count_copy(Ntot)
+      
+!      
+      P_copy = P
+      N_copy = N 
+! ZERO EVERYTHING !!!
+      DO i=1,Ntot
+          x_copy(i) = 0d0
+          y_copy(i) = 0d0
+          th_copy(i) = 0d0
+          D_copy(i) = 0d0
+          alpha_copy(i) = 0d0
+          rate_copy(i) = 0d0
+          scale_copy(i) = 0d0
+          PP_copy(i) = 0d0
+          PPm_copy(i) = 0d0
+          D0_copy(i) = 0d0
+          bud_count_copy(i) = 0
+      ENDDO
+     
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!  MAKE COPY   !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      DO i=1,Ntot
+          x_copy(i) = x(i)
+          y_copy(i) = y(i)
+          th_copy(i) = th(i)
+          D_copy(i) = D(i)
+          alpha_copy(i) = alpha(i)
+          rate_copy(i) = rate(i)
+          scale_copy(i) = scale(i)
+          PP_copy(i) = PP(i)
+          PPm_copy(i) = PPm(i)
+          D0_copy(i) = D0(i)
+          bud_count_copy(i) = bud_count(i)
+      ENDDO
+      
+      
+      END
+      
+      SUBROUTINE copy_back_everything(Ntot, Ngen,  
+     +     x, y, th, D, alpha, rate,
+     +     scale, P, PP, D0, N,
+     +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
+     +     scale_copy, P_copy, PP_copy, D0_copy, N_copy,
+     +     bud_count, bud_count_copy, PPm, PPm_copy)
+! ...cc stands for copy
+      IMPLICIT NONE
+      INTEGER Ntot,Ngen
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot)
+      DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
+      DOUBLE PRECISION P,PP(Ntot),PPm(Ntot)
+      DOUBLE PRECISION x_copy(Ntot),y_copy(Ntot),th_copy(Ntot)
+      DOUBLE PRECISION alpha_copy(Ntot),rate_copy(Ntot)
+      DOUBLE PRECISION scale_copy(Ntot)
+      DOUBLE PRECISION D0(Ntot),D0_copy(Ntot),D(Ntot),D_copy(Ntot)
+      DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
+      DOUBLE PRECISION dd
+      INTEGER N,N_copy,i,j
+      INTEGER bud_count(Ntot), bud_count_copy(Ntot)
+!
+      P = P_copy
+      N = N_copy     
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!  COPY BACK   !!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+      DO i=1,Ntot
+          x(i) = x_copy(i)
+          y(i) = y_copy(i)
+          th(i) = th_copy(i)
+          D(i) = D_copy(i)
+          alpha(i) = alpha_copy(i)
+          rate(i) = rate_copy(i)
+          scale(i) = scale_copy(i)
+          PP(i) = PP_copy(i)
+          PPm(i) = PPm_copy(i)
+          D0(i) = D0_copy(i)
+          bud_count(i) = bud_count_copy(i)
+      ENDDO
+      
+
+      DO i=1,N
+          
+!          IF(celltype.EQ.1) THEN
+!              scale(i)=dsqrt(1d0+alpha(i)**2)/4d0*d(i)
+!          ELSEIF(celltype.EQ.2) THEN
+           dd=alpha(i)-1d0
+           scale(i)=dsqrt(2d0*(1d0+dd**4)/(1+dd**2)+
+     +              4d0*(dd*(1d0+dd)/(1+dd**2))**2)/4d0*d(i)
+!          ELSEIF(celltype.EQ.3) THEN
+!              scale(i)=dsqrt(2d0)/4d0*d(i)
+!          ENDIF    
+          th(i)=th(i)*scale(i)
+      
+      ENDDO
+      
+      
+      END
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!! remove floaters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!      SUBROUTINE remove_floaters(x,y,th,phi,D1,D,N,F)
+!      IMPLICIT NONE
+!      INTEGER Ntot, N 
+!      PARAMETER(Ntot = 4096)
+!      DOUBLE PRECISION pi
+!      PARAMETER(pi=3.141592653589793238d0)
+!      INTEGER R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot), DoF
+!      DOUBLE PRECISION aspect_ratio
+!      INTEGER l, F(Ntot)
+!      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),phi,alpha(Ntot)
+!      DOUBLE PRECISION t(3), sign(3), cont,scale(Ntot)
+!      DOUBLE PRECISION xij, yij, rij, D(Ntot), D1, z_ave
+!      DOUBLE PRECISION dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
+!      DOUBLE PRECISION dtijthi,dtijthj,dthithj, compression
+!      DOUBLE PRECISION x2(Ntot), y2(Ntot), th2(Ntot), Lx,Ly
+!      INTEGER count, Z, nn
+!      
+!      COMMON /f3com/ alpha ! aspect ratio
+!      COMMON /f5com/ Lx,Ly
+!      COMMON /f9com/ scale
+!
+!      ! Remove floaters
+!      k=0
+!      phi=0.d0
+!      DO i=1,N
+!         ii=i-k
+!         nn=n-k
+!         IF(F(ii).EQ.1) THEN
+!            k=k+1
+!            DO j=ii,nn
+!               F(j) = F(j+1)
+!               x(j) = x(j+1)
+!               y(j) = y(j+1)
+!               th(j) = th(j+1)
+!               D(j) = D(j+1)
+!               alpha(j) = alpha(j+1)
+!               scale(j) = scale(j+1)              
+!            ENDDO
+!         ENDIF
+!      ENDDO
+!
+!      N=N-k
+!      
+!      DO i=1,N
+!         phi=phi+D(i)*D(i)
+!      ENDDO
+!      phi=pi*D1*D1*phi/Lx/Ly/4d0
+!      
+!      END
+!
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!      SUBROUTINE contacts(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
+!      IMPLICIT NONE
+!      INTEGER Ntot, N        
+!      PARAMETER(Ntot = 4096)
+!      INTEGER R, Rnew,i,j,k,II,JJ,c(Ntot), listP(Ntot),Z
+!      INTEGER l, F(Ntot), Nf, Nu,Nmm,Nbb,Nmb
+!      DOUBLE PRECISION overlap, aspect_ratio
+!      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
+!      DOUBLE PRECISION thIJ, t(3), sign(3),cont
+!      DOUBLE PRECISION xij, yij, rij, D(Ntot), D1, z_ave
+!      DOUBLE PRECISION dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
+!      DOUBLE PRECISION dtijthi,dtijthj,dthithj
+!      DOUBLE PRECISION x2(Ntot), y2(Ntot), th2(Ntot)
+!      COMMON /f3com/ alpha ! aspect ratio
+!      
+!      Z = 0
+!      R = 0
+!
+!      Rnew = 1
+!      Nf=0
+!      Nu=0
+!      Nmm = 0 
+!      Nbb = 0 
+!      Nmb = 0
+!      
+!      DO i=1, N
+!         c(i)=0
+!         listP(i)=i
+!         F(i) = 0
+!      ENDDO
+!      
+!      DO WHILE(Rnew>0)
+!         Rnew = 0
+!         DO i=1, N-R
+!            II=listP(i)
+!            c(II)=0
+!         ENDDO
+!         
+!         ! Find Contacts
+!         DO i=1,N-R
+!            II=listP(i)
+!            DO j=1, i-1
+!               JJ=listP(j)	    
+!!               IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
+!                  c(II) = c(II)+overlap(N,x,y,th,D,D1,II,JJ) !1
+!                  c(JJ) = c(JJ)+overlap(N,x,y,th,D,D1,II,JJ) !1
+!!               ENDIF
+!            ENDDO
+!         ENDDO
+!
+!         ! Remove floaters
+!         i=1
+!         DO WHILE (i.LE.N-R)
+!            II=listP(i)
+!            IF(c(II).LT.3) THEN
+!               Nf = Nf + 1
+!               Rnew=Rnew+1
+!               R=R+1
+!               DO j=i, N-R
+!                  listP(j) = listP(j+1)
+!               ENDDO
+!               F(II) = 1
+!            ELSE
+!               i=i+1
+!            ENDIF
+!         ENDDO
+!      ENDDO
+!      
+!      
+!      !Count Contacts
+!      Z=0
+!      DO i=1, N-R
+!         II=listP(i)
+!         DO j=1, i-1
+!            JJ=listP(j)	    
+!!            IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
+!               Z = Z+2*overlap(N,x,y,th,D,D1,II,JJ)
+!!            ENDIF
+!         ENDDO
+!      ENDDO
+!
+!      z_ave = dble(Z)/dble(N-R)
+!
+!      END
+!      
+!      
+!!     CUSTOM OVERLAP FUNCTION
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!      FUNCTION overlap(N,x,y,th,D,D1,i,j)
+!      IMPLICIT NONE
+!      INTEGER Ntot, N     
+!      PARAMETER(Ntot = 4096)
+!      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
+!      DOUBLE PRECISION rij,xij,yij,dij,ep,overlap
+!      DOUBLE PRECISION dtij,dthi,dthj,dtij2,dthi2,dthj2
+!      DOUBLE PRECISION dtijthi,dtijthj,dthithj, width
+!      DOUBLE PRECISION alpha(Ntot)
+!      DOUBLE PRECISION dd,dr1,dr2,dk2,exp,att
+!      DOUBLE PRECISION Lx,Ly
+!      !
+!      DOUBLE PRECISION dijsq_up,scale(Ntot)
+!      DOUBLE PRECISION s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+!      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1      
+!      INTEGER celltype, ni, i, j
+! 
+!      
+!      COMMON /f2com/ width
+!      COMMON /f3com/ alpha ! aspect ratio
+!      COMMON /f4com/ exp,att
+!      COMMON /f5com/ Lx,Ly
+!      COMMON /f9com/ scale
+!      COMMON /f10com/ celltype
+!      
+!      IF(D1.NE.1.d0) THEN
+!          WRITE(*,*) "SOMETHING WENT WRONG. D1 MUST BE EQ. TO 1.0"
+!      ENDIF
+!      
+!      overlap = 0.d0
+!
+!      ! BUDDING CELLS
+!      IF(celltype.EQ.2) THEN
+!          WRITE(*,*) "THERE IS A FUNCTION FOR YEAST-LIKE CELLS"
+!
+!      ! DISK CELLS      
+!      ELSEIF(celltype.EQ.3) THEN
+!                
+!          xij=x(i)-x(j)
+!          xij=xij-idnint(xij/Lx)*Lx  !! PBC
+!          yij=y(i)-y(j)
+!          yij=yij-idnint(yij/Ly)*Ly  !! PBC
+!          
+!          rij=dsqrt(xij**2+yij**2)  
+!          dij=D1*(d(i)+d(j))/2d0
+!
+!          IF(rij.LT.dij) THEN
+!              overlap = 1.d0
+!          ELSE
+!              overlap = 0.d0
+!          ENDIF
+!      ENDIF
+!          
+!      END FUNCTION
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,Nf,Nu,Nmm,Nbb,Nmb)
+      IMPLICIT NONE
+      INTEGER Ntot, N 
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
+      DOUBLE PRECISION xij, yij, D(Ntot), D1
+      DOUBLE PRECISION dij
+      DOUBLE PRECISION Lx,Ly,rijsq
+      DOUBLE PRECISION c(Ntot),s(Ntot),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dd,dr(Ntot,2),dk(Ntot,2)
+      INTEGER Z, nc_bud(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
+      INTEGER i,j,ki,kj,k
+      INTEGER flag
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f5com/ Lx,Ly
+
+      Z = 0
+      Nf= 0
+      Nu= 0
+      
+      Nmm = 0 
+      Nbb = 0 
+      Nmb = 0
+      
+      flag = 0
+      
+      ! convert to from molecules to atoms
+      DO i=1,N
+         c(i)=dcos( th(i) )
+         s(i)=dsin( th(i) )         
+         dd=alpha(i)-1d0
+         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
+         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
+         DO k=1,2
+            xa(i,k)=x(i)+dr(i,k)*c(i)
+            ya(i,k)=y(i)+dr(i,k)*s(i)
+         ENDDO
+         dk(i,1)=D(i)*D1
+         dk(i,2)=dd*D(i)*D1
+      ENDDO
+      
+      DO i=1,N
+         nc_bud(i,1)=0
+         nc_bud(i,2)=0
+      ENDDO
+
+      DO i=1,N-1
+          DO j=i+1, N
+              DO ki=1,2
+                  DO kj=1,2
+                      dij=(dk(i,ki)+dk(j,kj))/2d0
+                      xij=xa(i,ki)-xa(j,kj)
+                      xij=xij-idnint(xij/Lx)*Lx  !! PBC
+                      yij=ya(i,ki)-ya(j,kj)
+                      yij=yij-idnint(yij/Ly)*Ly !! PBC
+                      rijsq=xij**2+yij**2
+                      IF(rijsq.LT.(dij**2)) THEN
+                          Z = Z+2
+                          nc_bud(i,ki)=nc_bud(i,ki)+1
+                          nc_bud(j,kj)=nc_bud(j,kj)+1
+                          IF(ki.EQ.1 .AND. kj.EQ.1) THEN
+                              Nmm = Nmm + 2
+                          ELSEIF(ki.EQ.2 .AND. kj.EQ.2) THEN
+                              Nbb = Nbb + 2
+                          ELSE
+                              Nmb = Nmb + 2
+                          ENDIF
+                      ENDIF
+                  ENDDO
+              ENDDO
+          ENDDO
+      ENDDO
+
+      
+      DO i=1,N
+          flag = 0
+          IF( (nc_bud(i,1)+nc_bud(i,2)).LT.3 ) THEN
+              Nf = Nf + 1
+              flag = 1
+          ENDIF
+          
+          IF( (nc_bud(i,1)+nc_bud(i,2)).EQ.3 ) THEN
+              IF( nc_bud(i,1).EQ.2 .OR. nc_bud(i,2).EQ.2 ) THEN
+                  Nf = Nf + 1
+                  flag = 1
+              ENDIF
+          ENDIF
+          
+          IF(flag.EQ.0) THEN    
+              IF( nc_bud(i,1).EQ.0 ) THEN
+                  nu = nu + 1
+              ENDIF
+              IF( nc_bud(i,2).EQ.0 ) THEN
+                  nu = nu + 1
+              ENDIF
+          ENDIF
+          
+      ENDDO
+      
+      END
+      
+      SUBROUTINE out_numbers(N, Nf, Nu, Ziso)
+      IMPLICIT NONE
+      
+      INTEGER N, Nf, Nu, Ziso
+      
+      Ziso = 6*(N-Nf) - 2*Nu - 2
+      
+      END
+      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
+      SUBROUTINE bud_contacts(x,y,th,D1,D,N,bud_count,num_zero_buds)
+      IMPLICIT NONE
+      INTEGER Ntot, N
+      PARAMETER(Ntot = 4096)
+      INTEGER i,j,k,ki,kj
+      INTEGER nc_bud(Ntot,2),num_zero_buds,bud_count(Ntot)
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),alpha(Ntot)
+      DOUBLE PRECISION xij,yij,D(Ntot),D1
+      DOUBLE PRECISION Lx,Ly,dij,rijsq
+      DOUBLE PRECISION c(Ntot),s(Ntot),dd,xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dk(Ntot,2),dr(Ntot,2)
+
+      COMMON /f3com/ alpha ! aspect ratio
+      COMMON /f5com/ Lx,Ly
+
+      num_zero_buds = 0
+      
+      ! convert to from cells to lobes: mother & bud
+      DO i=1,N
+         c(i)=dcos( th(i) )
+         s(i)=dsin( th(i) )         
+         dd=alpha(i)-1d0
+         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
+         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
+         DO k=1,2
+            xa(i,k)=x(i)+dr(i,k)*c(i)
+            ya(i,k)=y(i)+dr(i,k)*s(i)
+         ENDDO
+         dk(i,1)=D(i)*D1
+         dk(i,2)=dd*D(i)*D1
+      ENDDO
+      
+      DO i=1,N
+         nc_bud(i,1)=0
+         nc_bud(i,2)=0
+         bud_count(i) = 0
+      ENDDO
+
+      DO i=1,N-1
+          DO j=i+1, N
+               DO ki=1,2
+                  DO kj=1,2
+                      dij=(dk(i,ki)+dk(j,kj))/2d0
+                      xij=xa(i,ki)-xa(j,kj)
+                      xij=xij-idnint(xij/Lx)*Lx !! PBC
+                      yij=ya(i,ki)-ya(j,kj)
+                      yij=yij-idnint(yij/Ly)*Ly !! PBC
+                      rijsq=xij**2+yij**2
+                      IF(rijsq.LT.(dij**2)) THEN
+                          nc_bud(i,ki)= nc_bud(i,ki)+1
+                          nc_bud(j,kj)= nc_bud(j,kj)+1
+                      ENDIF
+                  ENDDO
+              ENDDO
+          ENDDO
+      ENDDO
+      
+      DO i=1,N
+          bud_count(i) = nc_bud(i,2)
+          IF(bud_count(i).EQ.0)THEN
+              num_zero_buds = num_zero_buds + 1
+          ENDIF
+      ENDDO
+
+     
+      END
+      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
+      SUBROUTINE growth_rate(gr,N,rate,PP,P0,D,alpha)    
+      IMPLICIT NONE
+      INTEGER Ntot,i,N
+      PARAMETER(Ntot = 4096)
+      DOUBLE PRECISION ratei,P0
+      DOUBLE PRECISION rate(Ntot),PP(Ntot),D(Ntot)
+      DOUBLE PRECISION alpha(Ntot)
+      
+      DOUBLE PRECISION Dm, Db, dd, gr
+      DOUBLE PRECISION total_area, total_new_mass
+      
+      gr = 0.0d0
+      total_area = 0.0d0
+      total_new_mass = 0.0d0
+      
+      DO i=1,N
+          ratei=rate(i)
+          IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
+              ratei=ratei*dexp(-PP(i)/P0)
+          ENDIF
+          
+          Dm = D(i)
+          Db = alpha(i)-1d0
+          total_area = total_area + Dm*Dm + Db*Db
+          total_new_mass = total_new_mass + ratei*(Dm*Dm + Db*Db)
+      ENDDO
+      
+      gr = total_new_mass / total_area
+      
+      END
+      
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!    STANDARD NUMERICAL CODE   !!!!!!!!!!!!!!      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
       PARAMETER(Ntot = 4096)
       INTEGER its,iter,ITMAX
@@ -1179,643 +1818,4 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
       ran2=min(AM*iy,RNMX)
       RETURN
       END
-C  (C) Copr. 1986-92 Numerical Recipes Software .                 
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!! BELOW IS A NEW CODE ADDED BY PAWEL GNIEWEK !!!!!!!!
-      SUBROUTINE determine_system_status(N,D,D1,alpha,ftol,wide,dt,
-     +     fret, phi_j,dphi,
-     +     dtstatus, terminate,
-     +     before_jamming, at_jamming, above_jamming)
-      IMPLICIT NONE
-      INTEGER Ntot, N
-      PARAMETER(Ntot = 4096)
-      
-      DOUBLE PRECISION delta, phi, calc_phi
-      DOUBLE PRECISION D(Ntot),alpha(Ntot), D1
-      DOUBLE PRECISION fret,phitemp,phi_j,ftol,wide,dt,dphi
-      INTEGER dtstatus, terminate
-      INTEGER before_jamming, at_jamming, above_jamming
-      
-      delta = 0.5d-8
-      
-      phi = calc_phi(D, alpha, D1, N)
-      IF(fret.LT.ftol*N .OR. phi.LT.0.25) THEN
-          terminate = 0
-          before_jamming = 1
-          at_jamming = 0
-          above_jamming = 0
-          dtstatus = 0
-          
-          dt = 1d0
-          phi_j = 0d0
-          RETURN
-      ENDIF
-      
-      
-      IF(above_jamming.EQ.0 .AND. at_jamming .EQ. 0)THEN
-          IF(fret.GT.(ftol * wide * N) )  THEN
-             dt = 0.5*dt
-             dtstatus = 1
-             terminate = 0
-             RETURN 
-          ELSE IF(fret.GT.(ftol*N) .AND. fret.LT.(ftol*wide*N))THEN
-              before_jamming = 0
-              at_jamming = 1
-              above_jamming = 1
-              dt = 1d0
-              dtstatus = 0
-              terminate = 0
-              phi_j = phi
-              RETURN
-          ! ELSE - not needed. this point should never been reached!
-              
-        ENDIF
-      ENDIF
-      
-      
-      IF(phi_j .LT. 0.25) THEN
-          WRITE(*,*) "ERROR: SHOULD NOT REACH THIS POINT"
-      ENDIF
-      
-      IF(at_jamming.NE.0) THEN
-          WRITE(*,*) "SOMETHING WRONG: should be at_jamming = 0"
-      ENDIF
-
-      IF(above_jamming.NE.1) THEN
-          WRITE(*,*) "SOMETHING WRONG: should be above_jamming = 1"
-      ENDIF      
-      
-      at_jamming = 0
-      IF(phi .LT. phi_j+dphi-delta) THEN
-          dt = 1
-          terminate = 0
-          dtstatus = 0
-          RETURN
-      ELSE IF(phi .GT. phi_j+dphi+delta) THEN
-          dt = 0.5 * dt
-          dtstatus = 1
-          terminate = 0
-          RETURN
-      ELSE
-          dtstatus = 0
-          terminate = 1
-          RETURN
-      ENDIF
-      
-      END
-      
-      
-      
-      
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      DOUBLE PRECISION FUNCTION calc_phi(D, alpha, D1, N)
-      IMPLICIT NONE
-      INTEGER Ntot
-      DOUBLE PRECISION pi
-      PARAMETER(pi=3.1415926535897932d0)
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION D(Ntot),alpha(Ntot)
-      DOUBLE PRECISION Lx,Ly
-      DOUBLE PRECISION D1,phit
-      INTEGER i,N
-         
-      COMMON /f5com/ Lx,Ly
-         
-      phit=0d0
-         
-      DO i=1,N
-             phit=phit+(1d0+(alpha(i)-1d0)**2)*D(i)**2
-      ENDDO
-         
-      calc_phi=pi*D1*D1*phit/Lx/Ly/4d0
-         
-      END FUNCTION
-      
-      
-      SUBROUTINE copy_everything(Ntot, Ngen,
-     +     x, y, th, D, alpha, rate,      
-     +     scale, P, PP, D0,N,
-     +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
-     +     scale_copy, P_copy, PP_copy, D0_copy, N_copy,
-     +     bud_count, bud_count_copy,PPm,PPm_copy)
-! ...cc stands for copy
-      IMPLICIT NONE
-      INTEGER Ntot,Ngen
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot)
-      DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
-      DOUBLE PRECISION P,PP(Ntot),D0(Ntot),PPm(Ntot)
-      DOUBLE PRECISION x_copy(Ntot),y_copy(Ntot),th_copy(Ntot)
-      DOUBLE PRECISION D_copy(Ntot),D0_copy(Ntot)
-      DOUBLE PRECISION alpha_copy(Ntot),rate_copy(Ntot)
-      DOUBLE PRECISION scale_copy(Ntot)
-      DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
-      INTEGER N, N_copy,i,j
-      INTEGER bud_count(Ntot), bud_count_copy(Ntot)
-      
-!      
-      P_copy = P
-      N_copy = N   
-      
-! ZERO EVERYTHING !!!
-      DO i=1,Ntot
-          x_copy(i) = 0d0
-          y_copy(i) = 0d0
-          th_copy(i) = 0d0
-          D_copy(i) = 0d0
-          alpha_copy(i) = 0d0
-          rate_copy(i) = 0d0
-          scale_copy(i) = 0d0
-          PP_copy(i) = 0d0
-          PPm_copy(i) = 0d0
-          D0_copy(i) = 0d0
-          bud_count_copy(i) = 0
-      ENDDO
-     
-
-!!!!!!!!!!!!!!!!!!!!!   MAKE COPY   
-      DO i=1,Ntot
-          x_copy(i) = x(i)
-          y_copy(i) = y(i)
-          th_copy(i) = th(i)
-          D_copy(i) = D(i)
-          alpha_copy(i) = alpha(i)
-          rate_copy(i) = rate(i)
-          scale_copy(i) = scale(i)
-          PP_copy(i) = PP(i)
-          PPm_copy(i) = PPm(i)
-          D0_copy(i) = D0(i)
-          bud_count_copy(i) = bud_count(i)
-      ENDDO
-      
-      
-      END
-      
-      SUBROUTINE copy_back_everything(Ntot, Ngen,  
-     +     x, y, th, D, alpha, rate,
-     +     scale, P, PP, D0, N,
-     +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
-     +     scale_copy, P_copy, PP_copy, D0_copy, N_copy,
-     +     bud_count, bud_count_copy, PPm, PPm_copy)
-! ...cc stands for copy
-      IMPLICIT NONE
-      INTEGER Ntot,Ngen
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot)
-      DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
-      DOUBLE PRECISION P,PP(Ntot),PPm(Ntot)
-      DOUBLE PRECISION x_copy(Ntot),y_copy(Ntot),th_copy(Ntot)
-      DOUBLE PRECISION alpha_copy(Ntot),rate_copy(Ntot)
-      DOUBLE PRECISION scale_copy(Ntot)
-      DOUBLE PRECISION D0(Ntot),D0_copy(Ntot),D(Ntot),D_copy(Ntot)
-      DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
-      DOUBLE PRECISION dd
-      INTEGER N,N_copy,i,j
-      INTEGER celltype, bud_count(Ntot), bud_count_copy(Ntot)
-      
-      COMMON /f10com/ celltype
-            
-!
-      P = P_copy
-      N = N_copy
-!
-      DO i=1,Ntot
-          x(i) = x_copy(i)
-          y(i) = y_copy(i)
-          th(i) = th_copy(i)
-          D(i) = D_copy(i)
-          alpha(i) = alpha_copy(i)
-          rate(i) = rate_copy(i)
-          scale(i) = scale_copy(i)
-          PP(i) = PP_copy(i)
-          PPm(i) = PPm_copy(i)
-          D0(i) = D0_copy(i)
-          bud_count(i) = bud_count_copy(i)
-      ENDDO
-      
-
-         DO i=1,N
-            IF(celltype.EQ.1) THEN
-               scale(i)=dsqrt(1d0+alpha(i)**2)/4d0*d(i)         
-            ELSEIF(celltype.EQ.2) THEN
-               dd=alpha(i)-1d0
-               scale(i)=dsqrt(2d0*(1d0+dd**4)/(1+dd**2)+
-     +              4d0*(dd*(1d0+dd)/(1+dd**2))**2)/4d0*d(i)
-            ELSEIF(celltype.EQ.3) THEN
-               scale(i)=dsqrt(2d0)/4d0*d(i)
-            ENDIF
-            th(i)=th(i)*scale(i)
-         ENDDO
-      END
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!! remove floaters !!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      
-      SUBROUTINE remove_floaters(x,y,th,phi,D1,D,N,F)
-      IMPLICIT NONE
-      INTEGER Ntot, N 
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION pi
-      PARAMETER(pi=3.141592653589793238d0)
-      INTEGER R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot), DoF
-      DOUBLE PRECISION overlap, aspect_ratio
-      INTEGER l, F(Ntot)
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),phi,alpha(Ntot)
-      DOUBLE PRECISION thIJ, t(3), sign(3), AR2, cont,scale(Ntot)
-      DOUBLE PRECISION xij, yij, rij, D(Ntot), D1, z_ave
-      DOUBLE PRECISION dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
-      DOUBLE PRECISION dtijthi,dtijthj,dthithj, compression
-      DOUBLE PRECISION x2(Ntot), y2(Ntot), th2(Ntot), Lx,Ly
-      INTEGER count, Z, nn
-      
-      COMMON /f3com/ alpha ! aspect ratio
-      COMMON /f5com/ Lx,Ly
-      COMMON /f9com/ scale
-
-      ! Remove floaters
-      k=0
-      phi=0.d0
-      DO i=1,N
-         ii=i-k
-         nn=n-k
-         IF(F(ii).EQ.1) THEN
-            k=k+1
-            DO j=ii,nn
-               F(j) = F(j+1)
-               x(j) = x(j+1)
-               y(j) = y(j+1)
-               th(j) = th(j+1)
-               D(j) = D(j+1)
-               alpha(j) = alpha(j+1)
-               scale(j) = scale(j+1)              
-            ENDDO
-         ENDIF
-      ENDDO
-
-      N=N-k
-      
-      DO i=1,N
-         phi=phi+D(i)*D(i)
-      ENDDO
-      phi=pi*D1*D1*phi/Lx/Ly/4d0
-      
-      END
-
-      
-      
-!!!!!!!!!!!!!!!! counts contacts !!!!!!!!!!!!!
-      SUBROUTINE contacts(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
-      IMPLICIT NONE
-      INTEGER Ntot, N        
-      PARAMETER(Ntot = 4096)
-      INTEGER R, Rnew, i, j, k, II, JJ, c(Ntot), listP(Ntot)
-      DOUBLE PRECISION overlap, aspect_ratio
-      INTEGER l, F(Ntot), Nf, Nu,Nmm,Nbb,Nmb
-      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-      DOUBLE PRECISION thIJ, t(3), sign(3),cont
-      DOUBLE PRECISION xij, yij, rij, D(Ntot), D1, z_ave
-      DOUBLE PRECISION dij,dtij,dthi,dthj,dtij2,dthi2,dthj2
-      DOUBLE PRECISION dtijthi,dtijthj,dthithj
-      DOUBLE PRECISION x2(Ntot), y2(Ntot), th2(Ntot)
-      INTEGER Z
-      COMMON /f3com/ alpha ! aspect ratio
-      
-      Z = 0
-      R = 0
-
-      Rnew = 1
-      Nf=0
-      Nu=0
-      Nmm = 0 
-      Nbb = 0 
-      Nmb = 0
-      
-      DO i=1, N
-         c(i)=0
-         listP(i)=i
-         F(i) = 0
-      ENDDO
-      
-      DO WHILE(Rnew>0)
-         Rnew = 0
-         DO i=1, N-R
-            II=listP(i)
-            c(II)=0
-         ENDDO
-         
-         ! Find Contacts
-         DO i=1,N-R
-            II=listP(i)
-            DO j=1, i-1
-               JJ=listP(j)	    
-!               IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
-                  c(II) = c(II)+overlap(N,x,y,th,D,D1,II,JJ) !1
-                  c(JJ) = c(JJ)+overlap(N,x,y,th,D,D1,II,JJ) !1
-!               ENDIF
-            ENDDO
-         ENDDO
-
-         ! Remove floaters
-         i=1
-         DO WHILE (i.LE.N-R)
-            II=listP(i)
-            IF(c(II).LT.3) THEN
-               Nf = Nf + 1
-               Rnew=Rnew+1
-               R=R+1
-               DO j=i, N-R
-                  listP(j) = listP(j+1)
-               ENDDO
-               F(II) = 1
-            ELSE
-               i=i+1
-            ENDIF
-         ENDDO
-      ENDDO
-      
-      
-      !Count Contacts
-      Z=0
-      DO i=1, N-R
-         II=listP(i)
-         DO j=1, i-1
-            JJ=listP(j)	    
-!            IF(overlap(N,x,y,th,D,D1,II,JJ).LT.1.d0) THEN
-               Z = Z+2*overlap(N,x,y,th,D,D1,II,JJ)
-!            ENDIF
-         ENDDO
-      ENDDO
-
-      z_ave = dble(Z)/dble(N-R)
-
-      END
-      
-      
-!     CUSTOM OVERLAP FUNCTION
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      FUNCTION overlap(N,x,y,th,D,D1,i,j)
-      IMPLICIT NONE
-      INTEGER Ntot, N     
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1
-      DOUBLE PRECISION rij,xij,yij,dij,ep,overlap
-      DOUBLE PRECISION dtij,dthi,dthj,dtij2,dthi2,dthj2
-      DOUBLE PRECISION dtijthi,dtijthj,dthithj, width
-      DOUBLE PRECISION alpha(Ntot)
-      DOUBLE PRECISION dd,dr1,dr2,dk2,exp,att
-      DOUBLE PRECISION Lx,Ly
-      !
-      DOUBLE PRECISION dijsq_up,scale(Ntot)
-      DOUBLE PRECISION s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1      
-      INTEGER celltype, ni, i, j
- 
-      
-      COMMON /f2com/ width
-      COMMON /f3com/ alpha ! aspect ratio
-      COMMON /f4com/ exp,att
-      COMMON /f5com/ Lx,Ly
-      COMMON /f9com/ scale
-      COMMON /f10com/ celltype
-      
-      IF(D1.NE.1.d0) THEN
-          WRITE(*,*) "SOMETHING IS WRONG. D1 SHALL BE EQ. TO 1.0"
-      ENDIF
-      
-      overlap = 0.d0
-
-      ! BUDDING CELLS
-      IF(celltype.EQ.2) THEN
-          WRITE(*,*) "THERE IS SPECIAL CONTACT FUNCTION FOR YEAST"
-
-      ! DISK CELLS      
-      ELSEIF(celltype.EQ.3) THEN
-                
-          xij=x(i)-x(j)
-          xij=xij-idnint(xij/Lx)*Lx  !! PBC
-          yij=y(i)-y(j)
-          yij=yij-idnint(yij/Ly)*Ly  !! PBC
-          
-          rij=dsqrt(xij**2+yij**2)  
-          dij=D1*(d(i)+d(j))/2d0
-
-          IF(rij.LT.dij) THEN
-              overlap = 1.d0
-          ELSE
-              overlap = 0.d0
-          ENDIF
-      ENDIF
-          
-      END FUNCTION
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,Nf,Nu,Nmm,Nbb,Nmb)
-      IMPLICIT NONE
-      INTEGER Ntot, N 
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
-      DOUBLE PRECISION xij, yij, D(Ntot), D1
-      DOUBLE PRECISION dij
-      DOUBLE PRECISION Lx,Ly,rijsq
-      DOUBLE PRECISION c(Ntot),s(Ntot),xa(Ntot,2),ya(Ntot,2)
-      DOUBLE PRECISION dd,dr(Ntot,2),dk(Ntot,2)
-      INTEGER Z, nc_bud(Ntot,2), Nf, Nu, Nmm, Nbb, Nmb
-      INTEGER i,j,ki,kj,k
-      INTEGER flag
-      COMMON /f3com/ alpha ! aspect ratio
-      COMMON /f5com/ Lx,Ly
-
-      Z = 0
-      Nf= 0
-      Nu= 0
-      
-      Nmm = 0 
-      Nbb = 0 
-      Nmb = 0
-      
-      flag = 0
-      
-      ! convert to from molecules to atoms
-      DO i=1,N
-         c(i)=dcos( th(i) )
-         s(i)=dsin( th(i) )         
-         dd=alpha(i)-1d0
-         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
-         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-         DO k=1,2
-            xa(i,k)=x(i)+dr(i,k)*c(i)
-            ya(i,k)=y(i)+dr(i,k)*s(i)
-         ENDDO
-         dk(i,1)=D(i)*D1
-         dk(i,2)=dd*D(i)*D1
-      ENDDO
-      
-      DO i=1,N
-         nc_bud(i,1)=0
-         nc_bud(i,2)=0
-      ENDDO
-
-      DO i=1,N-1
-          DO j=i+1, N
-              DO ki=1,2
-                  DO kj=1,2
-                      dij=(dk(i,ki)+dk(j,kj))/2d0
-                      xij=xa(i,ki)-xa(j,kj)
-                      xij=xij-idnint(xij/Lx)*Lx  !! PBC
-                      yij=ya(i,ki)-ya(j,kj)
-                      yij=yij-idnint(yij/Ly)*Ly !! PBC
-                      rijsq=xij**2+yij**2
-                      IF(rijsq.LT.(dij**2)) THEN
-                          Z = Z+2
-                          nc_bud(i,ki)=nc_bud(i,ki)+1
-                          nc_bud(j,kj)=nc_bud(j,kj)+1
-                          IF(ki.EQ.1 .AND. kj.EQ.1) THEN
-                              Nmm = Nmm + 2
-                          ELSEIF(ki.EQ.2 .AND. kj.EQ.2) THEN
-                              Nbb = Nbb + 2
-                          ELSE
-                              Nmb = Nmb + 2
-                          ENDIF
-                      ENDIF
-                  ENDDO
-              ENDDO
-          ENDDO
-      ENDDO
-
-      
-      DO i=1,N
-          flag = 0
-          IF( (nc_bud(i,1)+nc_bud(i,2)).LT.3 ) THEN
-              Nf = Nf + 1
-              flag = 1
-          ENDIF
-          
-          IF( (nc_bud(i,1)+nc_bud(i,2)).EQ.3 ) THEN
-              IF( nc_bud(i,1).EQ.2 .OR. nc_bud(i,2).EQ.2 ) THEN
-                  Nf = Nf + 1
-                  flag = 1
-              ENDIF
-          ENDIF
-          
-          IF(flag.EQ.0) THEN    
-              IF( nc_bud(i,1).EQ.0 ) THEN
-                  nu = nu + 1
-              ENDIF
-              IF( nc_bud(i,2).EQ.0 ) THEN
-                  nu = nu + 1
-              ENDIF
-          ENDIF
-          
-      ENDDO
-      
-      END
-      
-      SUBROUTINE out_numbers(N, Nf, Nu, Ziso)
-      IMPLICIT NONE
-      
-      INTEGER N, Nf, Nu, Ziso
-      
-      Ziso = 6*(N-Nf) - 2*Nu - 2
-      
-      END
-      
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
-      SUBROUTINE bud_contacts(x,y,th,D1,D,N,bud_count,num_zero_buds)
-      IMPLICIT NONE
-      INTEGER Ntot, N
-      PARAMETER(Ntot = 4096)
-      INTEGER i,j,k,ki,kj
-      INTEGER nc_bud(Ntot,2),num_zero_buds,bud_count(Ntot)
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),alpha(Ntot)
-      DOUBLE PRECISION xij,yij,D(Ntot),D1
-      DOUBLE PRECISION Lx,Ly,dij,rijsq
-      DOUBLE PRECISION c(Ntot),s(Ntot),dd,xa(Ntot,2),ya(Ntot,2)
-      DOUBLE PRECISION dk(Ntot,2),dr(Ntot,2)
-
-      COMMON /f3com/ alpha ! aspect ratio
-      COMMON /f5com/ Lx,Ly
-
-      num_zero_buds = 0
-      
-      ! convert to from molecules to atoms
-      DO i=1,N
-         c(i)=dcos( th(i) )
-         s(i)=dsin( th(i) )         
-         dd=alpha(i)-1d0
-         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
-         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-         DO k=1,2
-            xa(i,k)=x(i)+dr(i,k)*c(i)
-            ya(i,k)=y(i)+dr(i,k)*s(i)
-         ENDDO
-         dk(i,1)=D(i)*D1
-         dk(i,2)=dd*D(i)*D1
-      ENDDO
-      
-      DO i=1,N
-         nc_bud(i,1)=0
-         nc_bud(i,2)=0
-         bud_count(i) = 0
-      ENDDO
-
-      DO i=1,N-1
-          DO j=i+1, N
-               DO ki=1,2
-                  DO kj=1,2
-                      dij=(dk(i,ki)+dk(j,kj))/2d0
-                      xij=xa(i,ki)-xa(j,kj)
-                      xij=xij-idnint(xij/Lx)*Lx !! PBC
-                      yij=ya(i,ki)-ya(j,kj)
-                      yij=yij-idnint(yij/Ly)*Ly !! PBC
-                      rijsq=xij**2+yij**2
-                      IF(rijsq.LT.(dij**2)) THEN
-                          nc_bud(i,ki)= nc_bud(i,ki)+1
-                          nc_bud(j,kj)= nc_bud(j,kj)+1
-                      ENDIF
-                  ENDDO
-              ENDDO
-          ENDDO
-      ENDDO
-      
-      DO i=1,N
-          bud_count(i) = nc_bud(i,2)
-          IF(bud_count(i).EQ.0)THEN
-              num_zero_buds = num_zero_buds + 1
-          ENDIF
-      ENDDO
-
-     
-      END
-      
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
-      SUBROUTINE growth_rate(gr,N,rate,PP,P0,D,alpha)    
-      IMPLICIT NONE
-      INTEGER Ntot,i,N
-      PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION ratei,P0
-      DOUBLE PRECISION rate(Ntot),PP(Ntot),D(Ntot)
-      DOUBLE PRECISION alpha(Ntot)
-      
-      DOUBLE PRECISION Dm, Db, dd, gr
-      DOUBLE PRECISION total_area, total_new_mass
-      
-      gr = 0.0d0
-      total_area = 0.0d0
-      total_new_mass = 0.0d0
-      
-      DO i=1,N
-          ratei=rate(i)
-          IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
-              ratei=ratei*dexp(-PP(i)/P0)
-          ENDIF
-          
-          Dm = D(i)
-          Db = alpha(i)-1d0
-          total_area = total_area + Dm*Dm + Db*Db
-          total_new_mass = total_new_mass + ratei*(Dm*Dm + Db*Db)
-      ENDDO
-      
-      gr = total_new_mass / total_area
-      
-      END
+C  (C) Copr. 1986-92 Numerical Recipes Software .

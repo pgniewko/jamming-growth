@@ -45,8 +45,8 @@ make all
 COPYRIGHT NOTICE
 ================
 Copyright (C) 2018,  Pawel Gniewek & Carl Schreck    
-PG: gniewko.pablo@gmail.com        
-CS: carlschreck213@gmail.com      
+PG: pawel.gniewek@berkeley.edu
+CS: carl.schreck@berkeley.edu 
 All rights reserved.   
 License: BSD-3  
 
