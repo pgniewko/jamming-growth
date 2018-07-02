@@ -6,20 +6,9 @@ exe_file=$MY_PATH"/../bin/shear_yeast_linearshear"
 cd $run_dir
 
 att=0.0      # no attractions
-cell="BUDD"  # type of the cell
-celltype=2
-rate0=0.002  # growth rate (in units of time-step)
-skip=25      # save frame every $skip steps
-AP=2.0       # NUMBER NOT USED
 desync=0.4   # desynchronize growth rate
-distrem=4.5  # NUMBER NOT USED
-ar=1.01      # BUD OF THE SIZE 1% OF THE INITIAL SIZE
-steps=10000  # NOT USED
-divtype=4
-
-INPUT_LIST="RUN_LIST_Lx15_51_to_100.txt"
-
-INPUT_LINE=`head -n $SLURM_ARRAY_TASK_ID $INPUT_LIST | tail -n 1`
+ar=1.01      # initial bud size is 1% of the mother cell
+divtype=4    # random location of a new born bud
 
 P0=0.001
 Lx=10
@@ -32,23 +21,23 @@ seed=$(($se+1000))
 SEED2=$(( -1 * $seed)) # make seed negative
 
 Ly=$Lx
-dphi=$mm"e-"$nn
+dphi=${mm}e-${nn}
 
 
 if [ ${P0%.*} -eq -1 ]
 then
-suffix=${cell}_ar${ar}_div_${divtype}_desync${desync}_seed_$seed"_"Lx${Lx}_Ly${Ly}_a${AP}_att${att}.dat
+suffix=ar${ar}_div_${divtype}_desync${desync}_seed_${seed}_Lx${Lx}_Ly${Ly}_att${att}.dat
 else
-suffix=${cell}_ar${ar}_div_${divtype}_desync${desync}_seed_$seed"_"Lx${Lx}_Ly${Ly}_a${AP}_att${att}_P${P0}.dat
+suffix=ar${ar}_div_${divtype}_desync${desync}_seed_${seed}_Lx${Lx}_Ly${Ly}_att${att}_P${P0}.dat
 fi
 
+version=1.0
+file_=LF_DPHI_v${version}_${suffix}
 
-file_="LF_DPHI_prod_"$suffix
 
+cp ${MY_PATH}/jamming_dir/${file_}  .
 
-cp $MY_PATH"/output"/$file_  .
-
-## CHECK IF THE FILE IS LONGER THAN TWO LINES
+## PROCEED ONLY IF THE FILE IS LONGER THAN TWO LINES
 if [[ $(wc -l <$file_) -ge 2 ]] ; then
 
 time $exe_file <<EOF
