@@ -3,7 +3,8 @@
 MY_PATH=`pwd`
 run_dir=$MY_PATH"/jamming_dir"
 exe_file=$MY_PATH"/../bin/jamming_by_growth"
-cd $run_dir
+mkdir -p ${run_dir}
+cd ${run_dir}
 
 
 att=0.0      # no attractions

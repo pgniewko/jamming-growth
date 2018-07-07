@@ -3,6 +3,7 @@
 MY_PATH=`pwd`
 run_dir=$MY_PATH"/shear_dir"
 exe_file=$MY_PATH"/../bin/shear_yeast_linearshear"
+mkdir -p ${run_dir}
 cd $run_dir
 
 att=0.0      # no attractions
