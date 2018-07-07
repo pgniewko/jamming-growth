@@ -24,8 +24,8 @@
 
       IMPLICIT NONE
       ! CONSTANT PARAMETERS
-      INTEGER Ntot,Ngen
-      PARAMETER(Ntot=4096,Ngen=4096)
+      INTEGER Ntot
+      PARAMETER(Ntot=4096)
       DOUBLE PRECISION pi
       PARAMETER(pi=3.1415926535897932d0)      
       ! FILE NAMES
@@ -156,7 +156,7 @@
       k=0
       DO WHILE (terminate_sim.NE.1)
           k=k+1
-          CALL copy_everything(Ntot,Ngen,
+          CALL copy_everything(Ntot,
      +     x,y,th,D,alpha,rate,
      +     scale, P, PP, D0,N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
@@ -243,7 +243,7 @@
          
          ! REJECT THE MOVE
          IF(reject_time_step.EQ.1) THEN
-         CALL copy_back_everything(Ntot, Ngen,
+         CALL copy_back_everything(Ntot,
      +     x, y, th, D, alpha, rate,
      +     scale, P, PP, D0, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
@@ -767,7 +767,7 @@
       END FUNCTION
       
       
-      SUBROUTINE copy_everything(Ntot, Ngen,
+      SUBROUTINE copy_everything(Ntot,
      +     x, y, th, D, alpha, rate,      
      +     scale, P, PP, D0,N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
@@ -775,7 +775,7 @@
      +     bud_count, bud_count_copy,PPm,PPm_copy)
 ! ...cc stands for copy
       IMPLICIT NONE
-      INTEGER Ntot,Ngen
+      INTEGER Ntot
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot)
       DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
       DOUBLE PRECISION P,PP(Ntot),D0(Ntot),PPm(Ntot)
@@ -824,14 +824,14 @@
       
       END
       
-      SUBROUTINE copy_back_everything(Ntot, Ngen,  
+      SUBROUTINE copy_back_everything(Ntot,  
      +     x, y, th, D, alpha, rate,
      +     scale, P, PP, D0, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, D0_copy, N_copy,
      +     bud_count, bud_count_copy, PPm, PPm_copy)
       IMPLICIT NONE
-      INTEGER Ntot,Ngen
+      INTEGER Ntot
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot)
       DOUBLE PRECISION alpha(Ntot),rate(Ntot),scale(Ntot)
       DOUBLE PRECISION P,PP(Ntot),PPm(Ntot)
