@@ -44,5 +44,5 @@ License: BSD-3
 
 REFERENCES
 ===============
-1. "Jamming by growth", P.G., C.S., O.H., 2018
+1. "Jamming by growth", P.G., C.S., O.H. (2018)
 2. [Self-driven jamming in growing microbial populations](https://www.nature.com/articles/nphys3741), M.D., J.H., C.S., P.G., L.H., S.H., O.H., Nature Phys (2016)

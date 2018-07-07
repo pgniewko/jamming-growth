@@ -1,12 +1,9 @@
-DESCRIPTION
-==================================================
-
 GENERATE PACKINGS with `run_jamming.sh`
 ==================================================
 Scirpt `run_jamming.sh` generates: i) jammed packings 
 for growing budding yeast cells; ii) a packing at the 
-volume fraction $\delta\psi$; iii) the growth trajectory 
-of the colony starting from two cells and ending  at $\delta\psi$.
+volume fraction $\delta\phi$; iii) the growth trajectory 
+of the colony starting from two cells and ending  at $\delta\phi$.
 
 Arguments to be set in `./run_jamming.sh`:    
 1. att - range of the attractive forces
