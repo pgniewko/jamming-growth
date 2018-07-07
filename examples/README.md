@@ -17,7 +17,7 @@ Arguments for `./run_jamming.sh`:
 5. divtype - 
 6. P0 - 
 7. Lx - 
-8. For $\delta\phi$=``:
+8. For ![dphi](https://latex.codecogs.com/gif.latex?%5Cdelta%5Cphi%3D%5C%24%5C%7Bmm%5C%7D%5Ccdot%2010%5E%7B-%5C%24%5C%7Bnn%5C%7D%7D)
     * mm -
     * nn -
 9. se - 
