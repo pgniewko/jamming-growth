@@ -12,7 +12,7 @@ ar=1.01      # initial bud size is 1% of the mother cell
 divtype=4    # random location of a new born bud
 
 P0=0.001
-Lx=10
+Lx=8
 mm=1
 nn=3
 se=234
@@ -46,7 +46,7 @@ time $exe_file <<EOF
    $Ly
    $att
    $file_
-   1e-6
+   1e-4
    1000
 EOF
 

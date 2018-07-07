@@ -71,7 +71,7 @@
       ! FILES
  123  OPEN(unit=1,file=TRIM(file_conf)) ! CONFIGURATION FILE
  
-      file_traj='prod_shear_' // TRIM(file_conf)
+      file_traj='SHEAR_TRAJ_' // TRIM(file_conf)
       OPEN(unit=11,file=TRIM(file_traj), status='replace')
       
       file_G_data ='G_data_' // TRIM(file_conf)
