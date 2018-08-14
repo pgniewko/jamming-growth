@@ -23,9 +23,12 @@ COMPILING
 * Building executable files:
     + To build just a code for budding yeast jamming type:    
         `make `       
-
     + To build all of the executables type in the command line:    
         `make all`
+
+* The compiling parameters can be changed in `config.mk` file:
+    + Compiler:
+        `FC := gfortran`
 
 * If the compilation terminates with a success, the binary files are located in `bin` directory.       
 
