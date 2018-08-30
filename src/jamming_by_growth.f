@@ -167,8 +167,10 @@
           DO i=1,N
                ratei=rate(i)*dt
                
-               IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
-                  ratei=ratei*dexp(-PP(i)/P0) !* dt
+               IF (above_jamming.eq.1) THEN ! Make sure that populations do not differ before jamming
+                   IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
+                       ratei=ratei*dexp(-PP(i)/P0)
+                   ENDIF
                ENDIF
                
                alpha(i)=1d0+dsqrt((1d0+ratei)*
