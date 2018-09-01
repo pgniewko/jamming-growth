@@ -1,6 +1,6 @@
 DESCRIPTION
 ==================================================
-
+2D numerical simulations of budding yeast populations growing in confined environments.
 
 GETTING THE CODE
 ==================================================
