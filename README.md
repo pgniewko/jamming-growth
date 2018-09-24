@@ -1,6 +1,7 @@
 DESCRIPTION
 ==================================================
-2D numerical simulations of budding yeast populations growing in confined environments.
+2D numerical simulations of budding yeast populations growing in confined environment.
+This code accompanies the manuscript: "Jamming by Growth", by P. Gniewek, C. Schreck, and O. Hallatschek.
 
 GETTING THE CODE
 ==================================================
@@ -16,21 +17,21 @@ git pull origin master
 
 COMPILING 
 ==================================================
-* The repo contains two codes:   
-    + `jamming_by_growth.f` - to generated jammed packings of growing population    
-    + `shear_yeast_linearshear.f` - to shear the inanimate packing of dumb-bell cells   
+* This repo contains two codes:   
+    + `jamming_by_growth.f` - Generate jammed packings of growing budding yeast population    
+    + `shear_yeast_linearshear.f` - Shear a packing of budding yeast cells   
 
 * Building executable files:
-    + To build just a code for budding yeast jamming type:    
+    + Building only a code for jamming of budding yeast:    
         `make `       
-    + To build all of the executables type in the command line:    
+    + Building all of the executables:    
         `make all`
 
-* The compiling parameters can be changed in `config.mk` file:
-    + Compiler:
+* Compiling parameters can be changed in `config.mk` file:
+    + FORTRAN compiler:
         `FC := gfortran`
 
-* If the compilation terminates with a success, the binary files are located in `bin` directory.       
+* If the compilation is successful, binary files are located in `bin` directory.       
 
 RUN 
 ==================================================
