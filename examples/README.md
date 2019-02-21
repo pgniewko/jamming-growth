@@ -67,11 +67,11 @@ ${VISTOOLS_PATH}/simbox.py SHEAR_TRAJ_LF_DPHI_v1.0_ar1.01_div_4_desync0.4_seed_1
 
 COPYRIGHT NOTICE
 ================
-Copyright (C) 2018, Pawel Gniewek     
+Copyright (C) 2018-2019, Pawel Gniewek     
 PG: pawel.gniewek@berkeley.edu
 All rights reserved.   
 License: BSD-3  
 
 REFERENCES
 ===============
-1. "Jamming by Growth", P.G., C.S., O.H. (2018)
+1. [Jamming by growth](https://arxiv.org/abs/1810.01999), P.G., C.S., O.H. (2019)

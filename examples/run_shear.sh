@@ -46,8 +46,8 @@ time $exe_file <<EOF
    $Ly
    $att
    $file_
-   1e-4
-   1000
+   1e-6
+   5000
 EOF
 
 python $MY_PATH"/estimate_G.py" "G_data_"$file_ $dphi $P0

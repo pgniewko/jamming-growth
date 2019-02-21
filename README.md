@@ -1,7 +1,7 @@
 DESCRIPTION
 ==================================================
 2D numerical simulations of budding yeast populations growing in confined environment.
-This code accompanies the manuscript: "Jamming by Growth", by P. Gniewek, C. Schreck, and O. Hallatschek.
+This code accompanies the manuscript: "Jamming by Growth", by P. Gniewek, C. Schreck, and O. Hallatschek (2019).
 
 GETTING THE CODE
 ==================================================
@@ -40,7 +40,7 @@ To learn how to run the compiled codes check out scripts in `examples` directory
 
 COPYRIGHT NOTICE
 ================
-Copyright (C) 2018,  Pawel Gniewek & Carl Schreck    
+Copyright (C) 2018-2019,  Pawel Gniewek & Carl Schreck    
 PG: pawel.gniewek@berkeley.edu    
 CS: carl.schreck@berkeley.edu     
 All rights reserved.    
@@ -48,5 +48,5 @@ License: BSD-3
 
 REFERENCES
 ===============
-1. "Jamming by growth", P.G., C.S., O.H. (2018)
+1. [Jamming by growth](https://arxiv.org/abs/1810.01999), P.G., C.S., O.H. (2019)
 2. [Self-driven jamming in growing microbial populations](https://www.nature.com/articles/nphys3741), M.D., J.H., C.S., P.G., L.H., S.H., O.H., Nature Phys (2016)
