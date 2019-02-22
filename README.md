@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/138428274.svg)](https://zenodo.org/badge/latestdoi/138428274)
+
 DESCRIPTION
 ==================================================
 2D numerical simulations of budding yeast populations growing in confined environment.
