@@ -3,7 +3,7 @@
 DESCRIPTION
 ==================================================
 2D numerical simulations of budding yeast populations growing in confined environment.
-This code accompanies the manuscript: "Jamming by Growth", by P. Gniewek, C. Schreck, and O. Hallatschek (2019).
+This code accompanies the manuscript: "Biomechanical Feedback Strengthens Jammed Cellular Packings", by P. Gniewek, C. Schreck, and O. Hallatschek, PRL (2019).
 
 GETTING THE CODE
 ==================================================
@@ -50,5 +50,5 @@ License: BSD-3
 
 REFERENCES
 ===============
-1. [Jamming by growth](https://arxiv.org/abs/1810.01999), P.G., C.S., O.H. (2019)
+1. [Biomechanical feedback strengthens jammed cellular packings](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.122.208102), P.G., C.S., O.H. Phys. Rev. Lett. (2019)
 2. [Self-driven jamming in growing microbial populations](https://www.nature.com/articles/nphys3741), M.D., J.H., C.S., P.G., L.H., S.H., O.H., Nature Phys (2016)
