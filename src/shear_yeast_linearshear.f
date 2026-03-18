@@ -84,6 +84,9 @@
           READ(1, *) x(i),y(i),D(i),alpha(i),th(i)
       ENDDO
       
+      ! In the shear code, D(i) and alpha(i) are read once from the saved
+      ! growth state and are not evolved during the run, so the rotational
+      ! scale can be computed once before the shear loop.
       DO i=1,N
          dd=alpha(i)-1d0
          scale(i)=dsqrt(2d0*(1d0+dd**4)/(1+dd**2)+
