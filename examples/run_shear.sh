@@ -1,56 +1,138 @@
-#! /bin/bash -x
+#!/usr/bin/env bash
 
-MY_PATH=`pwd`
-run_dir=$MY_PATH"/shear_dir"
-exe_file=$MY_PATH"/../bin/shear_yeast_linearshear"
-mkdir -p ${run_dir}
-cd $run_dir
+set -euo pipefail
 
-att=0.0      # no attractions
-desync=0.4   # desynchronize growth rate
-ar=1.01      # initial bud size is 1% of the mother cell
-divtype=4    # random location of a new born bud
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
+EXE_FILE="${ROOT_DIR}/bin/shear_yeast_linearshear"
 
-P0=0.001
-Lx=8
-mm=1
-nn=3
-se=234
+att="0.0"
+desync="0.4"
+ar="1.01"
+divtype="4"
+P0="1e-3"
+Lx="8"
+dphi="1e-3"
+seed="1234"
+version="1.0"
+strain_step="1e-6"
+shear_steps="5000"
+results_root="${ROOT_DIR}/output/debug"
+force=0
 
+compress_if_present() {
+    local path="$1"
+    if [[ -f "${path}" ]]; then
+        gzip -f "${path}"
+    fi
+}
 
-seed=$(($se+1000))
-SEED2=$(( -1 * $seed)) # make seed negative
+usage() {
+    cat <<'EOF'
+Usage: run_shear.sh [options]
 
-Ly=$Lx
-dphi=${mm}e-${nn}
+Runs one shear job from a saved growth state.
 
+Options:
+  --results-root PATH   Root directory for saved outputs.
+  --p0 VALUE            Feedback strength. Default: 1e-3
+  --lx VALUE            Square box size. Default: 8
+  --dphi VALUE          Overcompression, e.g. 1e-3.
+  --seed VALUE          Positive seed used in filenames.
+  --att VALUE           Attraction range. Default: 0.0
+  --desync VALUE        Growth desynchronization. Default: 0.4
+  --ar VALUE            Initial bud aspect ratio. Default: 1.01
+  --divtype VALUE       Division type. Default: 4
+  --version VALUE       Output version. Default: 1.0
+  --strain-step VALUE   Shear strain increment passed to the Fortran code. Default: 1e-6
+  --shear-steps VALUE   Number of shear steps. Default: 5000
+  --force               Overwrite existing outputs.
+  -h, --help            Show this help.
+EOF
+}
 
-if [ ${P0%.*} -eq -1 ]
-then
-suffix=ar${ar}_div_${divtype}_desync${desync}_seed_${seed}_Lx${Lx}_Ly${Ly}_att${att}.dat
-else
-suffix=ar${ar}_div_${divtype}_desync${desync}_seed_${seed}_Lx${Lx}_Ly${Ly}_att${att}_P${P0}.dat
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --results-root) results_root="$2"; shift 2 ;;
+        --p0) P0="$2"; shift 2 ;;
+        --lx) Lx="$2"; shift 2 ;;
+        --dphi) dphi="$2"; shift 2 ;;
+        --seed) seed="$2"; shift 2 ;;
+        --att) att="$2"; shift 2 ;;
+        --desync) desync="$2"; shift 2 ;;
+        --ar) ar="$2"; shift 2 ;;
+        --divtype) divtype="$2"; shift 2 ;;
+        --version) version="$2"; shift 2 ;;
+        --strain-step|--ddelrx) strain_step="$2"; shift 2 ;;
+        --shear-steps) shear_steps="$2"; shift 2 ;;
+        --force) force=1; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [[ ! -x "${EXE_FILE}" ]]; then
+    echo "Missing executable: ${EXE_FILE}. Run 'make all' first." >&2
+    exit 1
 fi
 
-version=1.0
-file_=LF_DPHI_v${version}_${suffix}
+if [[ "${results_root}" != /* ]]; then
+    results_root="${PWD}/${results_root}"
+fi
 
+growth_dir="${results_root}/growth"
+shear_dir="${results_root}/shear"
+log_dir="${results_root}/logs/shear"
+mkdir -p "${shear_dir}" "${log_dir}"
 
-cp ${MY_PATH}/jamming_dir/${file_}  .
+Ly="${Lx}"
+basename="v${version}_ar${ar}_div_${divtype}_desync${desync}_seed_${seed}"
+basename="${basename}_Lx${Lx}_Ly${Ly}_att${att}_dphi${dphi}_P${P0}.dat"
+input_file="${growth_dir}/LF_DPHI_${basename}"
+local_input="${shear_dir}/LF_DPHI_${basename}"
+stdout_log="${log_dir}/stdout_${basename%.dat}.log"
+g_data_file="${shear_dir}/G_data_LF_DPHI_${basename}"
+shear_traj_file="${shear_dir}/SHEAR_TRAJ_LF_DPHI_${basename}"
 
-## PROCEED ONLY IF THE FILE IS LONGER THAN TWO LINES
-if [[ $(wc -l <$file_) -ge 2 ]] ; then
+if [[ ! -f "${input_file}" && ! -f "${input_file}.gz" ]]; then
+    echo "Missing growth configuration: ${input_file}" >&2
+    exit 1
+fi
 
-time $exe_file <<EOF
-   $Lx
-   $Ly
-   $att
-   $file_
-   1e-6
-   5000
+if [[ ${force} -eq 0 && -s "${g_data_file}" && ( -s "${shear_traj_file}" || -s "${shear_traj_file}.gz" ) ]]; then
+    echo "Skipping existing shear run: ${g_data_file}"
+    exit 0
+fi
+
+if [[ -f "${input_file}" ]]; then
+    cp -f "${input_file}" "${local_input}"
+else
+    gzip -dc "${input_file}.gz" > "${local_input}"
+fi
+
+if [[ $(wc -l < "${local_input}") -lt 2 ]]; then
+    echo "Input file is too short: ${local_input}" >&2
+    exit 1
+fi
+
+(
+    cd "${shear_dir}"
+    "${EXE_FILE}" <<EOF >"${stdout_log}" 2>&1
+${Lx}
+${Ly}
+${att}
+LF_DPHI_${basename}
+${strain_step}
+${shear_steps}
 EOF
+)
 
-python $MY_PATH"/estimate_G.py" "G_data_"$file_ $dphi $P0
+compress_if_present "${local_input}"
+compress_if_present "${shear_traj_file}"
 
-fi   
-
+echo "Saved shear outputs in ${shear_dir}"
+echo "Saved shear stdout in ${stdout_log}"

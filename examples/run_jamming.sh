@@ -1,59 +1,127 @@
-#! /bin/bash -x
+#!/usr/bin/env bash
 
-MY_PATH=`pwd`
-run_dir=$MY_PATH"/jamming_dir"
-exe_file=$MY_PATH"/../bin/jamming_by_growth"
-mkdir -p ${run_dir}
-cd ${run_dir}
+set -euo pipefail
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
+EXE_FILE="${ROOT_DIR}/bin/jamming_by_growth"
 
-att=0.0      # no attractions
-rate0=0.002  # growth rate (in units of time-step)
-skip=25      # save frame every $skip steps
-desync=0.4   # desynchronize growth rate
-ar=1.01      # initial bud size is 1% of the mother cell
-divtype=4    # random location of a new born bud
+att="0.0"
+rate0="0.002"
+skip="25"
+desync="0.4"
+ar="1.01"
+divtype="4"
+P0="1e-3"
+Lx="8"
+dphi="1e-3"
+seed="1234"
+version="1.0"
+results_root="${ROOT_DIR}/output/debug"
+force=0
 
+compress_if_present() {
+    local path="$1"
+    if [[ -f "${path}" ]]; then
+        gzip -f "${path}"
+    fi
+}
 
-P0=0.001
-Lx=8
-mm=1
-nn=3
-se=234
+usage() {
+    cat <<'EOF'
+Usage: run_jamming.sh [options]
 
+Runs one growth/jamming job.
 
-seed=$(($se+1000))
-SEED2=$(( -1 * $seed)) # make seed negative
+Options:
+  --results-root PATH   Root directory for saved outputs.
+  --p0 VALUE            Feedback strength. Default: 1e-3
+  --lx VALUE            Square box size. Default: 8
+  --dphi VALUE          Overcompression, e.g. 1e-3.
+  --seed VALUE          Positive seed used in filenames.
+  --att VALUE           Attraction range. Default: 0.0
+  --rate0 VALUE         Growth rate. Default: 0.002
+  --skip VALUE          Trajectory save interval. Default: 25
+  --desync VALUE        Growth desynchronization. Default: 0.4
+  --ar VALUE            Initial bud aspect ratio. Default: 1.01
+  --divtype VALUE       Division type. Default: 4
+  --version VALUE       Output version. Default: 1.0
+  --force               Overwrite existing outputs.
+  -h, --help            Show this help.
+EOF
+}
 
-dphi=$mm"d-"$nn
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --results-root) results_root="$2"; shift 2 ;;
+        --p0) P0="$2"; shift 2 ;;
+        --lx) Lx="$2"; shift 2 ;;
+        --dphi) dphi="$2"; shift 2 ;;
+        --seed) seed="$2"; shift 2 ;;
+        --att) att="$2"; shift 2 ;;
+        --rate0) rate0="$2"; shift 2 ;;
+        --skip) skip="$2"; shift 2 ;;
+        --desync) desync="$2"; shift 2 ;;
+        --ar) ar="$2"; shift 2 ;;
+        --divtype) divtype="$2"; shift 2 ;;
+        --version) version="$2"; shift 2 ;;
+        --force) force=1; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+done
 
-
-Ly=$Lx
-
-if [ ${P0%.*} -eq -1 ]
-then 
-suffix=ar${ar}_div_${divtype}_desync${desync}_seed_${seed}_Lx${Lx}_Ly${Ly}_att${att}.dat
-else
-suffix=ar${ar}_div_${divtype}_desync${desync}_seed_${seed}_Lx${Lx}_Ly${Ly}_att${att}_P${P0}.dat
+if [[ ! -x "${EXE_FILE}" ]]; then
+    echo "Missing executable: ${EXE_FILE}. Run 'make all' first." >&2
+    exit 1
 fi
 
-version=1.0
-prodfile=v${version}_${suffix}
+if [[ "${results_root}" != /* ]]; then
+    results_root="${PWD}/${results_root}"
+fi
 
+growth_dir="${results_root}/growth"
+log_dir="${results_root}/logs/growth"
+mkdir -p "${growth_dir}" "${log_dir}"
 
-time $exe_file <<EOF
-  $ar
-  $Lx
-  $Ly
-  $divtype
-  $P0
-  $att
-  $rate0
-  $desync
-  $SEED2
-  $skip
-  $dphi
-  $prodfile
+Ly="${Lx}"
+seed_fortran=$((-1 * seed))
+dphi_fortran=$(printf '%s' "${dphi}" | tr '[:upper:]' '[:lower:]' | sed 's/e/d/g')
+basename="v${version}_ar${ar}_div_${divtype}_desync${desync}_seed_${seed}"
+basename="${basename}_Lx${Lx}_Ly${Ly}_att${att}_dphi${dphi}_P${P0}.dat"
+stdout_log="${log_dir}/stdout_${basename%.dat}.log"
+final_frame="${growth_dir}/LF_DPHI_${basename}"
+
+if [[ ${force} -eq 0 && ( -s "${final_frame}" || -s "${final_frame}.gz" ) ]]; then
+    echo "Skipping existing growth run: ${final_frame}"
+    exit 0
+fi
+
+(
+    cd "${growth_dir}"
+    "${EXE_FILE}" <<EOF >"${stdout_log}" 2>&1
+${ar}
+${Lx}
+${Ly}
+${divtype}
+${P0}
+${att}
+${rate0}
+${desync}
+${seed_fortran}
+${skip}
+${dphi_fortran}
+${basename}
 EOF
+)
 
+compress_if_present "${growth_dir}/${basename}"
+compress_if_present "${growth_dir}/LF_JAMM_${basename}"
+compress_if_present "${growth_dir}/LF_DPHI_${basename}"
 
+echo "Saved growth outputs in ${growth_dir}"
+echo "Saved growth stdout in ${stdout_log}"
