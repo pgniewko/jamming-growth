@@ -14,7 +14,7 @@ git clone git@github.com:pgniewko/jamming-growth.git
 
 * To obtain the most recent version of the code:   
 ```
-git pull origin master
+git pull origin main
 ```
 
 COMPILING 
