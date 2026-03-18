@@ -1,0 +1,8 @@
+bin/
+.venv/
+.pip-cache/
+__pycache__/
+*.pyc
+*.pyo
+*.swp
+.DS*

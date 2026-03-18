@@ -1,29 +1,24 @@
 include config.mk
 
-TARGET      := $(BIN)/jamming_by_growth
-SHEAR       := $(BIN)/shear_yeast_linearshear
+.DEFAULT_GOAL := all
 
-JAMMING_SOURCES     := $(SRC)/jamming_by_growth.f
-SHEAR_SOURCES       := $(SRC)/shear_yeast_linearshear.f
+PROGRAMS := \
+	$(BIN)/jamming_by_growth \
+	$(BIN)/shear_yeast_linearshear
 
-$(TARGET):$(JAMMING_SOURCES) 
-	@echo BUILDING MAIN JAMMING CODE
+$(BIN)/jamming_by_growth: $(SRC)/jamming_by_growth.f
+$(BIN)/shear_yeast_linearshear: $(SRC)/shear_yeast_linearshear.f
+
+$(PROGRAMS):
+	@echo "BUILDING $@"
 	@mkdir -p $(@D)
-	$(FC) $(FTNFLAGS) $^ -o $@ 
-	@echo BUILDING IS DONE
+	$(FC) $(FTNFLAGS) $< -o $@
+	@echo "BUILDING IS DONE"
 
-$(SHEAR):$(SHEAR_SOURCES)
-	@echo BUILDING SHEAR CALCULATIONS CODE
-	@mkdir -p $(@D)
-	$(FC) $(FTNFLAGS) $^ -o $@
-	@echo BUILDING IS DONE
-
-# Tell make that these are phony targets
 .PHONY: all clean
 
-all: $(TARGET) $(SHEAR)
+all: $(PROGRAMS)
+
 clean:
-	@echo Cleaning...
-	rm -f $(TARGET) $(SHEAR)
-
-
+	@echo "Cleaning..."
+	$(RM) $(PROGRAMS)

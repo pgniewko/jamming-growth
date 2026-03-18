@@ -1,54 +1,101 @@
 [![DOI](https://zenodo.org/badge/138428274.svg)](https://zenodo.org/badge/latestdoi/138428274)
 
-DESCRIPTION
-==================================================
-2D numerical simulations of budding yeast populations growing in confined environment.
-This code accompanies the manuscript: "Biomechanical Feedback Strengthens Jammed Cellular Packings", by P. Gniewek, C. Schreck, and O. Hallatschek, PRL (2019).
+# jamming-growth
 
-GETTING THE CODE
-==================================================
-* To get the code:  
+2D numerical simulations of growing budding-yeast packings. The repository
+contains two Fortran programs:
+
+- `src/jamming_by_growth.f` to generate jammed packings during growth
+- `src/shear_yeast_linearshear.f` to shear a saved packing
+
+## Installation
+
+If the required tools are not installed, use one of these commands first.
+
+macOS:
+
+```bash
+brew install gcc python
 ```
-git clone git@github.com:pgniewko/jamming-growth.git
+
+Ubuntu or Debian:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y gfortran python3 python3-venv make
 ```
 
-* To obtain the most recent version of the code:   
+Required tools:
+
+- `bash`
+- `make`
+- `gfortran`
+- Python 3.10+ with `venv`
+
+From the repo root:
+
+```bash
+bash ./install.sh
 ```
-git pull origin master
+
+That script:
+
+- creates `.venv/`
+- installs Python packages from `requirements.txt`
+- builds both Fortran binaries into `bin/`
+- verifies that the required Python packages can be imported
+- does not activate the environment
+
+If you want the installer to try installing missing system packages:
+
+```bash
+bash ./install.sh --install-system-deps
 ```
 
-COMPILING 
-==================================================
-* This repo contains two codes:   
-    + `jamming_by_growth.f` - Generate jammed packings of growing budding yeast population    
-    + `shear_yeast_linearshear.f` - Shear a packing of budding yeast cells   
+If you want to rebuild the binaries manually after setup:
 
-* Building executable files:
-    + Building only a code for jamming of budding yeast:    
-        `make `       
-    + Building all of the executables:    
-        `make all`
+```bash
+make
+```
 
-* Compiling parameters can be changed in `config.mk` file:
-    + FORTRAN compiler:
-        `FC := gfortran`
+If you want to activate the environment after installation:
 
-* If the compilation is successful, binary files are located in `bin` directory.       
+```bash
+source .venv/bin/activate
+```
 
-RUN 
-==================================================
-To learn how to run the compiled codes check out scripts in `examples` directory.
+## Running Examples
 
+The repository includes two example wrappers in `examples/`.
 
-COPYRIGHT NOTICE
-================
-Copyright (C) 2018-2019,  Pawel Gniewek & Carl Schreck    
-PG: pawel.gniewek@berkeley.edu    
-CS: carl.schreck@berkeley.edu     
-All rights reserved.    
-License: BSD-3  
+Run a single growth simulation:
 
-REFERENCES
-===============
-1. [Biomechanical feedback strengthens jammed cellular packings](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.122.208102), P.G., C.S., O.H. Phys. Rev. Lett. (2019)
-2. [Self-driven jamming in growing microbial populations](https://www.nature.com/articles/nphys3741), M.D., J.H., C.S., P.G., L.H., S.H., O.H., Nature Phys (2016)
+```bash
+bash examples/run_jamming.sh --results-root output/example-growth
+```
+
+This creates the output and log directories automatically under the chosen
+results root.
+The growth run also writes growth-state files and diagnostics there, including
+`LF_JAMM_*`, `LF_DPHI_*`, `NC_*`, and `STEPLOG_*`.
+
+Run a shear simulation from the saved growth state produced by the growth run:
+
+```bash
+bash examples/run_shear.sh --results-root output/example-growth
+```
+
+This also creates its output and log directories automatically under the chosen
+results root.
+
+## Repo Layout
+
+- `src/`: Fortran simulation codes
+- `examples/`: shell wrappers for single growth and shear runs
+- `bin/`: compiled executables created by `make`
+- `requirements.txt`: Python dependencies for current and future scripts
+
+## References
+
+1. [Biomechanical feedback strengthens jammed cellular packings](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.122.208102), P. Gniewek, C. Schreck, O. Hallatschek, Phys. Rev. Lett. (2019)
+2. [Self-driven jamming in growing microbial populations](https://www.nature.com/articles/nphys3741), M. Delarue, J. Hartung, C. Schreck, P. Gniewek, L. Herminghaus, O. Hallatschek, Nature Phys. (2016)

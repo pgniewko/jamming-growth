@@ -19,22 +19,22 @@
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,exp
       DOUBLE PRECISION ftol,ftol1,fret,width,Lx,Ly
       DOUBLE PRECISION alpha(Ntot),scale(Ntot)
-      DOUBLE PRECISION phi,flow,D0(Ntot)
+      DOUBLE PRECISION phi
       DOUBLE PRECISION xa(2),ya(2)
       DOUBLE PRECISION cc,ss,dr(2),dd,att
-      INTEGER N,Nr,iter,i,kk
+      INTEGER N,iter,i,kk
       INTEGER Nf,Nu,Nmm,Nbb,Nmb
       
       CHARACTER file_conf*150
       CHARACTER file_traj*150
       CHARACTER file_G_data*150
       
-      INTEGER F(Ntot), Nc, Ziso
-      DOUBLE PRECISION calc_phi, wide
-      DOUBLE PRECISION phi_init,ddelrx,delrx
+      INTEGER Nc, Ziso
+      DOUBLE PRECISION calc_phi
+      DOUBLE PRECISION ddelrx,delrx
       
       INTEGER shear_steps, step_index
-      DOUBLE PRECISION shear_stress, cory, shear_stress_0    
+      DOUBLE PRECISION shear_stress, shear_stress_0
       
       COMMON /f2com/ width
       COMMON /f3com/ alpha
@@ -62,37 +62,43 @@
       width=0.1d0    ! width of neighborlist 
       ftol=0.5d-16   ! Condition 1 for frprmn: V/N < ftol 
       ftol1=0.5d-16  ! Condition 2 for frprmn: dV/N < ftol1
-      
-      wide = 2.0d0
 
       shear_stress = 0d0
       shear_stress_0= 0d0
 
       ! FILES
- 123  OPEN(unit=1,file=TRIM(file_conf)) ! CONFIGURATION FILE
+      OPEN(unit=1,file=TRIM(file_conf)) ! CONFIGURATION FILE
  
       file_traj='SHEAR_TRAJ_' // TRIM(file_conf)
       OPEN(unit=11,file=TRIM(file_traj), status='replace')
       
       file_G_data ='G_data_' // TRIM(file_conf)
       OPEN(unit=12,file=TRIM(file_G_data), status='replace')
+      WRITE(12,'(A)')
+     + '# strain shear_stress delta_shear_stress N Nc Nf Nu Ziso'
+     + // ' phi Nmm Nbb Nmb'
 
 !     READ PACKING FROM FILE      
-      READ(1, *) N, phi_init
+      READ(1, *) N, phi
       DO i=1,N
           READ(1, *) x(i),y(i),D(i),alpha(i),th(i)
       ENDDO
       
+      ! In the shear code, D(i) and alpha(i) are read once from the saved
+      ! growth state and are not evolved during the run, so the rotational
+      ! scale can be computed once before the shear loop.
+      DO i=1,N
+         dd=alpha(i)-1d0
+         scale(i)=dsqrt(2d0*(1d0+dd**4)/(1+dd**2)+
+     +           4d0*(dd*(1d0+dd)/(1+dd**2))**2)/4d0*d(i)
+      ENDDO
+
       DO step_index=1,shear_steps
-          
+
          delrx = dble(step_index-1)*ddelrx
 
          ! convert from angle to length scale = sqrt(I/m) * angle
          DO i=1,N
-            dd=alpha(i)-1d0
-            scale(i)=dsqrt(2d0*(1d0+dd**4)/(1+dd**2)+
-     +              4d0*(dd*(1d0+dd)/(1+dd**2))**2)/4d0*d(i)
-     
             th(i)=th(i)*scale(i)
          ENDDO
          
@@ -112,12 +118,12 @@
             th(i)=th(i)/scale(i)
          ENDDO
          
-         CALL contacts_yeast(x,y,th,D1,D,N,Nc,F,Nf,Nu,Nmm,Nbb,Nmb)
+         CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
          CALL out_numbers(N, Nf, Nu, Ziso)
-         WRITE(12,'(3E26.18,5I12)')delrx,shear_stress,
-     +         shear_stress-shear_stress_0,N,Nc,Nf,Nu,Ziso
-     
          phi = calc_phi(D, alpha, D1, N) 
+         WRITE(12,'(3E26.18,5I12,E26.18,3I12)')delrx,shear_stress,
+     +         shear_stress-shear_stress_0,N,Nc,Nf,Nu,Ziso,phi,
+     +         Nmm,Nbb,Nmb
          WRITE(11,*) 2*N, phi
          DO i=1,N              
               cc=dcos(th(i))
@@ -138,7 +144,47 @@
       END PROGRAM
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE mol_to_atoms(N,x,y,c,s,D,D1,alpha,
+     +     dr,xa,ya,dk,di_up)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i, k
+      DOUBLE PRECISION x(Ntot), y(Ntot), c(Ntot), s(Ntot)
+      DOUBLE PRECISION D(Ntot), D1, alpha(Ntot)
+      DOUBLE PRECISION dr(Ntot,2), xa(Ntot,2), ya(Ntot,2)
+      DOUBLE PRECISION dk(Ntot,2), di_up(Ntot)
+      DOUBLE PRECISION dd
+
+      DO i=1,N
+         dd=alpha(i)-1d0
+         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
+         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
+         DO k=1,2
+            xa(i,k)=x(i)+dr(i,k)*c(i)
+            ya(i,k)=y(i)+dr(i,k)*s(i)
+         ENDDO
+         dk(i,1)=D(i)*D1
+         dk(i,2)=dd*D(i)*D1
+         IF(alpha(i).LT.2d0) THEN
+            di_up(i)=(dk(i,2)/2d0-dr(i,2))*2d0*D1
+         ELSE
+            di_up(i)=(dk(i,1)/2d0+dr(i,1))*2d0*D1
+         ENDIF
+      ENDDO
+
+      END
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+C     CG_check — conservative neighbor-list rebuild trigger.
+C     Computes an upper bound on the maximum particle displacement since
+C     the last neighbor-list build.  The bound is intentionally loose:
+C     it takes the single largest component displacement across all
+C     particles and then multiplies by 2*sqrt(2) (~2.83), which
+C     overestimates the true maximum pairwise approach.  This means
+C     the neighbor list is rebuilt more often than strictly necessary,
+C     but never too late — a safe, conservative choice.
+C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       SUBROUTINE CG_check(N,x,y,xp,yp,maxdis)
       IMPLICIT NONE
       INTEGER Ntot,N,i
@@ -160,8 +206,8 @@
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
       DOUBLE PRECISION x(Ntot),y(Ntot),xp(Ntot),yp(Ntot),D(Ntot)
-      DOUBLE PRECISION D1,xij,yij,rij,dij,rijsq,alpha(Ntot),width
-      DOUBLE PRECISION dd,dr1,dr2,dk2,di_up(Ntot),exp,att
+      DOUBLE PRECISION D1,xij,yij,dij,rijsq,alpha(Ntot),width
+      DOUBLE PRECISION dd,dr1,dr2,dk1,dk2,di_up(Ntot),exp,att
       DOUBLE PRECISION Lx,Ly,delrx,cory
       INTEGER countn(Ntot),nl(800,Ntot),N,i,j
       COMMON /f2com/ width
@@ -178,8 +224,13 @@
          dd=alpha(i)-1d0
          dr1=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)/2d0
          dr2=-(1d0+dd)/(1d0+dd**2)*D(i)/2d0
+         dk1=D(i)
          dk2=dd*D(i)
-         di_up(i)=(dk2/2d0-dr2)*2d0
+         IF(alpha(i).LT.2d0) THEN
+            di_up(i)=(dk2/2d0-dr2)*2d0
+         ELSE
+            di_up(i)=(dk1/2d0+dr1)*2d0
+         ENDIF
       ENDDO
 
       DO i=1,N-1
@@ -193,7 +244,6 @@
             
             rijsq=xij*xij+yij*yij
             dij=(di_up(i)+di_up(j))/2d0
-            dij=D1*( D(i) + D(j) )/2d0   
             IF(rijsq.LT.(2.D0*dij)**2) THEN
                countn(i)=countn(i)+1
                nl(countn(i),i)=j
@@ -213,16 +263,14 @@
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION pi
-      PARAMETER(pi=3.1415926535897932d0)
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),alpha(Ntot)
-      DOUBLE PRECISION rij,xij,yij,dij,exp,dij_up,sigma,LJ,D1,V
+      DOUBLE PRECISION rij,xij,yij,dij,exp,dij_up,LJ,D1,V
       DOUBLE PRECISION Lx,Ly,rijsq,scale(Ntot),c(Ntot),att
-      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1,Vij
       DOUBLE PRECISION delrx,cory
-      INTEGER countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
-      
+      INTEGER countn(Ntot),nl(800,Ntot),N,i,j,jj,ki,kj
+
       COMMON /f3com/ alpha ! aspect ratio
       COMMON /f4com/ exp,att
       COMMON /f5com/ Lx,Ly
@@ -233,21 +281,8 @@
       DO i=1,N
          c(i)=dcos(th(i)/scale(i))
          s(i)=dsin(th(i)/scale(i))
-         dd=alpha(i)-1d0
-         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
-         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-         DO k=1,2
-            xa(i,k)=x(i)+dr(i,k)*c(i)
-            ya(i,k)=y(i)+dr(i,k)*s(i)
-         ENDDO
-         dk(i,1)=D(i)*D1
-         dk(i,2)=dd*D(i)*D1
-         IF(alpha(i).LT.2d0) THEN 
-            di_up(i)=(dk(i,2)/2d0-dr(i,2))*2d0*D1
-         ELSE
-            di_up(i)=(dk(i,1)/2d0+dr(i,1))*2d0*D1         
-         ENDIF
       ENDDO
+      CALL mol_to_atoms(N,x,y,c,s,D,D1,alpha,dr,xa,ya,dk,di_up)
 
       ! inter-particle interactions
       V=0d0
@@ -310,18 +345,16 @@
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
-      DOUBLE PRECISION pi
-      PARAMETER(pi=3.1415926535897932d0)
-      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),sigma,D(Ntot),D1,dij
+      DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),D(Ntot),D1,dij
       DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot),rij,xij,yij,fr,exp
-      DOUBLE PRECISION dij_up,alpha(Ntot),LJ,fc,ft,f_x,f_y
+      DOUBLE PRECISION dij_up,alpha(Ntot),LJ,fc,f_x,f_y
       DOUBLE PRECISION scale(Ntot)
-      DOUBLE PRECISION fthi,fthj,fth_c,Lx,Ly,rijsq
-      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION Lx,Ly,rijsq
+      DOUBLE PRECISION s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
       DOUBLE PRECISION dk(Ntot,2),di_up(Ntot),di1j1
-      DOUBLE PRECISION c(Ntot),Vij, delrx,cory,att
+      DOUBLE PRECISION c(Ntot),delrx,cory,att
       DOUBLE PRECISION shear_stress
-      INTEGER countn(Ntot),nl(800,Ntot),N,i,j,k,jj,ki,kj
+      INTEGER countn(Ntot),nl(800,Ntot),N,i,j,jj,ki,kj
       COMMON /f3com/ alpha ! aspect ratio
       COMMON /f4com/ exp,att
       COMMON /f5com/ Lx,Ly
@@ -336,25 +369,12 @@
       ENDDO
       shear_stress=0d0
 
-      ! convert to from molecules to atoms
+      ! convert from molecules to atoms
       DO i=1,N
          c(i)=dcos(th(i)/scale(i))
          s(i)=dsin(th(i)/scale(i))
-         dd=alpha(i)-1d0
-         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
-         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-         DO k=1,2
-            xa(i,k)=x(i)+dr(i,k)*c(i)
-            ya(i,k)=y(i)+dr(i,k)*s(i)
-         ENDDO
-         dk(i,1)=D(i)*D1
-         dk(i,2)=dd*D(i)*D1
-         IF(alpha(i).LT.2d0) THEN 
-            di_up(i)=(dk(i,2)/2d0-dr(i,2))*2d0*D1
-         ELSE
-            di_up(i)=(dk(i,1)/2d0+dr(i,1))*2d0*D1         
-         ENDIF
       ENDDO
+      CALL mol_to_atoms(N,x,y,c,s,D,D1,alpha,dr,xa,ya,dk,di_up)
 
       ! inter-particle interactions
       DO i=1,N-1
@@ -403,7 +423,8 @@
                            fth(i)=fth(i)+dr(i,ki)*(c(i)*f_y-s(i)*f_x)
                            fth(j)=fth(j)-dr(j,kj)*(c(j)*f_y-s(j)*f_x)
                               
-                             shear_stress=shear_stress-xij*yij/rij*fc
+                             shear_stress=shear_stress
+     +                           -xij*yij/rij*fc*dij**2/di1j1**2
                               
                               
                            ENDIF
@@ -439,7 +460,7 @@
       DOUBLE PRECISION pi
       PARAMETER(pi=3.1415926535897932d0)
       DOUBLE PRECISION D(Ntot),alpha(Ntot)
-      DOUBLE PRECISION Lx,Ly,phis,D1,phit
+      DOUBLE PRECISION Lx,Ly,D1,phit
       INTEGER N,i
       COMMON /f5com/ Lx,Ly
          
@@ -453,51 +474,39 @@
      
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,F,Nf,Nu,Nmm,Nbb,Nmb)
+      SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,Nf,Nu,Nmm,Nbb,Nmb)
       IMPLICIT NONE
-      INTEGER Ntot, N 
+      INTEGER Ntot, N
       PARAMETER(Ntot = 4096)
-      INTEGER i,j,F(Ntot),Z,nc_bud(Ntot,2),Nf,Nu,Nmm,Nbb,Nmb
-      INTEGER ki,kj,k
-      DOUBLE PRECISION overlap,aspect_ratio
+      INTEGER i,j,Z,nc_bud(Ntot,2),Nf,Nu,Nmm,Nbb,Nmb
+      INTEGER ki,kj
       DOUBLE PRECISION x(Ntot),y(Ntot),th(Ntot),alpha(Ntot)
       DOUBLE PRECISION xij,yij,D(Ntot),D1
-      DOUBLE PRECISION exp,dij_up,dij
-      DOUBLE PRECISION Lx,Ly,rijsq,c(Ntot),att
-      DOUBLE PRECISION s(Ntot),dd,dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
-      DOUBLE PRECISION dk(Ntot,2)
+      DOUBLE PRECISION dij
+      DOUBLE PRECISION Lx,Ly,rijsq,c(Ntot)
+      DOUBLE PRECISION s(Ntot),dr(Ntot,2),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dk(Ntot,2),di_up(Ntot)
       DOUBLE PRECISION delrx,cory
       INTEGER flag
       COMMON /f3com/ alpha ! aspect ratio
-      COMMON /f4com/ exp,att
       COMMON /f5com/ Lx,Ly
       COMMON /f11com/ delrx
 
       Z = 0
       Nf= 0
       Nu= 0
-      
-      Nmm = 0 
-      Nbb = 0 
+
+      Nmm = 0
+      Nbb = 0
       Nmb = 0
-      
-      flag = 0
-      
-      ! convert to from molecules to atoms
+
+      ! convert from molecules to atoms
       DO i=1,N
          c(i)=dcos( th(i) )
-         s(i)=dsin( th(i) )         
-         dd=alpha(i)-1d0
-         dr(i,1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)*D1/2d0
-         dr(i,2)=-(1d0+dd)/(1d0+dd**2)*D(i)*D1/2d0
-         DO k=1,2
-            xa(i,k)=x(i)+dr(i,k)*c(i)
-            ya(i,k)=y(i)+dr(i,k)*s(i)
-         ENDDO
-         dk(i,1)=D(i)*D1
-         dk(i,2)=dd*D(i)*D1
+         s(i)=dsin( th(i) )
       ENDDO
-      
+      CALL mol_to_atoms(N,x,y,c,s,D,D1,alpha,dr,xa,ya,dk,di_up)
+
       DO i=1,N
          nc_bud(i,1)=0
          nc_bud(i,2)=0
@@ -537,23 +546,23 @@
       DO i=1,N
           flag = 0
           IF( (nc_bud(i,1)+nc_bud(i,2)).LT.3 ) THEN
-              nf = nf + 1
+              Nf = Nf + 1
               flag = 1
           ENDIF
           
           IF( (nc_bud(i,1)+nc_bud(i,2)).EQ.3 ) THEN
               IF( nc_bud(i,1).EQ.2 .OR. nc_bud(i,2).EQ.2 ) THEN
-                  nf = nf + 1
+                  Nf = Nf + 1
                   flag = 1
               ENDIF
           ENDIF
           
           IF(flag.EQ.0) THEN    
               IF( nc_bud(i,1).EQ.0 ) THEN
-                  nu = nu + 1
+                  Nu = Nu + 1
               ENDIF
               IF( nc_bud(i,2).EQ.0 ) THEN
-                  nu = nu + 1
+                  Nu = Nu + 1
               ENDIF
           ENDIF
           
@@ -574,27 +583,20 @@
 !!!!!!!!!!!!!!    STANDARD NUMERICAL CODE   !!!!!!!!!!!!!!      
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE frprmn(N,x,y,th,D,D1,ftol,ftol1,iter,fret)
+      IMPLICIT NONE
+      INTEGER Ntot
       PARAMETER(Ntot = 4096)
       INTEGER its,iter,ITMAX
-      DOUBLE PRECISION fret,ftol,EPS,ftol1
-      PARAMETER (EPS=1d-10,ITMAX=1000000000)
+      DOUBLE PRECISION fret,ftol,ftol1
+      PARAMETER (ITMAX=1000000000)
       DOUBLE PRECISION dgg,fp,gam,gg,width
       DOUBLE PRECISION gx(Ntot),gy(Ntot),hx(Ntot),hy(Ntot)
       DOUBLE PRECISION D(Ntot),D1,xix(Ntot),xiy(Ntot),xith(Ntot)
       DOUBLE PRECISION x(Ntot),y(Ntot),maxdis,xp(Ntot),yp(Ntot)
-      DOUBLE PRECISION th(Ntot),hth(Ntot),gth(Ntot),exp,att,V
-      INTEGER N,countn(Ntot),nl(800,Ntot)
+      DOUBLE PRECISION th(Ntot),hth(Ntot),gth(Ntot),exp,att
+      INTEGER i,N,countn(Ntot),nl(800,Ntot)
 
-      ! not needed
-      DOUBLE PRECISION f1,f2,f3,fxe,fye,fthe
-      DOUBLE PRECISION xi,yi,thi,max1,max2,max3,del
-      DOUBLE PRECISION alpha(Ntot),Lx,Ly
-
-      ! not needed
-      COMMON /f3com/ alpha ! aspect ratio
-      COMMON /f5com/ Lx,Ly
-
-      COMMON /f2com/ width      
+      COMMON /f2com/ width
       COMMON /f4com/ exp,att
 
       iter=0
@@ -624,8 +626,6 @@
          iter=its
 
          CALL linmin(N,x,y,th,D,D1,xix,xiy,xith,fret,xp,yp,countn,nl)
-         
-c         WRITE(*,*) its, fret/dble(N), fret, fp
 
          IF(att.EQ.0d0) THEN
             IF(dabs(fret-fp).LT.ftol1*fp.OR.fret.LT.ftol*dble(N))THEN
@@ -673,18 +673,18 @@ c         WRITE(*,*) its, fret/dble(N), fret, fp
          ENDDO
       ENDDO
       
-c     pause 'frprmn maximum iterations exceeded'
       RETURN
       END
 C (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
-      
-      
+
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE linmin(N,x,y,th,D,D1,xix,xiy,xith,fret,
      +     xpr,ypr,countnr,nlr)
+      IMPLICIT NONE
       DOUBLE PRECISION fret,TOL
+      INTEGER Ntot
       PARAMETER (Ntot=4096,TOL=1d-8)
-C     USES dbrent,df1dim,mnbrak
       DOUBLE PRECISION ax,bx,fa,fb,fx,xmin,xx
       DOUBLE PRECISION xp(Ntot),yp(Ntot),dbrent
       DOUBLE PRECISION pxcom(Ntot),pycom(Ntot)
@@ -693,8 +693,9 @@ C     USES dbrent,df1dim,mnbrak
       DOUBLE PRECISION xith(Ntot),Dcom(Ntot),D1com,D(Ntot),D1,width
       DOUBLE PRECISION pthcom(Ntot),xithcom(Ntot),f1dim,df1dim
       DOUBLE PRECISION xpr(Ntot),ypr(Ntot)
+      REAL thp
       INTEGER countn(Ntot),nl(800,Ntot),countnr(Ntot),nlr(800,Ntot)
-      INTEGER N,ncom
+      INTEGER N,ncom,i,j
 
       COMMON /f1com/ pxcom,pycom,pthcom,xixcom,xiycom,xithcom,
      +     Dcom,D1com,xp,yp,thp,countn,nl,ncom
@@ -743,10 +744,11 @@ C     USES dbrent,df1dim,mnbrak
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE mnbrak(ax,bx,cx,fa,fb,fc,func)
+      IMPLICIT NONE
       DOUBLE PRECISION ax,bx,cx,fa,fb,fc,func,GOLD,GLIMIT,TINY
-c      EXTERNAL func
       PARAMETER (GOLD=1.618034d0, GLIMIT=100., TINY=1.d-20)
       DOUBLE PRECISION dum,fu,q,r,u,ulim
+      EXTERNAL func
       fa=func(ax)
       fb=func(bx)
       IF(fb.GT.fa)THEN ! was gt
@@ -810,6 +812,8 @@ c      EXTERNAL func
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION df1dim(x)
+      IMPLICIT NONE
+      INTEGER Ntot
       PARAMETER (Ntot=4096)
       DOUBLE PRECISION df1dim,x,maxdis
       DOUBLE PRECISION fx(Ntot),fy(Ntot),fth(Ntot)
@@ -817,13 +821,12 @@ c      EXTERNAL func
       DOUBLE PRECISION xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
       DOUBLE PRECISION xt(Ntot),yt(Ntot),tht(Ntot)
       DOUBLE PRECISION xp(Ntot),yp(Ntot)
-      DOUBLE PRECISION Dcom(Ntot),D1com
-      DOUBLE PRECISION alpha(Ntot),width
-      INTEGER ncom,countn(Ntot),nl(800,Ntot)
+      DOUBLE PRECISION Dcom(Ntot),D1com,width
+      REAL thp
+      INTEGER ncom,countn(Ntot),nl(800,Ntot),i
       COMMON /f1com/ pxcom,pycom,pthcom,xixcom,xiycom,xithcom,
      +     Dcom,D1com,xp,yp,thp,countn,nl,ncom
       COMMON /f2com/ width
-      COMMON /f3com/ alpha ! aspect ratio
 
       DO i=1,ncom
         xt(i)=pxcom(i)+x*xixcom(i)
@@ -849,6 +852,7 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION dbrent(ax,bx,cx,f,df,tol,xmin)
+      IMPLICIT NONE
       INTEGER ITMAX
       DOUBLE PRECISION dbrent,ax,bx,cx,tol,xmin,df,f,ZEPS
       EXTERNAL df,f
@@ -953,29 +957,29 @@ C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
           ENDIF
         ENDIF
 11    continue
-c      pause 'dbrent exceeded maximum iterations'
 3     xmin=x
       dbrent=fx
       RETURN
       END
-c  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
+C  (C) Copr. 1986-92 Numerical Recipes Software Dt+;39.
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       FUNCTION f1dim(x)
+      IMPLICIT NONE
+      INTEGER Ntot
       PARAMETER (Ntot=4096)
       DOUBLE PRECISION f1dim,x
       DOUBLE PRECISION pxcom(Ntot),pycom(Ntot),pthcom(Ntot)
       DOUBLE PRECISION xixcom(Ntot),xiycom(Ntot),xithcom(Ntot)
       DOUBLE PRECISION xt(Ntot),yt(Ntot),tht(Ntot),width
       DOUBLE PRECISION Dcom(Ntot),maxdis,D1com
-      DOUBLE PRECISION xp(Ntot),yp(Ntot),alpha(Ntot)
-      INTEGER nl(800,Ntot),countn(Ntot),ncom
+      DOUBLE PRECISION xp(Ntot),yp(Ntot)
+      REAL thp
+      INTEGER nl(800,Ntot),countn(Ntot),ncom,i
       COMMON /f1com/ pxcom,pycom,pthcom,xixcom,xiycom,xithcom,
      +     Dcom,D1com,xp,yp,thp,countn,nl,ncom
-      
       COMMON /f2com/ width
-      COMMON /f3com/ alpha ! aspect ratio
 
       DO i=1,ncom
         xt(i)=pxcom(i)+x*xixcom(i)

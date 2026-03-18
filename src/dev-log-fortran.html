@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fortran Change Log - jamming-growth</title>
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --fg: #1f2421;
+    --muted: #5a645d;
+    --line: #d6ddd7;
+    --panel: #ffffff;
+    --blue: #1f5f8b;
+    --green: #2f7d4a;
+    --orange: #b25b15;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem;
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.6 "SF Mono", "Fira Code", "Consolas", monospace;
+  }
+  main {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  h1, h2, h3 {
+    color: var(--blue);
+    margin: 0 0 0.75rem 0;
+  }
+  h1 {
+    font-size: 1.6rem;
+    margin-bottom: 0.35rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+    margin-top: 2rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid var(--line);
+  }
+  h3 {
+    font-size: 1rem;
+  }
+  p.meta {
+    margin: 0 0 1.5rem 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .summary {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.75rem;
+  }
+  .summary th,
+  .summary td {
+    border-bottom: 1px solid var(--line);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+    font-size: 0.88rem;
+  }
+  .summary th {
+    color: var(--blue);
+  }
+  .tag {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: bold;
+  }
+  .behavior { background: #e9f6ee; color: var(--green); }
+  .logging { background: #fff1e6; color: var(--orange); }
+  .cleanup { background: #edf4fb; color: var(--blue); }
+  ul {
+    margin: 0.5rem 0 0 1.25rem;
+  }
+  li {
+    margin-bottom: 0.35rem;
+  }
+  code {
+    font-size: 0.92em;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Fortran Change Log</h1>
+  <p class="meta">This document summarizes the current Fortran source changes relative to <code>main</code>.</p>
+
+  <div class="panel">
+    <h3>Scope</h3>
+    <ul>
+      <li>The comparison covers only <code>src/jamming_by_growth.f</code> and <code>src/shear_yeast_linearshear.f</code>.</li>
+      <li>The goal is to describe what changed in the tracked Fortran code, not the shell scripts or repository-level documentation.</li>
+      <li>The notes below are based on the current worktree diff against <code>main</code>.</li>
+    </ul>
+  </div>
+
+  <h2>Summary Of Changes</h2>
+  <div class="panel">
+    <table class="summary">
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>What changed relative to <code>main</code></th>
+          <th>Type</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>jamming_by_growth.f</code></td>
+          <td>Adds a step log output, records total growth rate during the run, and writes an effective growth rate that is guarded against invalid <code>P0</code>/<code>PP</code> combinations.</td>
+          <td><span class="tag logging">logging</span> <span class="tag behavior">behavior</span></td>
+        </tr>
+        <tr>
+          <td><code>jamming_by_growth.f</code></td>
+          <td>Extracts repeated molecule-to-atom geometry into a shared helper and removes unused legacy state such as <code>D0</code>, <code>PT</code>, <code>PR</code>, and other unused variables.</td>
+          <td><span class="tag cleanup">cleanup</span></td>
+        </tr>
+        <tr>
+          <td><code>jamming_by_growth.f</code></td>
+          <td>Updates neighbor-list upper-bound logic so the effective particle diameter depends on the same aspect-ratio branch used elsewhere, instead of a single simplified formula.</td>
+          <td><span class="tag behavior">behavior</span></td>
+        </tr>
+        <tr>
+          <td><code>shear_yeast_linearshear.f</code></td>
+          <td>Adds richer shear output: the <code>G_data</code> file now includes a header plus <code>phi</code>, <code>Nmm</code>, <code>Nbb</code>, and <code>Nmb</code>.</td>
+          <td><span class="tag logging">logging</span></td>
+        </tr>
+        <tr>
+          <td><code>shear_yeast_linearshear.f</code></td>
+          <td>Moves repeated geometry conversion into a shared <code>mol_to_atoms</code> helper used by energy, force, and contact calculations.</td>
+          <td><span class="tag cleanup">cleanup</span></td>
+        </tr>
+        <tr>
+          <td><code>shear_yeast_linearshear.f</code></td>
+          <td>Adjusts neighbor-list bounds and shear-stress accumulation to use the updated geometry consistently, including a diameter-ratio weighting in the stress contribution.</td>
+          <td><span class="tag behavior">behavior</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><code>jamming_by_growth.f</code></h2>
+  <div class="panel">
+    <h3>Behavior and outputs</h3>
+    <ul>
+      <li>Adds a new <code>STEPLOG_*</code> file with a header and per-step records for step index, particle count, energy per particle, pressure, time step, packing fraction, total growth rate, and jamming-state flags.</li>
+      <li>Computes <code>phi</code> and <code>total_growthrate</code> every iteration before writing the step log.</li>
+      <li>Replaces direct writes of <code>rate(i) * exp(-PP(i)/P0)</code> with a guarded <code>ratei_eff</code> value so the output does not evaluate that expression when <code>P0 &lt;= 0</code> or <code>PP(i) &lt;= 0</code>.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>Geometry and internal cleanup</h3>
+    <ul>
+      <li>Introduces <code>mol_to_atoms</code> to centralize the conversion from cell-level state to atom-level positions and effective diameters.</li>
+      <li>Updates <code>makelist</code> to use the same aspect-ratio-dependent upper-bound diameter logic as the new helper, instead of the previous one-branch approximation.</li>
+      <li>Removes unused state and arguments including <code>D0</code>, copied <code>D0</code> arrays, unused bud counters, and unused common-block values <code>PT</code> and <code>PR</code>.</li>
+      <li>Adds more explicit <code>IMPLICIT NONE</code> usage and explicit local declarations in several Numerical Recipes-style routines.</li>
+    </ul>
+  </div>
+
+  <h2><code>shear_yeast_linearshear.f</code></h2>
+  <div class="panel">
+    <h3>Behavior and outputs</h3>
+    <ul>
+      <li>The shear statistics file now starts with a header and records additional state: <code>phi</code>, <code>Nmm</code>, <code>Nbb</code>, and <code>Nmb</code> for each strain step.</li>
+      <li>Reads the configuration header directly into <code>phi</code> and computes the per-particle rotational scale once before the shear loop, rather than rebuilding it every step.</li>
+      <li>Changes the shear-stress contribution formula to include a geometric weighting factor <code>dij**2 / di1j1**2</code> in the pair-force accumulation.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>Geometry and contact logic</h3>
+    <ul>
+      <li>Adds the shared <code>mol_to_atoms</code> helper and reuses it in the energy, force, and contact routines to keep geometry construction consistent.</li>
+      <li>Updates neighbor-list generation to use the same aspect-ratio-dependent diameter upper bound as the geometry helper.</li>
+      <li>Simplifies <code>contacts_yeast</code> by removing unused parameters and deriving the atom-level geometry through the shared helper instead of duplicating the conversion logic.</li>
+      <li>Adds the in-source note that <code>CG_check</code> is intentionally conservative and should not be treated as a bug in future audits.</li>
+    </ul>
+  </div>
+
+  <h2>Notes For PR Use</h2>
+  <div class="panel">
+    <ul>
+      <li>This file is intended as a human-readable summary for reviewers, not as executable documentation.</li>
+      <li>If the Fortran diff changes further, this summary should be regenerated from the current diff against <code>main</code>.</li>
+      <li>The most consequential source-level changes are the new logging outputs, the shared geometry helper, and the revised geometry-dependent bounds and stress calculations.</li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>
