@@ -88,7 +88,7 @@ bash examples/run_shear.sh --results-root output/example-growth
 This also creates its output and log directories automatically under the chosen
 results root.
 
-## Numerical experiments
+## Full growth + shear sweep
 
 Run the full growth + shear sweep:
 
@@ -106,6 +106,38 @@ Force reruns even when outputs already exist:
 
 ```bash
 python3 scripts/run_growth_shear.py --force
+```
+
+## Numerical experiments
+
+Build the B_ext executable:
+
+```bash
+make box_compress_bext
+```
+
+Run the B_ext pass over existing growth packings:
+
+```bash
+python3 scripts/run_bext.py
+```
+
+Choose the number of concurrent B_ext jobs:
+
+```bash
+python3 scripts/run_bext.py --n-cpus 8
+```
+
+Force B_ext reruns even when valid raw outputs already exist:
+
+```bash
+python3 scripts/run_bext.py --force
+```
+
+Override the fixed B_ext probe compression:
+
+```bash
+python3 scripts/run_bext.py --dphi-probe 1e-5
 ```
 
 ## Repo Layout
