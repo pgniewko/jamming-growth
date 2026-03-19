@@ -88,6 +88,26 @@ bash examples/run_shear.sh --results-root output/example-growth
 This also creates its output and log directories automatically under the chosen
 results root.
 
+## Numerical experiments
+
+Run the full growth + shear sweep:
+
+```bash
+python3 scripts/run_growth_shear.py
+```
+
+Choose the number of concurrent jobs:
+
+```bash
+python3 scripts/run_growth_shear.py --n-cpus 8
+```
+
+Force reruns even when outputs already exist:
+
+```bash
+python3 scripts/run_growth_shear.py --force
+```
+
 ## Repo Layout
 
 - `src/`: Fortran simulation codes
