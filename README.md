@@ -135,6 +135,15 @@ Choose concurrency or force reruns:
 python3 scripts/run_lineage_growth.py --sizes 8 --p0s 1e-3 --dphis 1e-3 --seeds 1201 --n-cpus 4 --force
 ```
 
+The lineage run writes the usual growth endpoints plus lineage-specific raw
+data for post-jamming depletion analysis:
+
+- `LINEAGE_LF_JAMM_*` and `LINEAGE_LF_DPHI_*` for endpoint lineage snapshots
+- `DIVLOG_*` for division events
+- `TRANSITIONS_*` for tracked initial-free-bud transitions
+- `POSTJAMM_SUMMARY_*` for accepted post-jamming summary rows (`phi`, counts,
+  `chi_c`, and tracked-reservoir depletion state)
+
 Keep shear trajectory files after successful jobs:
 
 ```bash

@@ -26,6 +26,12 @@ FIXED = {
     "version": "1.0",
 }
 
+EVENT_CODES = {
+    "first_bud_contact": 1,
+    "free_to_constrained": 2,
+    "initial_free_division": 3,
+}
+
 
 def parse_csv_list(value):
     items = [item.strip() for item in value.split(",")]
@@ -154,6 +160,65 @@ def parse_divlog(path):
     return True
 
 
+def parse_transitions(path):
+    with path.open("r", encoding="utf-8") as handle:
+        header = handle.readline()
+        if not header.startswith("# step phi cell_id parent_id"):
+            return False
+        for line in handle:
+            if not line.strip():
+                continue
+            fields = line.split()
+            if len(fields) != 12:
+                return False
+            int(fields[0])
+            float(fields[1])
+            int(fields[2])
+            int(fields[3])
+            float(fields[4])
+            float(fields[5])
+            float(fields[6])
+            int(fields[7])
+            int(fields[8])
+            int(fields[9])
+            code = int(fields[10])
+            label = fields[11]
+            if EVENT_CODES.get(label) != code:
+                return False
+    return True
+
+
+def parse_postjamm_summary(path):
+    rows = 0
+    with path.open("r", encoding="utf-8") as handle:
+        header = handle.readline()
+        if not header.startswith("# step phi P N Nc Nf Nu Ziso total_growthrate chi_c"):
+            return False
+        for line in handle:
+            if not line.strip():
+                continue
+            fields = line.split()
+            if len(fields) != 15:
+                return False
+            int(fields[0])
+            float(fields[1])
+            float(fields[2])
+            int(fields[3])
+            int(fields[4])
+            int(fields[5])
+            int(fields[6])
+            int(fields[7])
+            float(fields[8])
+            float(fields[9])
+            int(fields[10])
+            int(fields[11])
+            int(fields[12])
+            int(fields[13])
+            int(fields[14])
+            rows += 1
+    return rows > 0
+
+
 def parse_log(path):
     return path.is_file() and path.stat().st_size > 0
 
@@ -167,6 +232,8 @@ def build_paths(name):
         "lineage_frame": GROWTH_DIR / f"LINEAGE_LF_DPHI_{name}",
         "lineage_jamm": GROWTH_DIR / f"LINEAGE_LF_JAMM_{name}",
         "divlog": GROWTH_DIR / f"DIVLOG_{name}",
+        "transitions": GROWTH_DIR / f"TRANSITIONS_{name}",
+        "postjamm_summary": GROWTH_DIR / f"POSTJAMM_SUMMARY_{name}",
         "nc": GROWTH_DIR / f"NC_{name}",
         "steplog": GROWTH_DIR / f"STEPLOG_{name}",
         "traj": GROWTH_DIR / name,
@@ -185,6 +252,8 @@ def clean_job(paths):
         paths["lineage_frame"],
         paths["lineage_jamm"],
         paths["divlog"],
+        paths["transitions"],
+        paths["postjamm_summary"],
         paths["nc"],
         paths["steplog"],
         paths["traj"],
@@ -209,6 +278,10 @@ def job_complete(paths):
         if not parse_lineage(paths["lineage_jamm"], jamm_count):
             return False
         if not parse_divlog(paths["divlog"]):
+            return False
+        if not parse_transitions(paths["transitions"]):
+            return False
+        if not parse_postjamm_summary(paths["postjamm_summary"]):
             return False
     except (FileNotFoundError, OSError, ValueError):
         return False

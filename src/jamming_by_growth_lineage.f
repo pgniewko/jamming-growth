@@ -37,6 +37,8 @@
       CHARACTER file_LINEAGE_JAMM*120
       CHARACTER file_LINEAGE_DPHI*120
       CHARACTER file_DIVLOG*120
+      CHARACTER file_TRANSITIONS*120
+      CHARACTER file_POSTJAMM_SUMMARY*120
       CHARACTER file_NC*100
       CHARACTER file_STEPLOG*120
       
@@ -47,6 +49,7 @@
       DOUBLE PRECISION dispcm,xa(2),ya(2),P0
       DOUBLE PRECISION cc,ss,dr(2),dd,att,rat
       DOUBLE PRECISION dt, PPm(Ntot), total_growthrate, ratei_eff
+      DOUBLE PRECISION bud_diameter, delta_bud_area, chi_c_est
       INTEGER reject_time_step, terminate_sim
       INTEGER N,seed,iter,i,k,kk,skip
       INTEGER divtype
@@ -60,6 +63,8 @@
       DOUBLE PRECISION phitemp, calc_phi, wide
       DOUBLE PRECISION phi_j, dphi
       DOUBLE PRECISION event_phi(Ntot)
+      DOUBLE PRECISION tracked_initial_bud_diameter(Ntot)
+      DOUBLE PRECISION event_parent_bud_diameter(Ntot)
       INTEGER N_copy, Nc, Ziso
       INTEGER before_jamming, at_jamming, above_jamming
       INTEGER cell_id(Ntot), parent_id(Ntot)
@@ -67,6 +72,15 @@
       INTEGER next_cell_id, next_cell_id_copy
       INTEGER event_count, event_parent_id(Ntot), event_new_id(Ntot)
       INTEGER event_parent_index(Ntot), event_new_index(Ntot)
+      INTEGER tracked_initial_free(Ntot)
+      INTEGER tracked_prev_bud_contacts(Ntot)
+      INTEGER tracked_prev_bud_unconstrained(Ntot)
+      INTEGER curr_bud_contacts(Ntot), curr_bud_unconstrained(Ntot)
+      INTEGER curr_bud_compressed(Ntot)
+      INTEGER tracking_initialized
+      INTEGER initial_free_total, initial_free_completed
+      INTEGER initial_free_divided, n_compressed
+      INTEGER n_initial_free_active
 
       COMMON /f2com/ width
       COMMON /f3com/ alpha
@@ -115,6 +129,21 @@
       phitemp = 0.0d0
       wide = 2.0d0
       total_growthrate = 0.0d0
+      tracking_initialized = 0
+      initial_free_total = 0
+      initial_free_completed = 0
+      initial_free_divided = 0
+
+      DO i=1,Ntot
+         tracked_initial_free(i)=0
+         tracked_prev_bud_contacts(i)=0
+         tracked_prev_bud_unconstrained(i)=0
+         tracked_initial_bud_diameter(i)=0d0
+         curr_bud_contacts(i)=0
+         curr_bud_unconstrained(i)=0
+         curr_bud_compressed(i)=0
+         event_parent_bud_diameter(i)=0d0
+      ENDDO
 
       before_jamming =  0
       at_jamming = 0
@@ -145,12 +174,26 @@
       OPEN(unit=14,file=TRIM(file_STEPLOG), status='replace')
       file_DIVLOG='DIVLOG_' // TRIM(file1)
       OPEN(unit=15,file=TRIM(file_DIVLOG), status='replace')
+      file_TRANSITIONS='TRANSITIONS_' // TRIM(file1)
+      OPEN(unit=17,file=TRIM(file_TRANSITIONS), status='replace')
+      file_POSTJAMM_SUMMARY='POSTJAMM_SUMMARY_' // TRIM(file1)
+      OPEN(unit=18,file=TRIM(file_POSTJAMM_SUMMARY), status='replace')
       WRITE(14,'(A)')
      + '# step N fret_per_particle P dt phi total_growthrate'
      + // ' before_jamming at_jamming above_jamming'
       WRITE(15,'(A)')
      + '# step phi parent_cell_id new_cell_id'
      + // ' parent_index new_index'
+      WRITE(17,'(A)')
+     + '# step phi cell_id parent_id initial_bud_diameter'
+     + // ' bud_diameter delta_bud_area bud_contacts'
+     + // ' bud_unconstrained bud_compressed event_code'
+     + // ' event_label'
+      WRITE(18,'(A)')
+     + '# step phi P N Nc Nf Nu Ziso total_growthrate chi_c'
+     + // ' n_compressed n_initial_free_total'
+     + // ' n_initial_free_active n_initial_free_completed'
+     + // ' n_initial_free_divided'
       
       ! initial size & aspect ratios - total vol = (1+rat)*alpha0
       d(1)=1d0
@@ -216,6 +259,8 @@
                   next_cell_id = next_cell_id + 1
                   cell_id(N)=next_cell_id
                   parent_id(N)=cell_id(i)
+                  event_parent_bud_diameter(event_count+1)=
+     +                 (alpha(i)-1d0)*D(i)
                   
                   ! divide into 2 - 1st assigned index i
                   x(i)=x(i)-dispcm*dcos(th(i))
@@ -297,6 +342,93 @@
      +              event_parent_index(i),event_new_index(i)
             ENDDO
             FLUSH(15)
+            IF(tracking_initialized.EQ.1) THEN
+               CALL lineage_contacts(
+     +              x,y,th,D1,D,alpha,N,
+     +              curr_bud_contacts,curr_bud_unconstrained)
+               CALL compression_flags(N,PP,curr_bud_compressed)
+               DO i=1,event_count
+                  tracked_initial_free(event_new_index(i))=0
+                  tracked_prev_bud_contacts(event_new_index(i))=0
+                  tracked_prev_bud_unconstrained(event_new_index(i))=0
+                  tracked_initial_bud_diameter(event_new_index(i))=0d0
+                  IF(tracked_initial_free(event_parent_index(i)).EQ.1)
+     +                 THEN
+                     delta_bud_area =
+     +                  event_parent_bud_diameter(i)**2
+     +                  - tracked_initial_bud_diameter(
+     +                  event_parent_index(i))**2
+                     CALL write_transition(
+     +                    17,k,phi,cell_id(event_parent_index(i)),
+     +                    parent_id(event_parent_index(i)),
+     +                    tracked_initial_bud_diameter(
+     +                    event_parent_index(i)),
+     +                    event_parent_bud_diameter(i),
+     +                    delta_bud_area,-1,-1,-1,3,
+     +                    'initial_free_division')
+                     tracked_initial_free(event_parent_index(i))=0
+                     tracked_prev_bud_contacts(event_parent_index(i))=0
+                     tracked_prev_bud_unconstrained(
+     +                    event_parent_index(i))=0
+                     tracked_initial_bud_diameter(
+     +                    event_parent_index(i))=0d0
+                     initial_free_divided = initial_free_divided + 1
+                  ENDIF
+               ENDDO
+               DO i=1,N
+                  IF(tracked_initial_free(i).EQ.1) THEN
+                     bud_diameter = (alpha(i)-1d0)*D(i)
+                     delta_bud_area = bud_diameter**2
+     +                    - tracked_initial_bud_diameter(i)**2
+                     IF(tracked_prev_bud_contacts(i).EQ.0
+     +                  .AND. curr_bud_contacts(i).GT.0) THEN
+                        CALL write_transition(
+     +                       17,k,phi,cell_id(i),parent_id(i),
+     +                       tracked_initial_bud_diameter(i),
+     +                       bud_diameter,delta_bud_area,
+     +                       curr_bud_contacts(i),
+     +                       curr_bud_unconstrained(i),
+     +                       curr_bud_compressed(i),1,
+     +                       'first_bud_contact')
+                     ENDIF
+                     IF(tracked_prev_bud_unconstrained(i).EQ.1
+     +                  .AND. curr_bud_unconstrained(i).EQ.0) THEN
+                        CALL write_transition(
+     +                       17,k,phi,cell_id(i),parent_id(i),
+     +                       tracked_initial_bud_diameter(i),
+     +                       bud_diameter,delta_bud_area,
+     +                       curr_bud_contacts(i),
+     +                       curr_bud_unconstrained(i),
+     +                       curr_bud_compressed(i),2,
+     +                       'free_to_constrained')
+                        tracked_initial_free(i)=0
+                        tracked_prev_bud_contacts(i)=0
+                        tracked_prev_bud_unconstrained(i)=0
+                        tracked_initial_bud_diameter(i)=0d0
+                        initial_free_completed =
+     +                     initial_free_completed + 1
+                     ELSE
+                        tracked_prev_bud_contacts(i)=
+     +                     curr_bud_contacts(i)
+                        tracked_prev_bud_unconstrained(i)=
+     +                     curr_bud_unconstrained(i)
+                     ENDIF
+                  ENDIF
+               ENDDO
+               CALL contacts_yeast(
+     +              x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
+               CALL out_numbers(N, Nf, Nu, Ziso)
+               CALL chi_c_active_counts(
+     +              N,P0,PP,tracked_initial_free,
+     +              chi_c_est,n_compressed,n_initial_free_active)
+               CALL write_postjamm_summary(
+     +              18,k,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,
+     +              chi_c_est,n_compressed,initial_free_total,
+     +              n_initial_free_active,initial_free_completed,
+     +              initial_free_divided)
+               FLUSH(17)
+               FLUSH(18)
+            ENDIF
          ENDIF
          WRITE(*,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
      +        total_growthrate,before_jamming,at_jamming,above_jamming
@@ -377,6 +509,26 @@
             WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
      +      phi,P,fret,P0,total_growthrate
             FLUSH(13)
+            CALL lineage_contacts(
+     +         x,y,th,D1,D,alpha,N,
+     +         curr_bud_contacts,curr_bud_unconstrained)
+            CALL compression_flags(N,PP,curr_bud_compressed)
+            CALL init_initial_free_tracking(
+     +         N,D,alpha,curr_bud_contacts,curr_bud_unconstrained,
+     +         tracked_initial_free,tracked_prev_bud_contacts,
+     +         tracked_prev_bud_unconstrained,
+     +         tracked_initial_bud_diameter,initial_free_total,
+     +         initial_free_completed,initial_free_divided,
+     +         tracking_initialized)
+            CALL chi_c_active_counts(
+     +         N,P0,PP,tracked_initial_free,
+     +         chi_c_est,n_compressed,n_initial_free_active)
+            CALL write_postjamm_summary(
+     +         18,k,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,
+     +         chi_c_est,n_compressed,initial_free_total,
+     +         n_initial_free_active,initial_free_completed,
+     +         initial_free_divided)
+            FLUSH(18)
             above_jamming = 1
             at_jamming = 0
          ENDIF
@@ -435,6 +587,8 @@
       CLOSE(13)
       CLOSE(14)
       CLOSE(15)
+      CLOSE(17)
+      CLOSE(18)
       CLOSE(22)
       END
 
@@ -980,6 +1134,141 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       ENDDO
       FLUSH(16)
       CLOSE(16)
+
+      END
+
+      SUBROUTINE init_initial_free_tracking(
+     +     N,D,alpha,bud_contacts,bud_unconstrained,
+     +     tracked_initial_free,tracked_prev_bud_contacts,
+     +     tracked_prev_bud_unconstrained,
+     +     tracked_initial_bud_diameter,initial_free_total,
+     +     initial_free_completed,initial_free_divided,
+     +     tracking_initialized)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i
+      DOUBLE PRECISION D(Ntot), alpha(Ntot)
+      INTEGER bud_contacts(Ntot), bud_unconstrained(Ntot)
+      INTEGER tracked_initial_free(Ntot)
+      INTEGER tracked_prev_bud_contacts(Ntot)
+      INTEGER tracked_prev_bud_unconstrained(Ntot)
+      DOUBLE PRECISION tracked_initial_bud_diameter(Ntot)
+      INTEGER initial_free_total, initial_free_completed
+      INTEGER initial_free_divided, tracking_initialized
+
+      initial_free_total = 0
+      initial_free_completed = 0
+      initial_free_divided = 0
+      tracking_initialized = 1
+
+      DO i=1,Ntot
+         tracked_initial_free(i)=0
+         tracked_prev_bud_contacts(i)=0
+         tracked_prev_bud_unconstrained(i)=0
+         tracked_initial_bud_diameter(i)=0d0
+      ENDDO
+
+      DO i=1,N
+         IF(bud_unconstrained(i).EQ.1) THEN
+            tracked_initial_free(i)=1
+            tracked_prev_bud_contacts(i)=bud_contacts(i)
+            tracked_prev_bud_unconstrained(i)=bud_unconstrained(i)
+            tracked_initial_bud_diameter(i)=(alpha(i)-1d0)*D(i)
+            initial_free_total = initial_free_total + 1
+         ENDIF
+      ENDDO
+
+      END
+
+      SUBROUTINE write_transition(
+     +     unit_no,step,phi,cell_id,parent_id,
+     +     initial_bud_diameter,bud_diameter,delta_bud_area,
+     +     bud_contacts,bud_unconstrained,bud_compressed,
+     +     event_code,event_label)
+      IMPLICIT NONE
+      INTEGER unit_no, step, cell_id, parent_id
+      INTEGER bud_contacts, bud_unconstrained, bud_compressed
+      INTEGER event_code
+      DOUBLE PRECISION phi, initial_bud_diameter
+      DOUBLE PRECISION bud_diameter, delta_bud_area
+      CHARACTER*(*) event_label
+
+      WRITE(unit_no,'(I12,E26.18,2I12,3E26.18,4I12,1X,A)')
+     +     step,phi,cell_id,parent_id,initial_bud_diameter,
+     +     bud_diameter,delta_bud_area,bud_contacts,
+     +     bud_unconstrained,bud_compressed,event_code,event_label
+
+      END
+
+      SUBROUTINE compression_flags(N,PP,bud_compressed)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i, bud_compressed(Ntot)
+      DOUBLE PRECISION PP(Ntot)
+
+      DO i=1,N
+         bud_compressed(i)=0
+         IF(PP(i).GT.0d0) THEN
+            bud_compressed(i)=1
+         ENDIF
+      ENDDO
+
+      END
+
+      SUBROUTINE chi_c_active_counts(
+     +     N,P0,PP,tracked_initial_free,
+     +     chi_c_est,n_compressed,n_initial_free_active)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i, n_compressed, n_initial_free_active
+      INTEGER tracked_initial_free(Ntot)
+      DOUBLE PRECISION P0, PP(Ntot), chi_c_est, chi_sum
+
+      chi_sum = 0d0
+      n_compressed = 0
+      n_initial_free_active = 0
+
+      DO i=1,N
+         IF(PP(i).GT.0d0) THEN
+            n_compressed = n_compressed + 1
+            IF(P0.GT.0d0) THEN
+               chi_sum = chi_sum + dexp(-PP(i)/P0)
+            ELSE
+               chi_sum = chi_sum + 1d0
+            ENDIF
+         ENDIF
+         IF(tracked_initial_free(i).EQ.1) THEN
+            n_initial_free_active = n_initial_free_active + 1
+         ENDIF
+      ENDDO
+
+      IF(n_compressed.GT.0) THEN
+         chi_c_est = chi_sum / dble(n_compressed)
+      ELSE
+         chi_c_est = 1d0
+      ENDIF
+
+      END
+
+      SUBROUTINE write_postjamm_summary(
+     +     unit_no,step,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,
+     +     chi_c_est,n_compressed,initial_free_total,
+     +     n_initial_free_active,initial_free_completed,
+     +     initial_free_divided)
+      IMPLICIT NONE
+      INTEGER unit_no, step, N, Nc, Nf, Nu, Ziso
+      INTEGER n_compressed, initial_free_total
+      INTEGER n_initial_free_active, initial_free_completed
+      INTEGER initial_free_divided
+      DOUBLE PRECISION phi, P, total_growthrate, chi_c_est
+
+      WRITE(unit_no,'(I12,2E26.18,5I12,2E26.18,5I12)')
+     +     step,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,chi_c_est,
+     +     n_compressed,initial_free_total,n_initial_free_active,
+     +     initial_free_completed,initial_free_divided
 
       END
 
