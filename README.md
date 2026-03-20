@@ -88,7 +88,7 @@ bash examples/run_shear.sh --results-root output/example-growth
 This also creates its output and log directories automatically under the chosen
 results root.
 
-## Numerical experiments
+## Full growth + shear sweep
 
 Run the full growth + shear sweep:
 
@@ -119,6 +119,27 @@ Choose concurrency or force reruns:
 
 ```bash
 python3 scripts/run_lineage_growth.py --sizes 8 --p0s 1e-3 --dphis 1e-3 --seeds 1201 --n-cpus 4 --force
+```
+
+Keep shear trajectory files after successful jobs:
+
+```bash
+python3 scripts/run_growth_shear.py --keep-all-output
+```
+
+## Standalone B_ext pass
+
+Run the B_ext pass over existing growth packings:
+
+```bash
+python3 scripts/run_bext.py
+```
+
+Use the help output to inspect all available options, including concurrency,
+reruns, probe size, and output retention:
+
+```bash
+python3 scripts/run_bext.py --help
 ```
 
 ## Repo Layout

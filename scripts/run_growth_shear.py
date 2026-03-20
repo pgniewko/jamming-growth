@@ -44,6 +44,11 @@ def parse_args():
         action="store_true",
         help="Rerun completed jobs.",
     )
+    parser.add_argument(
+        "--keep-all-output",
+        action="store_true",
+        help="Keep shear trajectory files after successful jobs.",
+    )
     return parser.parse_args()
 
 
@@ -87,6 +92,9 @@ def clean_growth(paths):
         paths["growth_stats_jamm"],
         paths["growth_nc"],
         paths["growth_steplog"],
+        paths["growth_lineage_frame"],
+        paths["growth_lineage_jamm"],
+        paths["growth_divlog"],
         paths["growth_traj"],
         paths["growth_traj_gz"],
         paths["growth_log"],
@@ -106,6 +114,13 @@ def clean_shear(paths):
         remove_if_exists(path)
 
 
+def clean_finished_shear(paths, keep_all_output):
+    if keep_all_output:
+        return
+    remove_if_exists(paths["shear_traj"])
+    remove_if_exists(paths["shear_traj_gz"])
+
+
 def build_paths(name):
     growth_dir = OUTPUT_ROOT / "growth"
     shear_dir = OUTPUT_ROOT / "shear"
@@ -120,6 +135,9 @@ def build_paths(name):
         "growth_stats_jamm": growth_dir / f"STATS_LF_JAMM_{name}",
         "growth_nc": growth_dir / f"NC_{name}",
         "growth_steplog": growth_dir / f"STEPLOG_{name}",
+        "growth_lineage_frame": growth_dir / f"LINEAGE_LF_DPHI_{name}",
+        "growth_lineage_jamm": growth_dir / f"LINEAGE_LF_JAMM_{name}",
+        "growth_divlog": growth_dir / f"DIVLOG_{name}",
         "growth_traj": growth_dir / name,
         "growth_traj_gz": growth_dir / f"{name}.gz",
         "growth_log": growth_log_dir / f"stdout_{name[:-4]}.log",
@@ -148,6 +166,13 @@ def run_script(script, extra_args):
 def run_growth(params, force):
     name = basename(params)
     paths = build_paths(name)
+    # Remove lineage-only artifacts if they were produced by an older branch build.
+    for path in (
+        paths["growth_lineage_frame"],
+        paths["growth_lineage_jamm"],
+        paths["growth_divlog"],
+    ):
+        remove_if_exists(path)
     if force:
         clean_growth(paths)
     if not growth_done(paths):
@@ -171,7 +196,7 @@ def run_growth(params, force):
     return name, paths
 
 
-def run_shear(params, paths, force):
+def run_shear(params, paths, force, keep_all_output):
     if force:
         clean_shear(paths)
     if not shear_done(paths):
@@ -192,11 +217,12 @@ def run_shear(params, paths, force):
                 "--shear-steps", FIXED["shear_steps"],
             ],
         )
+    clean_finished_shear(paths, keep_all_output)
 
 
-def run_job(params, force):
+def run_job(params, force, keep_all_output):
     name, paths = run_growth(params, force)
-    run_shear(params, paths, force)
+    run_shear(params, paths, force, keep_all_output)
     return name
 
 
@@ -211,7 +237,7 @@ def main():
     futures = {}
     with ThreadPoolExecutor(max_workers=args.n_cpus) as executor:
         for params in jobs:
-            future = executor.submit(run_job, params, args.force)
+            future = executor.submit(run_job, params, args.force, args.keep_all_output)
             futures[future] = params
         while futures:
             done, _ = wait(futures, return_when=FIRST_COMPLETED)

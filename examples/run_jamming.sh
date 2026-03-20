@@ -21,6 +21,7 @@ results_root="${ROOT_DIR}/output/debug"
 growth_dir=""
 log_dir=""
 force=0
+exe_file=""
 
 compress_if_present() {
     local path="$1"
@@ -51,6 +52,7 @@ Options:
   --divtype VALUE       Division type. Default: 4
   --version VALUE       Output version. Default: 1.0
   --force               Overwrite existing outputs.
+  --exe PATH            Growth executable to run. Default: bin/jamming_by_growth
   -h, --help            Show this help.
 EOF
 }
@@ -72,6 +74,7 @@ while [[ $# -gt 0 ]]; do
         --divtype) divtype="$2"; shift 2 ;;
         --version) version="$2"; shift 2 ;;
         --force) force=1; shift ;;
+        --exe) exe_file="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *)
             echo "Unknown argument: $1" >&2
@@ -80,6 +83,14 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -n "${exe_file}" ]]; then
+    if [[ "${exe_file}" != /* ]]; then
+        EXE_FILE="${PWD}/${exe_file}"
+    else
+        EXE_FILE="${exe_file}"
+    fi
+fi
 
 if [[ ! -x "${EXE_FILE}" ]]; then
     echo "Missing executable: ${EXE_FILE}. Run 'make all' first." >&2

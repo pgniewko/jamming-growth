@@ -14,6 +14,7 @@ GROWTH_ROOT = OUTPUT_ROOT / "lineage_growth"
 GROWTH_DIR = GROWTH_ROOT / "growth"
 LOG_DIR = OUTPUT_ROOT / "logs" / "lineage_growth"
 GROWTH_SCRIPT = REPO_ROOT / "examples" / "run_jamming.sh"
+LINEAGE_EXE = REPO_ROOT / "bin" / "jamming_by_growth_lineage"
 
 FIXED = {
     "att": "0.0",
@@ -222,6 +223,8 @@ def run_growth(params):
     cmd = [
         "bash",
         str(GROWTH_SCRIPT),
+        "--exe",
+        str(LINEAGE_EXE),
         "--growth-dir",
         str(GROWTH_DIR),
         "--log-dir",
@@ -271,6 +274,8 @@ def main():
         raise SystemExit("--n-cpus must be at least 1")
     if not GROWTH_SCRIPT.is_file():
         raise SystemExit("Missing growth wrapper script.")
+    if not LINEAGE_EXE.is_file():
+        raise SystemExit(f"Missing executable: {LINEAGE_EXE}. Run 'make all' first.")
 
     GROWTH_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
