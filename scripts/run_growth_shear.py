@@ -51,7 +51,7 @@ def job_params():
     for seed in SEEDS:
         for p0 in P0S:
             for dphi in DPHIS:
-        	for size in SIZES:
+                for size in SIZES:
                     yield {"lx": size, "p0": p0, "dphi": dphi, "seed": seed}
 
 
