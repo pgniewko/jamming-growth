@@ -1,6 +1,7 @@
 bin/
 .venv/
 .pip-cache/
+output/
 __pycache__/
 *.pyc
 *.pyo
