@@ -34,6 +34,9 @@
       CHARACTER file_LF_DPHI*120
       CHARACTER STATS_file_LF_JAMM*120
       CHARACTER STATS_file_LF_DPHI*120
+      CHARACTER file_LINEAGE_JAMM*120
+      CHARACTER file_LINEAGE_DPHI*120
+      CHARACTER file_DIVLOG*120
       CHARACTER file_NC*100
       CHARACTER file_STEPLOG*120
       
@@ -56,8 +59,14 @@
       DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
       DOUBLE PRECISION phitemp, calc_phi, wide
       DOUBLE PRECISION phi_j, dphi
+      DOUBLE PRECISION event_phi(Ntot)
       INTEGER N_copy, Nc, Ziso
       INTEGER before_jamming, at_jamming, above_jamming
+      INTEGER cell_id(Ntot), parent_id(Ntot)
+      INTEGER cell_id_copy(Ntot), parent_id_copy(Ntot)
+      INTEGER next_cell_id, next_cell_id_copy
+      INTEGER event_count, event_parent_id(Ntot), event_new_id(Ntot)
+      INTEGER event_parent_index(Ntot), event_new_index(Ntot)
 
       COMMON /f2com/ width
       COMMON /f3com/ alpha
@@ -118,6 +127,7 @@
       ! FILES FOR JAMMED PACKING   
       file_LF_JAMM='LF_JAMM_' // TRIM(file1)            ! unit=11
       STATS_file_LF_JAMM='STATS_LF_JAMM_' // TRIM(file1)! unit=21
+      file_LINEAGE_JAMM='LINEAGE_LF_JAMM_' // TRIM(file1)
       
       
       ! FILES FOR PACKIG AT DPHI
@@ -126,15 +136,21 @@
       OPEN(unit=12,file=TRIM(file_LF_DPHI), status='replace')
       STATS_file_LF_DPHI='STATS_LF_DPHI_' // TRIM(file1)
       OPEN(unit=22,file=TRIM(STATS_file_LF_DPHI), status='replace')
+      file_LINEAGE_DPHI='LINEAGE_LF_DPHI_' // TRIM(file1)
       
       ! CONTACT STATISTICS (AND OTHER)
       file_NC='NC_' // TRIM(file1)
       OPEN(unit=13,file=TRIM(file_NC), status='replace')
       file_STEPLOG='STEPLOG_' // TRIM(file1)
       OPEN(unit=14,file=TRIM(file_STEPLOG), status='replace')
+      file_DIVLOG='DIVLOG_' // TRIM(file1)
+      OPEN(unit=15,file=TRIM(file_DIVLOG), status='replace')
       WRITE(14,'(A)')
      + '# step N fret_per_particle P dt phi total_growthrate'
      + // ' before_jamming at_jamming above_jamming'
+      WRITE(15,'(A)')
+     + '# step phi parent_cell_id new_cell_id'
+     + // ' parent_index new_index'
       
       ! initial size & aspect ratios - total vol = (1+rat)*alpha0
       d(1)=1d0
@@ -150,7 +166,10 @@
          y(i)=Ly/2 + (dble(i)-1.5d0)*d(i)*D1
          th(i)=(ran2(seed)-0.5d0)*2d0*pi
          rate(i)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0
+         cell_id(i)=i
+         parent_id(i)=0
       ENDDO
+      next_cell_id = N
       
       dt = 1.0
       reject_time_step = 0
@@ -159,12 +178,15 @@
       k=0
       DO WHILE (terminate_sim.NE.1)
           k=k+1
+          event_count = 0
           CALL copy_everything(
      +     x,y,th,D,alpha,rate,
      +     scale, P, PP, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, N_copy,
-     +     PPm,PPm_copy)
+     +     PPm,PPm_copy,
+     +     cell_id,parent_id,cell_id_copy,parent_id_copy,
+     +     next_cell_id,next_cell_id_copy)
     
           ! GROW PARTICLES
           DO i=1,N
@@ -191,12 +213,20 @@
                   y(N)=y(i)+dispcm*dsin(th(i))
                   rate(N)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0 
                   alpha(N)=alpha0
+                  next_cell_id = next_cell_id + 1
+                  cell_id(N)=next_cell_id
+                  parent_id(N)=cell_id(i)
                   
                   ! divide into 2 - 1st assigned index i
                   x(i)=x(i)-dispcm*dcos(th(i))
                   y(i)=y(i)-dispcm*dsin(th(i))
                   rate(i)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0 
                   alpha(i)=alpha0
+                  event_count = event_count + 1
+                  event_parent_id(event_count)=cell_id(i)
+                  event_new_id(event_count)=cell_id(N)
+                  event_parent_index(event_count)=i
+                  event_new_index(event_count)=N
 
                ELSE
                    div=0
@@ -248,7 +278,9 @@
      +     scale, P, PP, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, N_copy,
-     +     PPm,PPm_copy)       
+     +     PPm,PPm_copy,
+     +     cell_id,parent_id,cell_id_copy,parent_id_copy,
+     +     next_cell_id,next_cell_id_copy)       
          ENDIF
          
          ! convert back to angles
@@ -258,6 +290,14 @@
 
          phi = calc_phi(D, alpha, D1, N)
          CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)
+         IF(reject_time_step.EQ.0) THEN
+            DO i=1,event_count
+               WRITE(15,'(I12,E26.18,4I12)')k,phi,
+     +              event_parent_id(i),event_new_id(i),
+     +              event_parent_index(i),event_new_index(i)
+            ENDDO
+            FLUSH(15)
+         ENDIF
          WRITE(*,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
      +        total_growthrate,before_jamming,at_jamming,above_jamming
          WRITE(14,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
@@ -326,6 +366,8 @@
             CLOSE(11)
             FLUSH(21)
             CLOSE(21)
+            CALL save_lineage_state(file_LINEAGE_JAMM,
+     +         N,x,y,th,D,D1,alpha,PP,cell_id,parent_id)
       
             CLOSE(13)
             OPEN(unit=13,file=TRIM(file_NC), status='replace')
@@ -378,6 +420,8 @@
       FLUSH(1)
       FLUSH(12)
       FLUSH(22)
+      CALL save_lineage_state(file_LINEAGE_DPHI,
+     +     N,x,y,th,D,D1,alpha,PP,cell_id,parent_id)
 
       CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
       CALL out_numbers(N, Nf, Nu, Ziso)
@@ -390,6 +434,7 @@
       CLOSE(12)
       CLOSE(13)
       CLOSE(14)
+      CLOSE(15)
       CLOSE(22)
       END
 
@@ -808,7 +853,9 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
      +     scale, P, PP, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, N_copy,
-     +     PPm,PPm_copy)
+     +     PPm,PPm_copy,
+     +     cell_id,parent_id,cell_id_copy,parent_id_copy,
+     +     next_cell_id,next_cell_id_copy)
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
@@ -821,9 +868,13 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       DOUBLE PRECISION scale_copy(Ntot)
       DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
       INTEGER N, N_copy, i
+      INTEGER cell_id(Ntot), parent_id(Ntot)
+      INTEGER cell_id_copy(Ntot), parent_id_copy(Ntot)
+      INTEGER next_cell_id, next_cell_id_copy
 
       P_copy = P
       N_copy = N
+      next_cell_id_copy = next_cell_id
 
       DO i=1,Ntot
           x_copy(i) = x(i)
@@ -835,6 +886,8 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
           scale_copy(i) = scale(i)
           PP_copy(i) = PP(i)
           PPm_copy(i) = PPm(i)
+          cell_id_copy(i) = cell_id(i)
+          parent_id_copy(i) = parent_id(i)
       ENDDO
 
       END
@@ -844,7 +897,9 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
      +     scale, P, PP, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, N_copy,
-     +     PPm, PPm_copy)
+     +     PPm, PPm_copy,
+     +     cell_id,parent_id,cell_id_copy,parent_id_copy,
+     +     next_cell_id,next_cell_id_copy)
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
@@ -857,9 +912,13 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
       DOUBLE PRECISION dd
       INTEGER N,N_copy,i
+      INTEGER cell_id(Ntot), parent_id(Ntot)
+      INTEGER cell_id_copy(Ntot), parent_id_copy(Ntot)
+      INTEGER next_cell_id, next_cell_id_copy
 
       P = P_copy
       N = N_copy
+      next_cell_id = next_cell_id_copy
       DO i=1,Ntot
           x(i) = x_copy(i)
           y(i) = y_copy(i)
@@ -870,6 +929,8 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
           scale(i) = scale_copy(i)
           PP(i) = PP_copy(i)
           PPm(i) = PPm_copy(i)
+          cell_id(i) = cell_id_copy(i)
+          parent_id(i) = parent_id_copy(i)
       ENDDO
       
 
@@ -886,6 +947,108 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE save_lineage_state(file_name,
+     +     N,x,y,th,D,D1,alpha,PP,cell_id,parent_id)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      CHARACTER*(*) file_name
+      INTEGER N, i
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), D(Ntot), D1
+      DOUBLE PRECISION alpha(Ntot), PP(Ntot)
+      DOUBLE PRECISION bud_diameter
+      INTEGER cell_id(Ntot), parent_id(Ntot)
+      INTEGER bud_contacts(Ntot), bud_unconstrained(Ntot)
+      INTEGER bud_compressed(Ntot)
+
+      CALL lineage_contacts(
+     +     x,y,th,D1,D,alpha,N,bud_contacts,bud_unconstrained)
+
+      OPEN(unit=16,file=TRIM(file_name), status='replace')
+      WRITE(16,'(A)')
+     + '# index cell_id parent_id alpha bud_diameter'
+     + // ' bud_contacts bud_unconstrained bud_compressed'
+      DO i=1,N
+         bud_diameter = (alpha(i)-1d0)*D(i)
+         bud_compressed(i) = 0
+         IF(PP(i).GT.0d0) THEN
+            bud_compressed(i) = 1
+         ENDIF
+         WRITE(16,'(3I12,2E26.18,3I12)')i,cell_id(i),parent_id(i),
+     +        alpha(i),bud_diameter,bud_contacts(i),
+     +        bud_unconstrained(i),bud_compressed(i)
+      ENDDO
+      FLUSH(16)
+      CLOSE(16)
+
+      END
+
+      SUBROUTINE lineage_contacts(
+     +     x,y,th,D1,D,alpha,N,bud_contacts,bud_unconstrained)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i, j, ki, kj, flag
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
+      DOUBLE PRECISION xij, yij, D(Ntot), D1
+      DOUBLE PRECISION dij
+      DOUBLE PRECISION Lx,Ly,rijsq
+      DOUBLE PRECISION c(Ntot),s(Ntot),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dr(Ntot,2),dk(Ntot,2),di_up(Ntot)
+      INTEGER nc_bud(Ntot,2), bud_contacts(Ntot)
+      INTEGER bud_unconstrained(Ntot)
+      COMMON /f5com/ Lx,Ly
+
+      DO i=1,N
+         c(i)=dcos( th(i) )
+         s(i)=dsin( th(i) )
+      ENDDO
+      CALL mol_to_atoms(N,x,y,c,s,D,D1,alpha,dr,xa,ya,dk,di_up)
+
+      DO i=1,N
+         nc_bud(i,1)=0
+         nc_bud(i,2)=0
+         bud_contacts(i)=0
+         bud_unconstrained(i)=0
+      ENDDO
+
+      DO i=1,N-1
+         DO j=i+1, N
+            DO ki=1,2
+               DO kj=1,2
+                  dij=(dk(i,ki)+dk(j,kj))/2d0
+                  xij=xa(i,ki)-xa(j,kj)
+                  xij=xij-idnint(xij/Lx)*Lx
+                  yij=ya(i,ki)-ya(j,kj)
+                  yij=yij-idnint(yij/Ly)*Ly
+                  rijsq=xij**2+yij**2
+                  IF(rijsq.LT.(dij**2)) THEN
+                     nc_bud(i,ki)=nc_bud(i,ki)+1
+                     nc_bud(j,kj)=nc_bud(j,kj)+1
+                  ENDIF
+               ENDDO
+            ENDDO
+         ENDDO
+      ENDDO
+
+      DO i=1,N
+         bud_contacts(i)=nc_bud(i,2)
+         flag = 0
+         IF( (nc_bud(i,1)+nc_bud(i,2)).LT.3 ) THEN
+            flag = 1
+         ENDIF
+         IF( (nc_bud(i,1)+nc_bud(i,2)).EQ.3 ) THEN
+            IF( nc_bud(i,1).EQ.2 .OR. nc_bud(i,2).EQ.2 ) THEN
+               flag = 1
+            ENDIF
+         ENDIF
+         IF(flag.EQ.0 .AND. nc_bud(i,2).EQ.0) THEN
+            bud_unconstrained(i)=1
+         ENDIF
+      ENDDO
+
+      END
+
       SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,Nf,Nu,Nmm,Nbb,Nmb)
       IMPLICIT NONE
       INTEGER Ntot, N 

@@ -18,6 +18,8 @@ dphi="1e-3"
 seed="1234"
 version="1.0"
 results_root="${ROOT_DIR}/output/debug"
+growth_dir=""
+log_dir=""
 force=0
 
 compress_if_present() {
@@ -35,6 +37,8 @@ Runs one growth/jamming job.
 
 Options:
   --results-root PATH   Root directory for saved outputs.
+  --growth-dir PATH     Growth output directory. Overrides --results-root.
+  --log-dir PATH        Stdout log directory. Overrides --results-root.
   --p0 VALUE            Feedback strength. Default: 1e-3
   --lx VALUE            Square box size. Default: 8
   --dphi VALUE          Overcompression, e.g. 1e-3.
@@ -54,6 +58,8 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --results-root) results_root="$2"; shift 2 ;;
+        --growth-dir) growth_dir="$2"; shift 2 ;;
+        --log-dir) log_dir="$2"; shift 2 ;;
         --p0) P0="$2"; shift 2 ;;
         --lx) Lx="$2"; shift 2 ;;
         --dphi) dphi="$2"; shift 2 ;;
@@ -84,8 +90,18 @@ if [[ "${results_root}" != /* ]]; then
     results_root="${PWD}/${results_root}"
 fi
 
-growth_dir="${results_root}/growth"
-log_dir="${results_root}/logs/growth"
+if [[ -z "${growth_dir}" ]]; then
+    growth_dir="${results_root}/growth"
+elif [[ "${growth_dir}" != /* ]]; then
+    growth_dir="${PWD}/${growth_dir}"
+fi
+
+if [[ -z "${log_dir}" ]]; then
+    log_dir="${results_root}/logs/growth"
+elif [[ "${log_dir}" != /* ]]; then
+    log_dir="${PWD}/${log_dir}"
+fi
+
 mkdir -p "${growth_dir}" "${log_dir}"
 
 Ly="${Lx}"

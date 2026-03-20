@@ -108,6 +108,19 @@ Force reruns even when outputs already exist:
 python3 scripts/run_growth_shear.py --force
 ```
 
+Run the compact lineage-growth stage after building:
+
+```bash
+make
+python3 scripts/run_lineage_growth.py --sizes 8,15 --p0s 1e-3,1e-4 --dphis 1e-3,1e-2 --seeds 1201,1202
+```
+
+Choose concurrency or force reruns:
+
+```bash
+python3 scripts/run_lineage_growth.py --sizes 8 --p0s 1e-3 --dphis 1e-3 --seeds 1201 --n-cpus 4 --force
+```
+
 ## Repo Layout
 
 - `src/`: Fortran simulation codes
