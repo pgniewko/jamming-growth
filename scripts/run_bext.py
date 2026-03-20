@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
@@ -54,14 +55,13 @@ def probe_tag(value):
     return f"{value:.4E}"
 
 
+def log(message):
+    print(f"[run_bext] {message}", flush=True)
+
+
 def iter_growth_packings():
-    seen = set()
-    for path in sorted(GROWTH_DIR.glob("LF_DPHI_*.dat")):
-        seen.add(path.name)
-        yield path
     for path in sorted(GROWTH_DIR.glob("LF_DPHI_*.dat.gz")):
-        plain_name = path.name[:-3]
-        if plain_name not in seen:
+        if path.stat().st_size > 0:
             yield path
 
 
@@ -107,6 +107,45 @@ def parse_data_line(line):
         int(parts[index])
 
 
+def open_text(path):
+    if path.suffix == ".gz":
+        return gzip.open(path, "rt", encoding="utf-8")
+    return path.open("r", encoding="utf-8")
+
+
+def parse_packing(path):
+    with open_text(path) as handle:
+        header = handle.readline().split()
+        if len(header) != 2:
+            raise ValueError("missing or invalid packing header")
+        count = int(header[0])
+        float(header[1])
+        rows = 0
+        for line in handle:
+            if not line.strip():
+                continue
+            fields = line.split()
+            if len(fields) != 5:
+                raise ValueError(f"expected 5 columns per particle row, found {len(fields)}")
+            for field in fields:
+                float(field)
+            rows += 1
+    if rows != count:
+        raise ValueError(f"header count {count} does not match {rows} particle rows")
+
+
+def validate_packing(path):
+    if not path.is_file():
+        return f"missing file: {path.name}"
+    if path.stat().st_size == 0:
+        return f"empty file: {path.name}"
+    try:
+        parse_packing(path)
+    except (OSError, ValueError) as exc:
+        return f"invalid packing {path.name}: {exc}"
+    return None
+
+
 def bext_done(path):
     if not path.is_file() or path.stat().st_size == 0:
         return False
@@ -144,6 +183,13 @@ def clean_finished_job(paths, keep_all_output):
     remove_if_exists(paths["frame"])
 
 
+def clean_failed_job(paths):
+    remove_if_exists(paths["input_local"])
+    remove_if_exists(paths["input_local_gz"])
+    remove_if_exists(paths["data"])
+    remove_if_exists(paths["frame"])
+
+
 def stage_input(source, destination):
     if source.suffix == ".gz":
         with gzip.open(source, "rb") as src, destination.open("wb") as dst:
@@ -152,39 +198,58 @@ def stage_input(source, destination):
         shutil.copyfile(source, destination)
 
 
+def report_invalid_sources(invalid_sources):
+    if not invalid_sources:
+        return
+    print(
+        f"Skipping {len(invalid_sources)} invalid growth packing(s):",
+        file=sys.stderr,
+    )
+    preview = invalid_sources[:10]
+    for source, reason in preview:
+        print(f"  - {source.name}: {reason}", file=sys.stderr)
+    remaining = len(invalid_sources) - len(preview)
+    if remaining > 0:
+        print(f"  ... and {remaining} more", file=sys.stderr)
+
+
 def run_job(source, meta, dphi_probe, force, keep_all_output):
     paths = build_paths(meta, dphi_probe)
     if force:
         clean_job(paths)
     elif bext_done(paths["data"]):
-        return paths["data"].name
+        return ("skipped", paths["data"].name)
 
     clean_job(paths)
     stage_input(source, paths["input_local"])
 
-    with paths["log"].open("wb") as log_handle:
-        subprocess.run(
-            [str(EXE)],
-            cwd=BEXT_DIR,
-            check=True,
-            input="\n".join(
-                [
-                    meta["lx"],
-                    meta["ly"],
-                    meta["att"],
-                    meta["input_name"],
-                    f"{dphi_probe:.16g}",
-                    "",
-                ]
-            ).encode(),
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-        )
+    try:
+        with paths["log"].open("wb") as log_handle:
+            subprocess.run(
+                [str(EXE)],
+                cwd=BEXT_DIR,
+                check=True,
+                input="\n".join(
+                    [
+                        meta["lx"],
+                        meta["ly"],
+                        meta["att"],
+                        meta["input_name"],
+                        f"{dphi_probe:.16g}",
+                        "",
+                    ]
+                ).encode(),
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+            )
 
-    if not bext_done(paths["data"]):
-        raise RuntimeError(f"Invalid B_ext output: {paths['data']}")
+        if not bext_done(paths["data"]):
+            raise RuntimeError(f"Invalid B_ext output: {paths['data']}")
+    except Exception:
+        clean_failed_job(paths)
+        raise
     clean_finished_job(paths, keep_all_output)
-    return paths["data"].name
+    return ("completed", paths["data"].name)
 
 
 def main():
@@ -202,14 +267,40 @@ def main():
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     jobs = []
+    invalid_sources = []
+    skipped_existing = 0
     for source in iter_growth_packings():
         meta = parse_growth_metadata(source)
         if meta is not None:
-            jobs.append((source, meta))
+            reason = validate_packing(source)
+            if reason is None:
+                if not args.force and bext_done(build_paths(meta, args.dphi_probe)["data"]):
+                    skipped_existing += 1
+                else:
+                    jobs.append((source, meta))
+            else:
+                invalid_sources.append((source, reason))
+    report_invalid_sources(invalid_sources)
+    log(
+        "Discovered "
+        f"{len(jobs) + skipped_existing} completed growth packings, "
+        f"{skipped_existing} with existing valid B_ext results, "
+        f"{len(jobs)} queued to run."
+    )
+    if invalid_sources:
+        log(f"Ignored {len(invalid_sources)} invalid completed-growth candidate(s).")
     if not jobs:
-        raise SystemExit(f"No valid LF_DPHI growth packings found under {GROWTH_DIR}")
+        if invalid_sources:
+            raise SystemExit(
+                f"No valid LF_DPHI growth packings found under {GROWTH_DIR}; "
+                "all discovered candidates were empty or invalid."
+            )
+        log("Nothing to do.")
+        return
 
     futures = {}
+    completed = 0
+    total = len(jobs)
     with ThreadPoolExecutor(max_workers=args.n_cpus) as executor:
         for source, meta in jobs:
             future = executor.submit(
@@ -226,11 +317,18 @@ def main():
             for future in done:
                 name = futures.pop(future)
                 try:
-                    future.result()
+                    status, _ = future.result()
+                    if status == "completed":
+                        completed += 1
+                        log(f"Completed {completed}/{total}: {name}")
                 except Exception as exc:
                     for pending in futures:
                         pending.cancel()
                     raise SystemExit(f"Failed B_ext job: {name}\n{exc}") from exc
+    log(
+        f"Finished B_ext pass. Completed {completed} new job(s), "
+        f"reused {skipped_existing} existing result(s)."
+    )
 
 
 if __name__ == "__main__":
