@@ -42,6 +42,11 @@ def parse_args():
         default=1e-6,
         help="Fixed probe compression used for all B_ext jobs. Default: 1e-6",
     )
+    parser.add_argument(
+        "--keep-all-output",
+        action="store_true",
+        help="Keep staged input packings and compressed LF_BEXT frames after successful jobs.",
+    )
     return parser.parse_args()
 
 
@@ -131,6 +136,14 @@ def clean_job(paths):
         remove_if_exists(path)
 
 
+def clean_finished_job(paths, keep_all_output):
+    if keep_all_output:
+        return
+    remove_if_exists(paths["input_local"])
+    remove_if_exists(paths["input_local_gz"])
+    remove_if_exists(paths["frame"])
+
+
 def stage_input(source, destination):
     if source.suffix == ".gz":
         with gzip.open(source, "rb") as src, destination.open("wb") as dst:
@@ -139,7 +152,7 @@ def stage_input(source, destination):
         shutil.copyfile(source, destination)
 
 
-def run_job(source, meta, dphi_probe, force):
+def run_job(source, meta, dphi_probe, force, keep_all_output):
     paths = build_paths(meta, dphi_probe)
     if force:
         clean_job(paths)
@@ -170,6 +183,7 @@ def run_job(source, meta, dphi_probe, force):
 
     if not bext_done(paths["data"]):
         raise RuntimeError(f"Invalid B_ext output: {paths['data']}")
+    clean_finished_job(paths, keep_all_output)
     return paths["data"].name
 
 
@@ -198,7 +212,14 @@ def main():
     futures = {}
     with ThreadPoolExecutor(max_workers=args.n_cpus) as executor:
         for source, meta in jobs:
-            future = executor.submit(run_job, source, meta, args.dphi_probe, args.force)
+            future = executor.submit(
+                run_job,
+                source,
+                meta,
+                args.dphi_probe,
+                args.force,
+                args.keep_all_output,
+            )
             futures[future] = meta["input_name"]
         while futures:
             done, _ = wait(futures, return_when=FIRST_COMPLETED)

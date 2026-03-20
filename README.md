@@ -108,13 +108,13 @@ Force reruns even when outputs already exist:
 python3 scripts/run_growth_shear.py --force
 ```
 
-## Numerical experiments
-
-Build the B_ext executable:
+Keep shear trajectory files after successful jobs:
 
 ```bash
-make box_compress_bext
+python3 scripts/run_growth_shear.py --keep-all-output
 ```
+
+## Standalone B_ext pass
 
 Run the B_ext pass over existing growth packings:
 
@@ -122,22 +122,11 @@ Run the B_ext pass over existing growth packings:
 python3 scripts/run_bext.py
 ```
 
-Choose the number of concurrent B_ext jobs:
+Use the help output to inspect all available options, including concurrency,
+reruns, probe size, and output retention:
 
 ```bash
-python3 scripts/run_bext.py --n-cpus 8
-```
-
-Force B_ext reruns even when valid raw outputs already exist:
-
-```bash
-python3 scripts/run_bext.py --force
-```
-
-Override the fixed B_ext probe compression:
-
-```bash
-python3 scripts/run_bext.py --dphi-probe 1e-5
+python3 scripts/run_bext.py --help
 ```
 
 ## Repo Layout

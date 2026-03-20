@@ -44,6 +44,11 @@ def parse_args():
         action="store_true",
         help="Rerun completed jobs.",
     )
+    parser.add_argument(
+        "--keep-all-output",
+        action="store_true",
+        help="Keep shear trajectory files after successful jobs.",
+    )
     return parser.parse_args()
 
 
@@ -104,6 +109,13 @@ def clean_shear(paths):
         paths["shear_log"],
     ):
         remove_if_exists(path)
+
+
+def clean_finished_shear(paths, keep_all_output):
+    if keep_all_output:
+        return
+    remove_if_exists(paths["shear_traj"])
+    remove_if_exists(paths["shear_traj_gz"])
 
 
 def build_paths(name):
@@ -171,7 +183,7 @@ def run_growth(params, force):
     return name, paths
 
 
-def run_shear(params, paths, force):
+def run_shear(params, paths, force, keep_all_output):
     if force:
         clean_shear(paths)
     if not shear_done(paths):
@@ -192,11 +204,12 @@ def run_shear(params, paths, force):
                 "--shear-steps", FIXED["shear_steps"],
             ],
         )
+    clean_finished_shear(paths, keep_all_output)
 
 
-def run_job(params, force):
+def run_job(params, force, keep_all_output):
     name, paths = run_growth(params, force)
-    run_shear(params, paths, force)
+    run_shear(params, paths, force, keep_all_output)
     return name
 
 
@@ -211,7 +224,7 @@ def main():
     futures = {}
     with ThreadPoolExecutor(max_workers=args.n_cpus) as executor:
         for params in jobs:
-            future = executor.submit(run_job, params, args.force)
+            future = executor.submit(run_job, params, args.force, args.keep_all_output)
             futures[future] = params
         while futures:
             done, _ = wait(futures, return_when=FIRST_COMPLETED)
