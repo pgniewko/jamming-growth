@@ -75,16 +75,18 @@ def parse_args():
     return parser.parse_args()
 
 
-def job_params():
-    #for seed in SEEDS:
+def all_job_params():
     for size in SIZES:
         for p0 in P0S:
             for dphi in DPHIS:
-                if not dphi_allowed(p0, dphi):
-                    continue
-                #for size in SIZES:
                 for seed in SEEDS:
                     yield {"lx": size, "p0": p0, "dphi": dphi, "seed": seed}
+
+
+def job_params():
+    for params in all_job_params():
+        if dphi_allowed(params["p0"], params["dphi"]):
+            yield params
 
 
 def basename(params):

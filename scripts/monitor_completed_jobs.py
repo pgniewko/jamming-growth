@@ -3,7 +3,15 @@
 from collections import Counter
 from datetime import datetime
 
-from run_growth_shear import basename, build_paths, growth_done, job_params, shear_done
+from run_growth_shear import (
+    all_job_params,
+    basename,
+    build_paths,
+    dphi_allowed,
+    growth_done,
+    job_params,
+    shear_done,
+)
 
 
 DIMENSIONS = (
@@ -39,7 +47,16 @@ def render_table(headers, rows):
     return "\n".join(lines)
 
 
+def pair_is_allowed(left, right, left_value, right_value):
+    if left == "p0" and right == "dphi":
+        return dphi_allowed(left_value, right_value)
+    if left == "dphi" and right == "p0":
+        return dphi_allowed(right_value, left_value)
+    return True
+
+
 def collect_status():
+    all_jobs = list(all_job_params())
     jobs = list(job_params())
     expected_single = {key: Counter() for key, _label in DIMENSIONS}
     completed_single = {key: Counter() for key, _label in DIMENSIONS}
@@ -62,6 +79,7 @@ def collect_status():
                 completed_pair[(left, right)][(params[left], params[right])] += 1
 
     return {
+        "all_jobs": all_jobs,
         "jobs": jobs,
         "completed_jobs": completed_jobs,
         "expected_single": expected_single,
@@ -95,6 +113,9 @@ def render_pairwise_table(left, right, label, status):
         row_completed = 0
         row_expected = 0
         for right_value in right_values:
+            if not pair_is_allowed(left, right, left_value, right_value):
+                row.append("n/a")
+                continue
             expected = status["expected_pair"][(left, right)][(left_value, right_value)]
             completed = status["completed_pair"][(left, right)][(left_value, right_value)]
             row.append(f"{completed}/{expected}")
@@ -110,10 +131,12 @@ def render_pairwise_table(left, right, label, status):
         column_completed = sum(
             status["completed_pair"][(left, right)][(left_value, right_value)]
             for left_value in left_values
+            if pair_is_allowed(left, right, left_value, right_value)
         )
         column_expected = sum(
             status["expected_pair"][(left, right)][(left_value, right_value)]
             for left_value in left_values
+            if pair_is_allowed(left, right, left_value, right_value)
         )
         total_row.append(f"{column_completed}/{column_expected}")
         total_completed += column_completed
@@ -133,15 +156,24 @@ def _sort_key(value):
 
 def render_report(status):
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    total_grid_jobs = len(status["all_jobs"])
     total_jobs = len(status["jobs"])
     completed_jobs = status["completed_jobs"]
+    total_grid_points = len(
+        {(params["lx"], params["p0"], params["dphi"]) for params in status["all_jobs"]}
+    )
+    active_grid_points = len(
+        {(params["lx"], params["p0"], params["dphi"]) for params in status["jobs"]}
+    )
 
     sections = [
         f"Completed job monitor snapshot\nTimestamp: {timestamp}",
         (
             "Summary\n"
             f"Completed growth+shear jobs: {completed_jobs}/{total_jobs} "
-            f"({format_percent(completed_jobs, total_jobs).strip()})"
+            f"({format_percent(completed_jobs, total_jobs).strip()})\n"
+            f"Scheduled jobs after dphi filter: {total_jobs}/{total_grid_jobs}\n"
+            f"Active grid points (L, P0, dphi): {active_grid_points}/{total_grid_points}"
         ),
         render_single_dimension_tables(status),
     ]
