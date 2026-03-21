@@ -2,7 +2,6 @@
 
 import argparse
 import gzip
-import math
 import os
 import re
 from pathlib import Path
@@ -21,15 +20,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
-from run_growth_shear import DPHIS as SWEEP_DPHIS, P0S as SWEEP_P0S, SIZES as SWEEP_SIZES
+from run_bext import bext_done, build_paths as build_bext_paths
+from run_growth_shear import (
+    DPHIS as SWEEP_DPHIS,
+    P0S as SWEEP_P0S,
+    SIZES as SWEEP_SIZES,
+    build_paths as build_growth_shear_paths,
+    growth_done,
+    shear_done,
+)
 
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "output" / "plots"
-SWEEP_SIZE_VALUES = [int(value) for value in SWEEP_SIZES]
-SWEEP_P0_VALUES = [float(value) for value in SWEEP_P0S]
-SWEEP_DPHI_VALUES = [float(value) for value in SWEEP_DPHIS]
-DEFAULT_MAIN_L = SWEEP_SIZE_VALUES[0]
-DEFAULT_MAIN_P0S = list(SWEEP_P0_VALUES)
-DEFAULT_HIST_P0S = [value for value in DEFAULT_MAIN_P0S if value > 0.0]
+DEFAULT_MAIN_L = int(SWEEP_SIZES[0])
+DEFAULT_MAIN_P0S = [float(value) for value in SWEEP_P0S]
+DEFAULT_HIST_DPHI = 2e-2
 SHEAR_FIT_MAX_STRAIN = 5e-5
 COMPRESSED_PRESSURE_TOL = 1e-12
 MIN_RATIO_DELTA_Z = 0.05
@@ -66,24 +70,19 @@ STEPLOG_FILENAME_RE = re.compile(
     r"_dphi(?P<dphi>[^_]+)_P(?P<p0>.+)\.dat$"
 )
 
-def nearest_log_value(target, values):
-    return min(values, key=lambda value: abs(math.log10(value) - math.log10(target)))
-
-
 def build_p0_colors(values):
     colors = {}
-    ordered_values = sorted(set(values), reverse=True)
-    positive = [value for value in ordered_values if value > 0.0]
-    if -1.0 in ordered_values:
+    ordered = sorted(set(values), reverse=True)
+    positive = [value for value in ordered if value > 0.0]
+    if -1.0 in ordered:
         colors[-1.0] = "#4c566a"
     if positive:
         cmap = matplotlib.colormaps["viridis"]
-        for value, position in zip(positive, np.linspace(0.18, 0.9, len(positive))):
+        for value, position in zip(positive, np.linspace(0.18, 0.90, len(positive))):
             colors[value] = cmap(position)
     return colors
 
 
-DEFAULT_HIST_DPHI = nearest_log_value(2e-2, SWEEP_DPHI_VALUES)
 P0_COLORS = build_p0_colors(DEFAULT_MAIN_P0S)
 
 
@@ -107,7 +106,7 @@ def parse_args():
         "--hist-dphi",
         type=float,
         default=DEFAULT_HIST_DPHI,
-        help=f"dphi slice used for growth-rate histograms. Default: {DEFAULT_HIST_DPHI:.3g}",
+        help=f"dphi slice used for growth-rate histograms. Default: {DEFAULT_HIST_DPHI}",
     )
     parser.add_argument(
         "--formats",
@@ -134,6 +133,66 @@ def p0_label(value):
     if np.isclose(value, -1.0):
         return "No feedback"
     return f"$P_0 = {value:.0e}$"
+
+
+def record_rejection(rejections, dataset, source, reason):
+    rejections.append(
+        {
+            "dataset": dataset,
+            "source_file": source,
+            "reason": str(reason),
+        }
+    )
+
+
+def save_rejections(rejections, output_dir):
+    save_dataframe(pd.DataFrame(rejections, columns=["dataset", "source_file", "reason"]), output_dir / "rejected_inputs.csv")
+
+
+def finished_growth_names(rejections):
+    names = set()
+    bad_files = []
+    for path in sorted((REPO_ROOT / "output" / "growth").glob("NC_*.dat")):
+        name = path.name.removeprefix("NC_")
+        if growth_done(build_growth_shear_paths(name)):
+            names.add(name)
+        else:
+            bad_files.append(path.name)
+            record_rejection(rejections, "growth_job", path.name, "growth job did not pass completion validation")
+    return names, bad_files
+
+
+def finished_shear_names(rejections):
+    names = set()
+    for path in sorted((REPO_ROOT / "output" / "shear").glob("G_data_*.dat")):
+        name = path.name.removeprefix("G_data_LF_DPHI_")
+        if shear_done(build_growth_shear_paths(name)):
+            names.add(name)
+        else:
+            record_rejection(rejections, "shear_job", path.name, "shear job did not pass completion validation")
+    return names
+
+
+def finished_bext_files(rejections):
+    files = set()
+    for path in sorted((REPO_ROOT / "output" / "bext").glob("B_ext_data_dphiprobe*.dat")):
+        match = BEXT_FILENAME_RE.match(path.name)
+        if match is None:
+            continue
+        probe_tag = match.group("probe_tag")
+        input_name = path.name.removeprefix(f"B_ext_data_dphiprobe{probe_tag}_")
+        meta = {
+            "input_name": input_name,
+            "base_name": input_name.removeprefix("LF_DPHI_"),
+            "lx": match.group("L"),
+            "ly": match.group("Ly"),
+            "att": match.group("att"),
+        }
+        if bext_done(build_bext_paths(meta, float(probe_tag))):
+            files.add(path.name)
+        else:
+            record_rejection(rejections, "bext_job", path.name, "B_ext job did not pass completion validation")
+    return files
 
 
 def save_dataframe(frame, path):
@@ -169,44 +228,41 @@ def add_contact_observables(frame):
     return frame
 
 
-def load_growth_endpoints():
+def load_growth_endpoints(valid_names):
     rows = []
-    bad_files = []
     for path in sorted((REPO_ROOT / "output" / "growth").glob("NC_*.dat")):
+        if path.name.removeprefix("NC_") not in valid_names:
+            continue
         match = NC_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        try:
-            fields = path.read_text(encoding="utf-8").split()
-            if len(fields) != 26:
-                raise ValueError("unexpected NC value count")
-            values = list(map(float, fields))
-            for stage, offset in (("jamm", 0), ("final", 13)):
-                N, Ziso_total, Nc, Nf, Nu, Nmm, Nbb, Nmb = map(int, values[offset : offset + 8])
-                phi, pressure, fret, p0_file, total_growthrate = values[offset + 8 : offset + 13]
-                rows.append(
-                    {
-                        **match.groupdict(),
-                        "stage": stage,
-                        "N": N,
-                        "Ziso_total": Ziso_total,
-                        "Nc": Nc,
-                        "Nf": Nf,
-                        "Nu": Nu,
-                        "Nmm": Nmm,
-                        "Nbb": Nbb,
-                        "Nmb": Nmb,
-                        "phi": phi,
-                        "P": pressure,
-                        "fret": fret,
-                        "p0_file": p0_file,
-                        "total_growthrate": total_growthrate,
-                        "source_file": path.name,
-                    }
-                )
-        except (OSError, ValueError):
-            bad_files.append(path.name)
-            continue
+        fields = path.read_text(encoding="utf-8").split()
+        if len(fields) != 26:
+            raise ValueError(f"validated NC file is malformed: {path.name}")
+        values = list(map(float, fields))
+        for stage, offset in (("jamm", 0), ("final", 13)):
+            N, Ziso_total, Nc, Nf, Nu, Nmm, Nbb, Nmb = map(int, values[offset : offset + 8])
+            phi, pressure, fret, p0_file, total_growthrate = values[offset + 8 : offset + 13]
+            rows.append(
+                {
+                    **match.groupdict(),
+                    "stage": stage,
+                    "N": N,
+                    "Ziso_total": Ziso_total,
+                    "Nc": Nc,
+                    "Nf": Nf,
+                    "Nu": Nu,
+                    "Nmm": Nmm,
+                    "Nbb": Nbb,
+                    "Nmb": Nmb,
+                    "phi": phi,
+                    "P": pressure,
+                    "fret": fret,
+                    "p0_file": p0_file,
+                    "total_growthrate": total_growthrate,
+                    "source_file": path.name,
+                }
+            )
     if not rows:
         raise SystemExit("No complete NC endpoint files found under output/growth")
     frame = pd.DataFrame(rows)
@@ -214,39 +270,38 @@ def load_growth_endpoints():
     for column in ("phi", "P", "fret", "p0_file", "total_growthrate"):
         frame[column] = frame[column].astype(float)
     frame = add_contact_observables(frame)
-    return frame, bad_files
+    return frame
 
 
-def load_bext_endpoints():
+def load_bext_endpoints(valid_files):
     rows = []
     for path in sorted((REPO_ROOT / "output" / "bext").glob("B_ext_data_dphiprobe*.dat")):
+        if path.name not in valid_files:
+            continue
         match = BEXT_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        try:
-            lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-            if len(lines) != 2:
-                raise ValueError("unexpected B_ext line count")
-            values = lines[1].split()
-            if len(values) != 20:
-                raise ValueError("unexpected B_ext column count")
-            rows.append(
-                {
-                    **match.groupdict(),
-                    "phi0": float(values[0]),
-                    "P_measured": float(values[1]),
-                    "phi1": float(values[2]),
-                    "B_ext": float(values[5]),
-                    "N": int(values[10]),
-                    "Nc": int(values[11]),
-                    "Nf": int(values[12]),
-                    "Nu": int(values[13]),
-                    "Ziso_total": int(values[14]),
-                    "source_file": path.name,
-                }
-            )
-        except (OSError, ValueError):
-            continue
+        lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        if len(lines) != 2:
+            raise ValueError(f"validated B_ext file is malformed: {path.name}")
+        values = lines[1].split()
+        if len(values) != 20:
+            raise ValueError(f"validated B_ext file has wrong column count: {path.name}")
+        rows.append(
+            {
+                **match.groupdict(),
+                "phi0": float(values[0]),
+                "P_measured": float(values[1]),
+                "phi1": float(values[2]),
+                "B_ext": float(values[5]),
+                "N": int(values[10]),
+                "Nc": int(values[11]),
+                "Nf": int(values[12]),
+                "Nu": int(values[13]),
+                "Ziso_total": int(values[14]),
+                "source_file": path.name,
+            }
+        )
     if not rows:
         raise SystemExit("No B_ext rows found under output/bext")
     frame = pd.DataFrame(rows)
@@ -268,33 +323,26 @@ def estimate_shear_modulus(data):
     return float(np.polyfit(fit_window[:, 0], fit_window[:, 2], 1)[0])
 
 
-def load_shear_endpoints():
+def load_shear_endpoints(valid_names):
     rows = []
     for path in sorted((REPO_ROOT / "output" / "shear").glob("G_data_*.dat")):
+        if path.name.removeprefix("G_data_LF_DPHI_") not in valid_names:
+            continue
         match = G_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        try:
-            data = np.loadtxt(path, comments="#")
-        except (OSError, ValueError):
-            continue
+        data = np.loadtxt(path, comments="#")
         if data.size == 0:
-            continue
+            raise ValueError(f"validated shear file is empty: {path.name}")
         if data.ndim == 1:
             data = data[None, :]
         if data.ndim != 2 or data.shape[1] != 12 or len(data) < 2 or not np.all(np.isfinite(data)):
-            continue
-        G = estimate_shear_modulus(data)
-        if not np.isfinite(G):
-            continue
-        try:
-            N_total = int(round(data[0, 3]))
-            Nf = int(round(data[0, 5]))
-            Nu = int(round(data[0, 6]))
-            Ziso_total = int(round(data[0, 7]))
-            Nc = int(round(data[0, 4]))
-        except (TypeError, ValueError, OverflowError):
-            continue
+            raise ValueError(f"validated shear file is malformed: {path.name}")
+        N_total = int(round(data[0, 3]))
+        Nf = int(round(data[0, 5]))
+        Nu = int(round(data[0, 6]))
+        Ziso_total = int(round(data[0, 7]))
+        Nc = int(round(data[0, 4]))
         rows.append(
             {
                 **match.groupdict(),
@@ -304,7 +352,7 @@ def load_shear_endpoints():
                 "Nu": Nu,
                 "N": N_total,
                 "Ziso_total": Ziso_total,
-                "G": G,
+                "G": estimate_shear_modulus(data),
                 "source_file": path.name,
             }
         )
@@ -394,7 +442,7 @@ def estimate_contact_m4_from_packing(path, lx, ly):
     }
 
 
-def estimate_contact_m4(frame):
+def estimate_contact_m4(frame, rejections):
     rows = []
     growth_dir = REPO_ROOT / "output" / "growth"
     for row in frame.itertuples(index=False):
@@ -409,18 +457,20 @@ def estimate_contact_m4(frame):
             elif source_name.startswith("LF_DPHI_"):
                 packing_name = source_name
             else:
-                continue
+                raise ValueError(f"cannot infer packing name from {source_name}")
             packing_path = growth_dir / packing_name
             if not packing_path.exists():
                 gz_path = Path(str(packing_path) + ".gz")
                 if gz_path.exists():
                     packing_path = gz_path
                 else:
-                    continue
+                    raise FileNotFoundError(f"missing saved packing for {row.source_file}")
             estimate = estimate_contact_m4_from_packing(packing_path, row.L, row.Ly)
             expected_pairs = int(round(row.Nc / 2))
             if estimate["contact_pairs_geom"] != expected_pairs:
-                continue
+                raise ValueError(
+                    f"contact mismatch geom={estimate['contact_pairs_geom']} saved={expected_pairs}"
+                )
             rows.append(
                 {
                     "seed": row.seed,
@@ -434,7 +484,8 @@ def estimate_contact_m4(frame):
                     "packing_file": estimate["packing_file"],
                 }
             )
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
+            record_rejection(rejections, "packing_reconstruction", row.source_file, exc)
             continue
     if not rows:
         raise SystemExit("No valid shear packings with matching saved growth packings found for contact reconstruction")
@@ -444,43 +495,40 @@ def estimate_contact_m4(frame):
     return m4_frame
 
 
-def load_growth_rate_distributions():
+def load_growth_rate_distributions(valid_names):
     rows = []
     histogram_rows = []
     for path in sorted((REPO_ROOT / "output" / "growth").glob("STATS_LF_DPHI_*.dat")):
+        if path.name.removeprefix("STATS_LF_DPHI_") not in valid_names:
+            continue
         match = STATS_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        try:
-            with path.open("r", encoding="utf-8") as handle:
-                header = handle.readline().split()
-                if len(header) != 3:
-                    raise ValueError("unexpected STATS header")
-                phi = float(header[1])
-                bud_growth = []
-                bud_pressure = []
-                compressed_growth = []
-                for line in handle:
-                    values = line.split()
-                    if not values:
-                        continue
-                    if len(values) != 8:
-                        raise ValueError("unexpected STATS row width")
-                    lobe_type = int(values[3])
-                    if lobe_type != 1:
-                        continue
-                    pressure = float(values[4])
-                    rate_eff = float(values[5])
-                    rate_raw = float(values[6])
-                    growth = rate_eff / rate_raw if rate_raw else np.nan
-                    if not np.isfinite(growth):
-                        continue
-                    bud_pressure.append(pressure)
-                    bud_growth.append(growth)
-                    if pressure > COMPRESSED_PRESSURE_TOL:
-                        compressed_growth.append(growth)
-        except (OSError, ValueError):
-            continue
+        with path.open("r", encoding="utf-8") as handle:
+            header = handle.readline().split()
+            if len(header) != 3:
+                raise ValueError(f"validated STATS file is malformed: {path.name}")
+            phi = float(header[1])
+            bud_growth = []
+            bud_pressure = []
+            compressed_growth = []
+            for line in handle:
+                values = line.split()
+                if not values:
+                    continue
+                if len(values) != 8:
+                    raise ValueError(f"validated STATS row is malformed: {path.name}")
+                lobe_type = int(values[3])
+                if lobe_type != 1:
+                    continue
+                pressure = float(values[4])
+                rate_eff = float(values[5])
+                rate_raw = float(values[6])
+                growth = rate_eff / rate_raw if rate_raw else np.nan
+                bud_pressure.append(pressure)
+                bud_growth.append(growth)
+                if pressure > COMPRESSED_PRESSURE_TOL:
+                    compressed_growth.append(growth)
         if not bud_growth:
             continue
         bud_growth = np.asarray(bud_growth)
@@ -532,29 +580,26 @@ def load_growth_rate_distributions():
     return summary, histogram
 
 
-def load_bgrow_local_slopes():
+def load_bgrow_local_slopes(valid_names):
     rows = []
     for path in sorted((REPO_ROOT / "output" / "growth").glob("STEPLOG_*.dat")):
+        if path.name.removeprefix("STEPLOG_") not in valid_names:
+            continue
         match = STEPLOG_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        try:
-            data = np.loadtxt(path, comments="#")
-        except (OSError, ValueError):
-            continue
+        data = np.loadtxt(path, comments="#")
         if data.size == 0:
-            continue
+            raise ValueError(f"validated STEPLOG is empty: {path.name}")
         if data.ndim == 1:
             data = data[None, :]
         if data.ndim != 2 or data.shape[1] != 10 or not np.all(np.isfinite(data)):
-            continue
+            raise ValueError(f"validated STEPLOG is malformed: {path.name}")
         postjam = data[data[:, 9] > 0.5]
         if len(postjam) < 5:
             continue
         fit_window = postjam[-25:]
         slope = float(np.polyfit(fit_window[:, 5], fit_window[:, 3], 1)[0])
-        if not np.isfinite(slope):
-            continue
         phi_final = float(fit_window[-1, 5])
         rows.append(
             {
@@ -663,7 +708,7 @@ def linear_fit(x_values, y_values):
     }
 
 
-def build_moduli_coefficients(bext_main, shear_main, growth_final):
+def build_moduli_coefficients(bext_main, shear_main, growth_final, rejections):
     bext_work = bext_main.copy()
     bext_work["B_over_Z"] = bext_work["B_ext"] / bext_work["Z"]
     bext_work["body_from_B"] = 8.0 * bext_work["B_over_Z"]
@@ -695,7 +740,7 @@ def build_moduli_coefficients(bext_main, shear_main, growth_final):
         how="inner",
     )
     shear_work = shear_work.merge(
-        estimate_contact_m4(shear_work),
+        estimate_contact_m4(shear_work, rejections),
         on=["seed", "L", "Ly", "dphi", "p0"],
         how="inner",
     )
@@ -833,7 +878,7 @@ def build_growth_histogram_slice(histogram, growth_moments, main_L, hist_dphi):
     hist_slice = histogram[
         (histogram["L"] == main_L)
         & (np.isclose(histogram["dphi"], hist_dphi))
-        & (histogram["p0"].isin(DEFAULT_HIST_P0S))
+        & (histogram["p0"].isin([2e-3, 5e-3, 1e-2]))
     ].copy()
     moment_slice = growth_moments[
         (growth_moments["L"] == main_L)
@@ -1244,10 +1289,10 @@ def plot_bgrow_partition(partition_curves, partition_raw, partition_stats, outpu
 
 
 def plot_growth_crossover(hist_slice, moment_curves, hist_dphi, output_dir, formats):
-    hist_p0s = [value for value in p0_order(hist_slice["p0"].unique()) if value > 0.0]
-    fig = plt.figure(figsize=(max(13.2, 3.2 * len(hist_p0s)), 7.0), constrained_layout=True)
-    grid = gridspec.GridSpec(2, len(hist_p0s), figure=fig, height_ratios=[1.0, 0.9])
+    fig = plt.figure(figsize=(13.2, 7.0), constrained_layout=True)
+    grid = gridspec.GridSpec(2, 3, figure=fig, height_ratios=[1.0, 0.9])
     bins = np.linspace(0.0, 1.0, 33)
+    hist_p0s = [2e-3, 5e-3, 1e-2]
 
     for index, p0 in enumerate(hist_p0s):
         axis = fig.add_subplot(grid[0, index])
@@ -1299,7 +1344,7 @@ def plot_growth_crossover(hist_slice, moment_curves, hist_dphi, output_dir, form
     save_figure(fig, output_dir, "fig_growth_crossover", formats)
 
 
-def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists):
+def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists, hist_supported):
     lines = [
         "# Paper-support plot map",
         "",
@@ -1308,13 +1353,21 @@ def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists):
         "- `fig_moduli_coefficients`: fitted `B_ext ~ Z` and `G ~ DeltaZ` relations, plus coefficient-body consistency checks.",
         "- `fig_pressure_moduli_decoupling`: suppressed pressure build-up under strong feedback alongside continued growth of `B_ext` and `G`.",
         "- `fig_bgrow_partition`: `B_grow / B_ext` compared against both `chi_c` and the full partition factor `lambda_c` extracted from the saved bud-level rates.",
-        f"- `fig_growth_crossover`: bimodal-to-unimodal growth-rate crossover at `L = {main_L}` and `dphi = {hist_dphi:.2f}`, plus the heterogeneity diagnostic `h_gamma`.",
         "",
         "Not yet supported by the current output folder:",
         "- Threshold-distribution objects such as `S(a*)` or direct completion-threshold histograms.",
         "- Secondary-arrest quantities that need lineage/depletion runs (`phi_2(P0)`, `P_2(P0)`, `B_2(P0)`, `G_2(P0)`).",
         "- Any direct test that needs the dedicated lineage outputs (`POSTJAMM_SUMMARY_*`, `TRANSITIONS_*`, division-injection terms), because `output/lineage_growth/` is still empty in this workspace.",
     ]
+    if hist_supported:
+        lines.insert(
+            7,
+            f"- `fig_growth_crossover`: bimodal-to-unimodal growth-rate crossover at `L = {main_L}` and dphi = {hist_dphi:.2g}, plus the heterogeneity diagnostic `h_gamma`.",
+        )
+    else:
+        lines.append(
+            f"- `fig_growth_crossover`: skipped because no validated bud-growth histogram slice was available at `L = {main_L}` and dphi = {hist_dphi:.2g}."
+        )
     if skipped_nc_exists:
         lines.extend(
             [
@@ -1348,11 +1401,16 @@ def main():
         }
     )
 
-    growth, skipped_nc_files = load_growth_endpoints()
-    bext = load_bext_endpoints()
-    shear = load_shear_endpoints()
-    growth_moments, histogram = load_growth_rate_distributions()
-    bgrow_local = load_bgrow_local_slopes()
+    rejections = []
+    valid_growth_names, skipped_nc_files = finished_growth_names(rejections)
+    valid_shear_names = finished_shear_names(rejections)
+    valid_bext_files = finished_bext_files(rejections)
+
+    growth = load_growth_endpoints(valid_growth_names)
+    bext = load_bext_endpoints(valid_bext_files)
+    shear = load_shear_endpoints(valid_shear_names)
+    growth_moments, histogram = load_growth_rate_distributions(valid_growth_names)
+    bgrow_local = load_bgrow_local_slopes(valid_growth_names)
 
     growth_main = filter_main(growth, args.main_L)
     bext_main = filter_main(bext, args.main_L)
@@ -1373,7 +1431,7 @@ def main():
         pooled_body,
         pooled_g_over_m4,
         pooled_m4,
-    ) = build_moduli_coefficients(bext_main, shear_main, growth_final)
+    ) = build_moduli_coefficients(bext_main, shear_main, growth_final, rejections)
     partition_raw, partition_curves, partition_stats = build_bgrow_partition(
         growth_final, bext_main, growth_moments_main, filter_main(bgrow_local, args.main_L)
     )
@@ -1385,10 +1443,7 @@ def main():
         (output_dir / "skipped_nc_files.txt").write_text(
             "\n".join(skipped_nc_files) + "\n", encoding="utf-8"
         )
-    if hist_slice.empty:
-        raise SystemExit(
-            f"No bud-growth histogram slice found for L={args.main_L} and dphi={args.hist_dphi:.6g}"
-        )
+    hist_supported = not hist_slice.empty
 
     save_dataframe(growth_main, output_dir / f"growth_endpoints_L{args.main_L}_main.csv")
     save_dataframe(bext_main, output_dir / f"bext_endpoints_L{args.main_L}_main.csv")
@@ -1400,8 +1455,10 @@ def main():
     save_dataframe(coeff_curves, output_dir / f"moduli_coefficient_curves_L{args.main_L}_main.csv")
     save_dataframe(partition_raw, output_dir / f"bgrow_partition_points_L{args.main_L}_main.csv")
     save_dataframe(partition_curves, output_dir / f"bgrow_partition_curves_L{args.main_L}_main.csv")
-    save_dataframe(hist_slice, output_dir / f"growth_histogram_slice_L{args.main_L}_dphi{args.hist_dphi:.2f}.csv")
+    if hist_supported:
+        save_dataframe(hist_slice, output_dir / f"growth_histogram_slice_L{args.main_L}_dphi{args.hist_dphi:.2f}.csv")
     save_dataframe(moment_curves, output_dir / f"growth_moments_L{args.main_L}_main.csv")
+    save_rejections(rejections, output_dir)
     save_dataframe(
         pd.DataFrame(
             [
@@ -1470,13 +1527,15 @@ def main():
     )
     plot_decoupling(curves, output_dir, formats)
     plot_bgrow_partition(partition_curves, partition_raw, partition_stats, output_dir, formats)
-    plot_growth_crossover(hist_slice, moment_curves, args.hist_dphi, output_dir, formats)
+    if hist_supported:
+        plot_growth_crossover(hist_slice, moment_curves, args.hist_dphi, output_dir, formats)
 
     write_claim_map(
         output_dir,
         args.main_L,
         args.hist_dphi,
         skipped_nc_exists=bool(skipped_nc_files),
+        hist_supported=hist_supported,
     )
 
     print(

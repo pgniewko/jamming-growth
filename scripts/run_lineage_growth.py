@@ -70,6 +70,7 @@ def parse_args():
     parser.add_argument(
         "--preset",
         choices=sorted(PRESETS),
+        default="pilot-large",
         help="Named default parameter set. Explicit --sizes/--p0s/--dphis/--seeds override preset values.",
     )
     parser.add_argument("--sizes", type=parse_csv_list, help="Comma-separated box sizes.")

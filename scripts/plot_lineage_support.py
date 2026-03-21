@@ -18,8 +18,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
+from run_lineage_growth import (
+    FIXED as LINEAGE_FIXED,
+    parse_divlog,
+    parse_lineage,
+    parse_lineage_snapshot,
+    parse_log,
+    parse_postjamm_summary,
+    parse_transitions,
+)
 
 DEFAULT_INPUT_DIR = REPO_ROOT / "output" / "lineage_growth" / "growth"
+DEFAULT_LOG_DIR = REPO_ROOT / "output" / "logs" / "lineage_growth"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "output" / "plots" / "lineage_support"
 RUN_KEYS = ["seed", "L", "Ly", "dphi", "p0"]
 PRESETS = {
@@ -77,6 +87,7 @@ def parse_args():
     parser.add_argument("--dphis", type=parse_csv_list, help="Comma-separated overcompressions.")
     parser.add_argument("--seeds", type=parse_csv_list, help="Comma-separated seeds.")
     parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
+    parser.add_argument("--log-dir", type=Path, default=DEFAULT_LOG_DIR)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--formats", default="png,pdf")
     args = parser.parse_args()
@@ -117,11 +128,78 @@ def save_figure(fig, output_dir, stem, formats):
     plt.close(fig)
 
 
+def record_rejection(rejections, dataset, source, reason):
+    rejections.append(
+        {
+            "dataset": dataset,
+            "source_file": source,
+            "reason": str(reason),
+        }
+    )
+
+
+def save_rejections(rejections, output_dir):
+    save_dataframe(pd.DataFrame(rejections, columns=["dataset", "source_file", "reason"]), output_dir / "rejected_inputs.csv")
+
+
 def metadata_from_path(path, prefix):
     match = SUFFIX_RE.match(path.name.removeprefix(prefix))
     if match is None:
         return None
     return match.groupdict()
+
+
+def lineage_basename(seed, size, dphi, p0):
+    return (
+        f"v{LINEAGE_FIXED['version']}_ar{LINEAGE_FIXED['ar']}_div_{LINEAGE_FIXED['divtype']}"
+        f"_desync{LINEAGE_FIXED['desync']}_seed_{seed}_Lx{size}_Ly{size}"
+        f"_att{LINEAGE_FIXED['att']}_dphi{dphi}_P{p0}.dat"
+    )
+
+
+def lineage_paths(input_dir, log_dir, name):
+    return {
+        "lineage_jamm": input_dir / f"LINEAGE_LF_JAMM_{name}",
+        "divlog": input_dir / f"DIVLOG_{name}",
+        "transitions": input_dir / f"TRANSITIONS_{name}",
+        "postjamm_summary": input_dir / f"POSTJAMM_SUMMARY_{name}",
+        "stdout_log": log_dir / f"stdout_{name[:-4]}.log",
+    }
+
+
+def lineage_run_complete(paths):
+    try:
+        if not parse_log(paths["stdout_log"]):
+            return False
+        jamm_count = parse_lineage_snapshot(paths["lineage_jamm"])
+        if jamm_count <= 0:
+            return False
+        if not parse_lineage(paths["lineage_jamm"], jamm_count):
+            return False
+        if not parse_divlog(paths["divlog"]):
+            return False
+        if not parse_transitions(paths["transitions"]):
+            return False
+        if not parse_postjamm_summary(paths["postjamm_summary"]):
+            return False
+    except (FileNotFoundError, OSError, ValueError):
+        return False
+    return True
+
+
+def completed_run_names(args, input_dir, log_dir):
+    completed = set()
+    rejections = []
+    for size in args.sizes:
+        for p0 in args.p0s:
+            for dphi in args.dphis:
+                for seed in args.seeds:
+                    name = lineage_basename(seed, size, dphi, p0)
+                    if lineage_run_complete(lineage_paths(input_dir, log_dir, name)):
+                        completed.add(name)
+                    else:
+                        record_rejection(rejections, "lineage_run", name, "run is missing required files or failed validation")
+    return completed, rejections
 
 
 def p0_order(values):
@@ -138,22 +216,24 @@ def p0_color(value):
     return P0_COLORS.get(value, "#1f2937")
 
 
-def load_lineage_jamm(input_dir):
+def load_lineage_jamm(input_dir, valid_names):
     rows = []
     for path in sorted(input_dir.glob("LINEAGE_LF_JAMM_*.dat")):
+        if path.name.removeprefix("LINEAGE_LF_JAMM_") not in valid_names:
+            continue
         meta = metadata_from_path(path, "LINEAGE_LF_JAMM_")
         if meta is None:
             continue
         with path.open("r", encoding="utf-8") as handle:
             header = handle.readline()
             if not header.startswith("# index cell_id parent_id"):
-                continue
+                raise ValueError(f"unexpected lineage snapshot header in {path.name}")
             for line in handle:
                 if not line.strip():
                     continue
                 fields = line.split()
                 if len(fields) != 8:
-                    continue
+                    raise ValueError(f"unexpected lineage row width in {path.name}")
                 rows.append(
                     {
                         **meta,
@@ -176,22 +256,24 @@ def load_lineage_jamm(input_dir):
     return frame
 
 
-def load_transitions(input_dir):
+def load_transitions(input_dir, valid_names):
     rows = []
     for path in sorted(input_dir.glob("TRANSITIONS_*.dat")):
+        if path.name.removeprefix("TRANSITIONS_") not in valid_names:
+            continue
         meta = metadata_from_path(path, "TRANSITIONS_")
         if meta is None:
             continue
         with path.open("r", encoding="utf-8") as handle:
             header = handle.readline()
             if not header.startswith("# step phi cell_id parent_id"):
-                continue
+                raise ValueError(f"unexpected transitions header in {path.name}")
             for line in handle:
                 if not line.strip():
                     continue
                 fields = line.split()
                 if len(fields) != 12:
-                    continue
+                    raise ValueError(f"unexpected transitions row width in {path.name}")
                 rows.append(
                     {
                         **meta,
@@ -217,22 +299,24 @@ def load_transitions(input_dir):
     return frame
 
 
-def load_postjamm_summary(input_dir):
+def load_postjamm_summary(input_dir, valid_names):
     rows = []
     for path in sorted(input_dir.glob("POSTJAMM_SUMMARY_*.dat")):
+        if path.name.removeprefix("POSTJAMM_SUMMARY_") not in valid_names:
+            continue
         meta = metadata_from_path(path, "POSTJAMM_SUMMARY_")
         if meta is None:
             continue
         with path.open("r", encoding="utf-8") as handle:
             header = handle.readline()
             if not header.startswith("# step phi P N Nc Nf Nu Ziso total_growthrate chi_c"):
-                continue
+                raise ValueError(f"unexpected post-jamming summary header in {path.name}")
             for line in handle:
                 if not line.strip():
                     continue
                 fields = line.split()
                 if len(fields) != 15:
-                    continue
+                    raise ValueError(f"unexpected post-jamming summary row width in {path.name}")
                 rows.append(
                     {
                         **meta,
@@ -261,9 +345,11 @@ def load_postjamm_summary(input_dir):
     return frame
 
 
-def load_divlog_summary(input_dir):
+def load_divlog_summary(input_dir, valid_names):
     rows = []
     for path in sorted(input_dir.glob("DIVLOG_*.dat")):
+        if path.name.removeprefix("DIVLOG_") not in valid_names:
+            continue
         meta = metadata_from_path(path, "DIVLOG_")
         if meta is None:
             continue
@@ -271,10 +357,20 @@ def load_divlog_summary(input_dir):
         with path.open("r", encoding="utf-8") as handle:
             header = handle.readline()
             if not header.startswith("# step phi parent_cell_id"):
-                continue
+                raise ValueError(f"unexpected DIVLOG header in {path.name}")
             for line in handle:
-                if line.strip():
-                    event_rows += 1
+                if not line.strip():
+                    continue
+                fields = line.split()
+                if len(fields) != 6:
+                    raise ValueError(f"unexpected DIVLOG row width in {path.name}")
+                int(fields[0])
+                float(fields[1])
+                int(fields[2])
+                int(fields[3])
+                int(fields[4])
+                int(fields[5])
+                event_rows += 1
         rows.append({**meta, "divlog_events": event_rows, "source_file": path.name})
     if not rows:
         raise SystemExit(f"No lineage division logs found under {input_dir}")
@@ -706,6 +802,7 @@ def main():
     args = parse_args()
     formats = plot_formats(args.formats)
     input_dir = args.input_dir.resolve()
+    log_dir = args.log_dir.resolve()
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -725,10 +822,14 @@ def main():
         }
     )
 
-    lineage_jamm = filter_frame(load_lineage_jamm(input_dir), args)
-    transitions = filter_frame(load_transitions(input_dir), args)
-    postjamm = filter_frame(load_postjamm_summary(input_dir), args)
-    divlog_summary = filter_frame(load_divlog_summary(input_dir), args)
+    valid_names, rejections = completed_run_names(args, input_dir, log_dir)
+    if not valid_names:
+        raise SystemExit("No completed lineage runs passed validation for the requested parameter set")
+
+    lineage_jamm = filter_frame(load_lineage_jamm(input_dir, valid_names), args)
+    transitions = filter_frame(load_transitions(input_dir, valid_names), args)
+    postjamm = filter_frame(load_postjamm_summary(input_dir, valid_names), args)
+    divlog_summary = filter_frame(load_divlog_summary(input_dir, valid_names), args)
 
     thresholds = build_threshold_events(lineage_jamm, transitions)
     curves = build_depletion_curves(postjamm, lineage_jamm)
@@ -737,6 +838,7 @@ def main():
     save_dataframe(thresholds, output_dir / "threshold_events.csv")
     save_dataframe(curves, output_dir / "depletion_curves.csv")
     save_dataframe(summary, output_dir / "secondary_summary.csv")
+    save_rejections(rejections, output_dir)
 
     plot_thresholds(thresholds, output_dir, formats)
     plot_two_stage(thresholds, output_dir, formats)
