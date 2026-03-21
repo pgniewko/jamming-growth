@@ -38,7 +38,7 @@ GROWTH_STEPLOG_HEADER = (
 SHEAR_G_DATA_HEADER = (
     "# strain shear_stress delta_shear_stress N Nc Nf Nu Ziso phi Nmm Nbb Nmb"
 )
-DEFAULT_JOB_TIMEOUT_SECONDS = 21600
+DEFAULT_JOB_TIMEOUT_SECONDS = 10800
 EXIT_MIN_DT = 10
 EXIT_MAX_POSTJAM_STEPS = 11
 
@@ -53,7 +53,7 @@ def dphi_allowed(p0, dphi):
     if p0_value > 1e-3 or p0_value <= 0.0:
         return True
     if p0_value == 1e-3:
-        return dphi_value <= 1e-1
+        return dphi_value <= 6e-2
     if p0_value == 1e-4:
         return dphi_value <= 6e-2
     if p0_value == 1e-5:

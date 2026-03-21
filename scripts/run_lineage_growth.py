@@ -53,7 +53,7 @@ STEPLOG_HEADER = (
     "# step N fret_per_particle P dt phi total_growthrate "
     "before_jamming at_jamming above_jamming"
 )
-DEFAULT_JOB_TIMEOUT_SECONDS = 21600
+DEFAULT_JOB_TIMEOUT_SECONDS = 10800
 EXIT_MIN_DT = 10
 EXIT_MAX_POSTJAM_STEPS = 11
 
