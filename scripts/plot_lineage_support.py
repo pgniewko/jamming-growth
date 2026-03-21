@@ -33,6 +33,12 @@ DEFAULT_LOG_DIR = REPO_ROOT / "output" / "logs" / "lineage_growth"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "output" / "plots" / "lineage_support"
 RUN_KEYS = ["seed", "L", "Ly", "dphi", "p0"]
 PRESETS = {
+    "study-small10": {
+        "sizes": ["15"],
+        "p0s": ["2e-3", "1e-2"],
+        "dphis": ["1.2e-1"],
+        "seeds": ["1201", "1202", "1203", "1204", "1205"],
+    },
     "pilot-large": {
         "sizes": ["15", "20"],
         "p0s": ["2e-3", "1e-2"],

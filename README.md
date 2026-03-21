@@ -131,6 +131,7 @@ Use the built-in large-system presets for the lineage pilot and the follow-on
 paper sweep:
 
 ```bash
+python3 scripts/run_lineage_growth.py --preset study-small10 --n-cpus 4
 python3 scripts/run_lineage_growth.py --preset pilot-large --n-cpus 4
 python3 scripts/run_lineage_growth.py --preset full-large --n-cpus 6
 ```
@@ -148,6 +149,7 @@ Generate the lineage pilot review tables and figures from the raw lineage
 outputs:
 
 ```bash
+.venv/bin/python scripts/plot_lineage_support.py --preset study-small10
 .venv/bin/python scripts/plot_lineage_support.py --preset pilot-large
 ```
 
