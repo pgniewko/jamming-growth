@@ -2,6 +2,7 @@
 
 import argparse
 import gzip
+import math
 import os
 import re
 from pathlib import Path
@@ -20,11 +21,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
+from run_growth_shear import DPHIS as SWEEP_DPHIS, P0S as SWEEP_P0S, SIZES as SWEEP_SIZES
 
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "output" / "plots"
-DEFAULT_MAIN_L = 8
-DEFAULT_MAIN_P0S = [-1.0, 2e-3, 5e-3, 1e-2]
-DEFAULT_HIST_DPHI = 2e-2
+SWEEP_SIZE_VALUES = [int(value) for value in SWEEP_SIZES]
+SWEEP_P0_VALUES = [float(value) for value in SWEEP_P0S]
+SWEEP_DPHI_VALUES = [float(value) for value in SWEEP_DPHIS]
+DEFAULT_MAIN_L = SWEEP_SIZE_VALUES[0]
+DEFAULT_MAIN_P0S = list(SWEEP_P0_VALUES)
+DEFAULT_HIST_P0S = [value for value in DEFAULT_MAIN_P0S if value > 0.0]
 SHEAR_FIT_MAX_STRAIN = 5e-5
 COMPRESSED_PRESSURE_TOL = 1e-12
 MIN_RATIO_DELTA_Z = 0.05
@@ -61,18 +66,25 @@ STEPLOG_FILENAME_RE = re.compile(
     r"_dphi(?P<dphi>[^_]+)_P(?P<p0>.+)\.dat$"
 )
 
-P0_LABELS = {
-    -1.0: "No feedback",
-    2e-3: r"$P_0 = 2 \times 10^{-3}$",
-    5e-3: r"$P_0 = 5 \times 10^{-3}$",
-    1e-2: r"$P_0 = 10^{-2}$",
-}
-P0_COLORS = {
-    -1.0: "#4c566a",
-    2e-3: "#0f766e",
-    5e-3: "#c56a00",
-    1e-2: "#b42318",
-}
+def nearest_log_value(target, values):
+    return min(values, key=lambda value: abs(math.log10(value) - math.log10(target)))
+
+
+def build_p0_colors(values):
+    colors = {}
+    ordered_values = sorted(set(values), reverse=True)
+    positive = [value for value in ordered_values if value > 0.0]
+    if -1.0 in ordered_values:
+        colors[-1.0] = "#4c566a"
+    if positive:
+        cmap = matplotlib.colormaps["viridis"]
+        for value, position in zip(positive, np.linspace(0.18, 0.9, len(positive))):
+            colors[value] = cmap(position)
+    return colors
+
+
+DEFAULT_HIST_DPHI = nearest_log_value(2e-2, SWEEP_DPHI_VALUES)
+P0_COLORS = build_p0_colors(DEFAULT_MAIN_P0S)
 
 
 def parse_args():
@@ -95,7 +107,7 @@ def parse_args():
         "--hist-dphi",
         type=float,
         default=DEFAULT_HIST_DPHI,
-        help=f"dphi slice used for growth-rate histograms. Default: {DEFAULT_HIST_DPHI}",
+        help=f"dphi slice used for growth-rate histograms. Default: {DEFAULT_HIST_DPHI:.3g}",
     )
     parser.add_argument(
         "--formats",
@@ -119,7 +131,9 @@ def p0_order(values):
 
 
 def p0_label(value):
-    return P0_LABELS.get(value, f"$P_0 = {value:.0e}$")
+    if np.isclose(value, -1.0):
+        return "No feedback"
+    return f"$P_0 = {value:.0e}$"
 
 
 def save_dataframe(frame, path):
