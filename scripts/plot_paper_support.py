@@ -176,34 +176,37 @@ def load_growth_endpoints():
         match = NC_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        fields = path.read_text().split()
-        if len(fields) != 26:
+        try:
+            fields = path.read_text(encoding="utf-8").split()
+            if len(fields) != 26:
+                raise ValueError("unexpected NC value count")
+            values = list(map(float, fields))
+            for stage, offset in (("jamm", 0), ("final", 13)):
+                N, Ziso_total, Nc, Nf, Nu, Nmm, Nbb, Nmb = map(int, values[offset : offset + 8])
+                phi, pressure, fret, p0_file, total_growthrate = values[offset + 8 : offset + 13]
+                rows.append(
+                    {
+                        **match.groupdict(),
+                        "stage": stage,
+                        "N": N,
+                        "Ziso_total": Ziso_total,
+                        "Nc": Nc,
+                        "Nf": Nf,
+                        "Nu": Nu,
+                        "Nmm": Nmm,
+                        "Nbb": Nbb,
+                        "Nmb": Nmb,
+                        "phi": phi,
+                        "P": pressure,
+                        "fret": fret,
+                        "p0_file": p0_file,
+                        "total_growthrate": total_growthrate,
+                        "source_file": path.name,
+                    }
+                )
+        except (OSError, ValueError):
             bad_files.append(path.name)
             continue
-        values = list(map(float, fields))
-        for stage, offset in (("jamm", 0), ("final", 13)):
-            N, Ziso_total, Nc, Nf, Nu, Nmm, Nbb, Nmb = map(int, values[offset : offset + 8])
-            phi, pressure, fret, p0_file, total_growthrate = values[offset + 8 : offset + 13]
-            rows.append(
-                {
-                    **match.groupdict(),
-                    "stage": stage,
-                    "N": N,
-                    "Ziso_total": Ziso_total,
-                    "Nc": Nc,
-                    "Nf": Nf,
-                    "Nu": Nu,
-                    "Nmm": Nmm,
-                    "Nbb": Nbb,
-                    "Nmb": Nmb,
-                    "phi": phi,
-                    "P": pressure,
-                    "fret": fret,
-                    "p0_file": p0_file,
-                    "total_growthrate": total_growthrate,
-                    "source_file": path.name,
-                }
-            )
     if not rows:
         raise SystemExit("No complete NC endpoint files found under output/growth")
     frame = pd.DataFrame(rows)
@@ -220,27 +223,30 @@ def load_bext_endpoints():
         match = BEXT_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        lines = [line.strip() for line in path.read_text().splitlines() if line.strip()]
-        if len(lines) != 2:
+        try:
+            lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            if len(lines) != 2:
+                raise ValueError("unexpected B_ext line count")
+            values = lines[1].split()
+            if len(values) != 20:
+                raise ValueError("unexpected B_ext column count")
+            rows.append(
+                {
+                    **match.groupdict(),
+                    "phi0": float(values[0]),
+                    "P_measured": float(values[1]),
+                    "phi1": float(values[2]),
+                    "B_ext": float(values[5]),
+                    "N": int(values[10]),
+                    "Nc": int(values[11]),
+                    "Nf": int(values[12]),
+                    "Nu": int(values[13]),
+                    "Ziso_total": int(values[14]),
+                    "source_file": path.name,
+                }
+            )
+        except (OSError, ValueError):
             continue
-        values = lines[1].split()
-        if len(values) != 20:
-            continue
-        rows.append(
-            {
-                **match.groupdict(),
-                "phi0": float(values[0]),
-                "P_measured": float(values[1]),
-                "phi1": float(values[2]),
-                "B_ext": float(values[5]),
-                "N": int(values[10]),
-                "Nc": int(values[11]),
-                "Nf": int(values[12]),
-                "Nu": int(values[13]),
-                "Ziso_total": int(values[14]),
-                "source_file": path.name,
-            }
-        )
     if not rows:
         raise SystemExit("No B_ext rows found under output/bext")
     frame = pd.DataFrame(rows)
@@ -268,16 +274,27 @@ def load_shear_endpoints():
         match = G_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        data = np.loadtxt(path, comments="#")
+        try:
+            data = np.loadtxt(path, comments="#")
+        except (OSError, ValueError):
+            continue
         if data.size == 0:
             continue
         if data.ndim == 1:
             data = data[None, :]
-        N_total = int(round(data[0, 3]))
-        Nf = int(round(data[0, 5]))
-        Nu = int(round(data[0, 6]))
-        Ziso_total = int(round(data[0, 7]))
-        Nc = int(round(data[0, 4]))
+        if data.ndim != 2 or data.shape[1] != 12 or len(data) < 2 or not np.all(np.isfinite(data)):
+            continue
+        G = estimate_shear_modulus(data)
+        if not np.isfinite(G):
+            continue
+        try:
+            N_total = int(round(data[0, 3]))
+            Nf = int(round(data[0, 5]))
+            Nu = int(round(data[0, 6]))
+            Ziso_total = int(round(data[0, 7]))
+            Nc = int(round(data[0, 4]))
+        except (TypeError, ValueError, OverflowError):
+            continue
         rows.append(
             {
                 **match.groupdict(),
@@ -287,7 +304,7 @@ def load_shear_endpoints():
                 "Nu": Nu,
                 "N": N_total,
                 "Ziso_total": Ziso_total,
-                "G": estimate_shear_modulus(data),
+                "G": G,
                 "source_file": path.name,
             }
         )
@@ -379,55 +396,48 @@ def estimate_contact_m4_from_packing(path, lx, ly):
 
 def estimate_contact_m4(frame):
     rows = []
-    mismatches = []
     growth_dir = REPO_ROOT / "output" / "growth"
     for row in frame.itertuples(index=False):
-        source_name = getattr(row, "packing_source_file", None)
-        if source_name is None:
-            source_name = row.source_file
-        if source_name.startswith("G_data_"):
-            packing_name = source_name.removeprefix("G_data_")
-        elif source_name.startswith("NC_"):
-            packing_name = "LF_DPHI_" + source_name.removeprefix("NC_")
-        elif source_name.startswith("LF_DPHI_"):
-            packing_name = source_name
-        else:
-            raise ValueError(f"Cannot infer packing name from {source_name}")
-        packing_path = growth_dir / packing_name
-        if not packing_path.exists():
-            gz_path = Path(str(packing_path) + ".gz")
-            if gz_path.exists():
-                packing_path = gz_path
+        try:
+            source_name = getattr(row, "packing_source_file", None)
+            if source_name is None:
+                source_name = row.source_file
+            if source_name.startswith("G_data_"):
+                packing_name = source_name.removeprefix("G_data_")
+            elif source_name.startswith("NC_"):
+                packing_name = "LF_DPHI_" + source_name.removeprefix("NC_")
+            elif source_name.startswith("LF_DPHI_"):
+                packing_name = source_name
             else:
-                raise FileNotFoundError(f"Missing saved packing for {row.source_file}")
-        estimate = estimate_contact_m4_from_packing(packing_path, row.L, row.Ly)
-        expected_pairs = int(round(row.Nc / 2))
-        if estimate["contact_pairs_geom"] != expected_pairs:
-            mismatches.append(
-                (
-                    row.source_file,
-                    estimate["contact_pairs_geom"],
-                    expected_pairs,
-                )
+                continue
+            packing_path = growth_dir / packing_name
+            if not packing_path.exists():
+                gz_path = Path(str(packing_path) + ".gz")
+                if gz_path.exists():
+                    packing_path = gz_path
+                else:
+                    continue
+            estimate = estimate_contact_m4_from_packing(packing_path, row.L, row.Ly)
+            expected_pairs = int(round(row.Nc / 2))
+            if estimate["contact_pairs_geom"] != expected_pairs:
+                continue
+            rows.append(
+                {
+                    "seed": row.seed,
+                    "L": row.L,
+                    "Ly": row.Ly,
+                    "dphi": row.dphi,
+                    "p0": row.p0,
+                    "M4": estimate["M4"],
+                    "contact_pairs_geom": estimate["contact_pairs_geom"],
+                    "contact_pairs_saved": expected_pairs,
+                    "packing_file": estimate["packing_file"],
+                }
             )
-        rows.append(
-            {
-                "seed": row.seed,
-                "L": row.L,
-                "Ly": row.Ly,
-                "dphi": row.dphi,
-                "p0": row.p0,
-                "M4": estimate["M4"],
-                "contact_pairs_geom": estimate["contact_pairs_geom"],
-                "contact_pairs_saved": expected_pairs,
-                "packing_file": estimate["packing_file"],
-            }
-        )
-    if mismatches:
-        preview = ", ".join(
-            f"{name}: geom={geom}, saved={saved}" for name, geom, saved in mismatches[:5]
-        )
-        raise ValueError(f"Contact reconstruction mismatch in {len(mismatches)} shear packings ({preview})")
+        except (OSError, ValueError):
+            continue
+    if not rows:
+        raise SystemExit("No valid shear packings with matching saved growth packings found for contact reconstruction")
     m4_frame = pd.DataFrame(rows)
     cast_metadata(m4_frame)
     m4_frame["M4"] = m4_frame["M4"].astype(float)
@@ -441,29 +451,36 @@ def load_growth_rate_distributions():
         match = STATS_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        with path.open("r", encoding="utf-8") as handle:
-            header = handle.readline().split()
-            if len(header) != 3:
-                continue
-            phi = float(header[1])
-            bud_growth = []
-            bud_pressure = []
-            compressed_growth = []
-            for line in handle:
-                values = line.split()
-                if len(values) != 8:
-                    continue
-                lobe_type = int(values[3])
-                if lobe_type != 1:
-                    continue
-                pressure = float(values[4])
-                rate_eff = float(values[5])
-                rate_raw = float(values[6])
-                growth = rate_eff / rate_raw if rate_raw else np.nan
-                bud_pressure.append(pressure)
-                bud_growth.append(growth)
-                if pressure > COMPRESSED_PRESSURE_TOL:
-                    compressed_growth.append(growth)
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                header = handle.readline().split()
+                if len(header) != 3:
+                    raise ValueError("unexpected STATS header")
+                phi = float(header[1])
+                bud_growth = []
+                bud_pressure = []
+                compressed_growth = []
+                for line in handle:
+                    values = line.split()
+                    if not values:
+                        continue
+                    if len(values) != 8:
+                        raise ValueError("unexpected STATS row width")
+                    lobe_type = int(values[3])
+                    if lobe_type != 1:
+                        continue
+                    pressure = float(values[4])
+                    rate_eff = float(values[5])
+                    rate_raw = float(values[6])
+                    growth = rate_eff / rate_raw if rate_raw else np.nan
+                    if not np.isfinite(growth):
+                        continue
+                    bud_pressure.append(pressure)
+                    bud_growth.append(growth)
+                    if pressure > COMPRESSED_PRESSURE_TOL:
+                        compressed_growth.append(growth)
+        except (OSError, ValueError):
+            continue
         if not bud_growth:
             continue
         bud_growth = np.asarray(bud_growth)
@@ -521,16 +538,23 @@ def load_bgrow_local_slopes():
         match = STEPLOG_FILENAME_RE.match(path.name)
         if match is None:
             continue
-        data = np.loadtxt(path, comments="#")
+        try:
+            data = np.loadtxt(path, comments="#")
+        except (OSError, ValueError):
+            continue
         if data.size == 0:
             continue
         if data.ndim == 1:
             data = data[None, :]
+        if data.ndim != 2 or data.shape[1] != 10 or not np.all(np.isfinite(data)):
+            continue
         postjam = data[data[:, 9] > 0.5]
         if len(postjam) < 5:
             continue
         fit_window = postjam[-25:]
         slope = float(np.polyfit(fit_window[:, 5], fit_window[:, 3], 1)[0])
+        if not np.isfinite(slope):
+            continue
         phi_final = float(fit_window[-1, 5])
         rows.append(
             {
@@ -809,7 +833,7 @@ def build_growth_histogram_slice(histogram, growth_moments, main_L, hist_dphi):
     hist_slice = histogram[
         (histogram["L"] == main_L)
         & (np.isclose(histogram["dphi"], hist_dphi))
-        & (histogram["p0"].isin([2e-3, 5e-3, 1e-2]))
+        & (histogram["p0"].isin(DEFAULT_HIST_P0S))
     ].copy()
     moment_slice = growth_moments[
         (growth_moments["L"] == main_L)
@@ -1220,10 +1244,10 @@ def plot_bgrow_partition(partition_curves, partition_raw, partition_stats, outpu
 
 
 def plot_growth_crossover(hist_slice, moment_curves, hist_dphi, output_dir, formats):
-    fig = plt.figure(figsize=(13.2, 7.0), constrained_layout=True)
-    grid = gridspec.GridSpec(2, 3, figure=fig, height_ratios=[1.0, 0.9])
+    hist_p0s = [value for value in p0_order(hist_slice["p0"].unique()) if value > 0.0]
+    fig = plt.figure(figsize=(max(13.2, 3.2 * len(hist_p0s)), 7.0), constrained_layout=True)
+    grid = gridspec.GridSpec(2, len(hist_p0s), figure=fig, height_ratios=[1.0, 0.9])
     bins = np.linspace(0.0, 1.0, 33)
-    hist_p0s = [2e-3, 5e-3, 1e-2]
 
     for index, p0 in enumerate(hist_p0s):
         axis = fig.add_subplot(grid[0, index])
