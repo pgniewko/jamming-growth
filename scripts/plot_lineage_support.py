@@ -89,7 +89,7 @@ def parse_args():
     parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
     parser.add_argument("--log-dir", type=Path, default=DEFAULT_LOG_DIR)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--formats", default="png,pdf")
+    parser.add_argument("--formats", default="png", help="Comma-separated image formats to write. Default: png")
     args = parser.parse_args()
     preset = PRESETS[args.preset]
     for field in ("sizes", "p0s", "dphis", "seeds"):

@@ -110,8 +110,8 @@ def parse_args():
     )
     parser.add_argument(
         "--formats",
-        default="png,pdf",
-        help="Comma-separated image formats to write. Default: png,pdf",
+        default="png",
+        help="Comma-separated image formats to write. Default: png",
     )
     return parser.parse_args()
 
