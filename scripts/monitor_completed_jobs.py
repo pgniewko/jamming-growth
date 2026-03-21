@@ -6,7 +6,7 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-from run_growth_shear import basename, build_paths, job_params, shear_done
+from run_growth_shear import basename, build_paths, growth_done, job_params, shear_done
 
 
 DIMENSIONS = (
@@ -88,7 +88,8 @@ def collect_status():
         for left, right, _label in PAIRWISE_DIMENSIONS:
             expected_pair[(left, right)][(params[left], params[right])] += 1
 
-        if shear_done(build_paths(basename(params))):
+        paths = build_paths(basename(params))
+        if growth_done(paths) and shear_done(paths):
             completed_jobs += 1
             for key, _label in DIMENSIONS:
                 completed_single[key][params[key]] += 1

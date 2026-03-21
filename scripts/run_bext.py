@@ -41,7 +41,7 @@ def parse_args():
         "--dphi-probe",
         type=float,
         default=1e-6,
-        help="Fixed probe compression used for all B_ext jobs. Default: 1e-6",
+        help="Fixed probe compression used for all B_ext jobs. Default: 1e-6 (was 1e-8 in Gniewek, 2019)",
     )
     parser.add_argument(
         "--keep-all-output",
@@ -88,11 +88,13 @@ def build_paths(meta, dphi_probe):
     tag = probe_tag(dphi_probe)
     stem = meta["base_name"][:-4]
     input_local = BEXT_DIR / meta["input_name"]
+    frame = BEXT_DIR / f"LF_BEXT_dphiprobe{tag}_{meta['input_name']}"
     return {
         "input_local": input_local,
         "input_local_gz": input_local.with_name(input_local.name + ".gz"),
         "data": BEXT_DIR / f"B_ext_data_dphiprobe{tag}_{meta['input_name']}",
-        "frame": BEXT_DIR / f"LF_BEXT_dphiprobe{tag}_{meta['input_name']}",
+        "frame": frame,
+        "frame_gz": frame.with_name(frame.name + ".gz"),
         "log": LOG_DIR / f"stdout_{stem}_dphiprobe{tag}.log",
     }
 
@@ -146,23 +148,46 @@ def validate_packing(path):
     return None
 
 
-def bext_done(path):
-    if not path.is_file() or path.stat().st_size == 0:
-        return False
-    with path.open() as handle:
+def validate_bext_data(path):
+    if not path.is_file():
+        raise ValueError(f"missing file: {path.name}")
+    if path.stat().st_size == 0:
+        raise ValueError(f"empty file: {path.name}")
+    with path.open("r", encoding="utf-8") as handle:
         header = handle.readline().strip()
         if header != HEADER:
-            return False
+            raise ValueError("unexpected B_ext header")
+        rows = 0
         for line in handle:
             text = line.strip()
             if not text:
                 continue
-            try:
-                parse_data_line(text)
-            except ValueError:
-                return False
-            return True
-    return False
+            parse_data_line(text)
+            rows += 1
+    if rows != 1:
+        raise ValueError(f"expected exactly 1 B_ext data row, found {rows}")
+
+
+def validate_log(path):
+    if not path.is_file():
+        raise ValueError(f"missing log file: {path.name}")
+    if path.stat().st_size == 0:
+        raise ValueError(f"empty log file: {path.name}")
+
+
+def bext_done(paths):
+    try:
+        validate_bext_data(paths["data"])
+        validate_log(paths["log"])
+        if paths["frame"].is_file():
+            raise ValueError(f"uncompressed retained B_ext frame: {paths['frame'].name}")
+        if paths["frame_gz"].is_file():
+            reason = validate_packing(paths["frame_gz"])
+            if reason is not None:
+                raise ValueError(reason)
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def remove_if_exists(path):
@@ -176,11 +201,12 @@ def clean_job(paths):
 
 
 def clean_finished_job(paths, keep_all_output):
-    if keep_all_output:
-        return
     remove_if_exists(paths["input_local"])
     remove_if_exists(paths["input_local_gz"])
+    if keep_all_output:
+        return
     remove_if_exists(paths["frame"])
+    remove_if_exists(paths["frame_gz"])
 
 
 def clean_failed_job(paths):
@@ -188,6 +214,8 @@ def clean_failed_job(paths):
     remove_if_exists(paths["input_local_gz"])
     remove_if_exists(paths["data"])
     remove_if_exists(paths["frame"])
+    remove_if_exists(paths["frame_gz"])
+    remove_if_exists(paths["log"])
 
 
 def stage_input(source, destination):
@@ -196,6 +224,15 @@ def stage_input(source, destination):
             shutil.copyfileobj(src, dst)
     else:
         shutil.copyfile(source, destination)
+
+
+def gzip_output(path):
+    if not path.is_file():
+        return
+    gz_path = path.with_name(path.name + ".gz")
+    with path.open("rb") as src, gzip.open(gz_path, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+    path.unlink()
 
 
 def report_invalid_sources(invalid_sources):
@@ -217,10 +254,11 @@ def run_job(source, meta, dphi_probe, force, keep_all_output):
     paths = build_paths(meta, dphi_probe)
     if force:
         clean_job(paths)
-    elif bext_done(paths["data"]):
-        return ("skipped", paths["data"].name)
-
-    clean_job(paths)
+    else:
+        if bext_done(paths):
+            clean_finished_job(paths, keep_all_output)
+            return ("skipped", paths["data"].name)
+        clean_job(paths)
     stage_input(source, paths["input_local"])
 
     try:
@@ -243,12 +281,15 @@ def run_job(source, meta, dphi_probe, force, keep_all_output):
                 stderr=subprocess.STDOUT,
             )
 
-        if not bext_done(paths["data"]):
-            raise RuntimeError(f"Invalid B_ext output: {paths['data']}")
     except Exception:
         clean_failed_job(paths)
         raise
+    if keep_all_output:
+        gzip_output(paths["frame"])
     clean_finished_job(paths, keep_all_output)
+    if not bext_done(paths):
+        clean_failed_job(paths)
+        raise RuntimeError(f"Invalid B_ext output: {paths['data']}")
     return ("completed", paths["data"].name)
 
 
@@ -274,7 +315,7 @@ def main():
         if meta is not None:
             reason = validate_packing(source)
             if reason is None:
-                if not args.force and bext_done(build_paths(meta, args.dphi_probe)["data"]):
+                if not args.force and bext_done(build_paths(meta, args.dphi_probe)):
                     skipped_existing += 1
                 else:
                     jobs.append((source, meta))

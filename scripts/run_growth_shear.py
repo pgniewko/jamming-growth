@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import gzip
 import os
 import subprocess
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -29,6 +30,14 @@ FIXED = {
     "shear_steps": "5000",
 }
 
+GROWTH_STEPLOG_HEADER = (
+    "# step N fret_per_particle P dt phi total_growthrate "
+    "before_jamming at_jamming above_jamming"
+)
+SHEAR_G_DATA_HEADER = (
+    "# strain shear_stress delta_shear_stress N Nc Nf Nu Ziso phi Nmm Nbb Nmb"
+)
+
 
 def parse_args():
     default_cpus = max(1, (os.cpu_count() or 1) - 1)
@@ -53,10 +62,12 @@ def parse_args():
 
 
 def job_params():
-    for seed in SEEDS:
+    #for seed in SEEDS:
+    for size in SIZES:
         for p0 in P0S:
             for dphi in DPHIS:
-                for size in SIZES:
+                #for size in SIZES:
+                for seed in SEEDS:
                     yield {"lx": size, "p0": p0, "dphi": dphi, "seed": seed}
 
 
@@ -68,13 +79,223 @@ def basename(params):
     )
 
 
-def file_with_gz(path):
-    gz_path = path.with_name(path.name + ".gz")
-    if path.is_file() and path.stat().st_size > 0:
-        return path
-    if gz_path.is_file() and gz_path.stat().st_size > 0:
-        return gz_path
+def open_text(path):
+    if path.suffix == ".gz":
+        return gzip.open(path, "rt", encoding="utf-8")
+    return path.open("r", encoding="utf-8")
+
+
+def valid_file_with_gz(path, validator):
+    candidates = (path, path.with_name(path.name + ".gz"))
+    for candidate in candidates:
+        if not candidate.is_file() or candidate.stat().st_size == 0:
+            continue
+        try:
+            validator(candidate)
+        except (OSError, ValueError):
+            continue
+        return candidate
     return None
+
+
+def valid_gzip_file(path, validator):
+    candidate = path.with_name(path.name + ".gz")
+    if not candidate.is_file() or candidate.stat().st_size == 0:
+        return None
+    try:
+        validator(candidate)
+    except (OSError, ValueError):
+        return None
+    return candidate
+
+
+def parse_cell_packing(path):
+    with open_text(path) as handle:
+        header = handle.readline().split()
+        if len(header) != 2:
+            raise ValueError("missing or invalid packing header")
+        count = int(header[0])
+        phi = float(header[1])
+        if count <= 0:
+            raise ValueError("packing must contain at least one cell")
+        rows = 0
+        for line in handle:
+            text = line.strip()
+            if not text:
+                continue
+            fields = text.split()
+            if len(fields) != 5:
+                raise ValueError(f"expected 5 columns per cell row, found {len(fields)}")
+            for field in fields:
+                float(field)
+            rows += 1
+    if rows != count:
+        raise ValueError(f"header count {count} does not match {rows} cell rows")
+    return {"count": count, "phi": phi}
+
+
+def parse_lobe_packing(path):
+    with open_text(path) as handle:
+        frame_count = 0
+        while True:
+            header_line = handle.readline()
+            if header_line == "":
+                break
+            if not header_line.strip():
+                continue
+            header = header_line.split()
+            if len(header) != 2:
+                raise ValueError("missing or invalid lobe-packing header")
+            count = int(header[0])
+            float(header[1])
+            if count <= 0:
+                raise ValueError("lobe packing must contain at least one particle")
+            for _ in range(count):
+                row = handle.readline()
+                if row == "":
+                    raise ValueError("truncated lobe-packing frame")
+                fields = row.split()
+                if len(fields) != 4:
+                    raise ValueError(f"expected 4 columns per lobe row, found {len(fields)}")
+                float(fields[0])
+                float(fields[1])
+                float(fields[2])
+                int(fields[3])
+            frame_count += 1
+    if frame_count == 0:
+        raise ValueError("lobe packing contains no frames")
+    return frame_count
+
+
+def parse_growth_stats(path, expected_rows):
+    with path.open("r", encoding="utf-8") as handle:
+        header = handle.readline().split()
+        if len(header) != 3:
+            raise ValueError("missing or invalid stats header")
+        row_count = int(header[0])
+        float(header[1])
+        float(header[2])
+        if row_count != expected_rows:
+            raise ValueError(f"stats header count {row_count} does not match expected {expected_rows}")
+        rows = 0
+        for line in handle:
+            text = line.strip()
+            if not text:
+                continue
+            fields = text.split()
+            if len(fields) != 8:
+                raise ValueError(f"expected 8 columns per stats row, found {len(fields)}")
+            float(fields[0])
+            float(fields[1])
+            float(fields[2])
+            int(fields[3])
+            float(fields[4])
+            float(fields[5])
+            float(fields[6])
+            float(fields[7])
+            rows += 1
+    if rows != expected_rows:
+        raise ValueError(f"stats file has {rows} rows, expected {expected_rows}")
+
+
+def parse_nc(path, expected_jamm_count, expected_frame_count):
+    fields = path.read_text(encoding="utf-8").split()
+    if len(fields) != 26:
+        raise ValueError(f"expected 26 NC values, found {len(fields)}")
+    values = list(map(float, fields))
+    for offset, expected_count in ((0, expected_jamm_count), (13, expected_frame_count)):
+        count = int(values[offset])
+        if count != expected_count:
+            raise ValueError(f"NC count {count} does not match expected {expected_count}")
+        for index in range(offset, offset + 8):
+            int(values[index])
+        for index in range(offset + 8, offset + 13):
+            float(values[index])
+
+
+def parse_steplog(path, expected_final_count):
+    with path.open("r", encoding="utf-8") as handle:
+        header = handle.readline().strip()
+        if header != GROWTH_STEPLOG_HEADER:
+            raise ValueError("unexpected STEPLOG header")
+        rows = 0
+        last_count = None
+        saw_postjam = False
+        for line in handle:
+            text = line.strip()
+            if not text:
+                continue
+            fields = text.split()
+            if len(fields) != 10:
+                raise ValueError(f"expected 10 columns per steplog row, found {len(fields)}")
+            int(fields[0])
+            last_count = int(fields[1])
+            float(fields[2])
+            float(fields[3])
+            float(fields[4])
+            float(fields[5])
+            float(fields[6])
+            before_jamming = int(fields[7])
+            at_jamming = int(fields[8])
+            above_jamming = int(fields[9])
+            if before_jamming not in (0, 1) or at_jamming not in (0, 1) or above_jamming not in (0, 1):
+                raise ValueError("invalid jamming-state flags in steplog")
+            saw_postjam = saw_postjam or above_jamming == 1
+            rows += 1
+    if rows == 0:
+        raise ValueError("STEPLOG contains no data rows")
+    if last_count != expected_final_count:
+        raise ValueError(f"STEPLOG final N {last_count} does not match expected {expected_final_count}")
+    if not saw_postjam:
+        raise ValueError("STEPLOG never reaches the post-jamming regime")
+
+
+def parse_stdout_log(path):
+    if not path.is_file() or path.stat().st_size == 0:
+        raise ValueError(f"missing or empty log file: {path.name}")
+
+
+def parse_shear_g_data(path):
+    with path.open("r", encoding="utf-8") as handle:
+        header = handle.readline().strip()
+        if header != SHEAR_G_DATA_HEADER:
+            raise ValueError("unexpected G_data header")
+        rows = 0
+        first_n = None
+        previous_strain = None
+        for line in handle:
+            text = line.strip()
+            if not text:
+                continue
+            fields = text.split()
+            if len(fields) != 12:
+                raise ValueError(f"expected 12 columns per G_data row, found {len(fields)}")
+            strain = float(fields[0])
+            float(fields[1])
+            float(fields[2])
+            count = int(fields[3])
+            int(fields[4])
+            int(fields[5])
+            int(fields[6])
+            int(fields[7])
+            float(fields[8])
+            int(fields[9])
+            int(fields[10])
+            int(fields[11])
+            if count <= 0:
+                raise ValueError("invalid particle count in G_data")
+            if previous_strain is not None and strain < previous_strain:
+                raise ValueError("non-monotonic strain sequence in G_data")
+            previous_strain = strain
+            if first_n is None:
+                first_n = count
+            elif count != first_n:
+                raise ValueError("particle count changes across G_data rows")
+            rows += 1
+    expected_rows = int(FIXED["shear_steps"])
+    if rows != expected_rows:
+        raise ValueError(f"G_data has {rows} rows, expected {expected_rows}")
+    return first_n
 
 
 def remove_if_exists(path):
@@ -92,9 +313,6 @@ def clean_growth(paths):
         paths["growth_stats_jamm"],
         paths["growth_nc"],
         paths["growth_steplog"],
-        paths["growth_lineage_frame"],
-        paths["growth_lineage_jamm"],
-        paths["growth_divlog"],
         paths["growth_traj"],
         paths["growth_traj_gz"],
         paths["growth_log"],
@@ -117,6 +335,8 @@ def clean_shear(paths):
 def clean_finished_shear(paths, keep_all_output):
     if keep_all_output:
         return
+    remove_if_exists(paths["shear_input_local"])
+    remove_if_exists(paths["shear_input_local_gz"])
     remove_if_exists(paths["shear_traj"])
     remove_if_exists(paths["shear_traj_gz"])
 
@@ -135,9 +355,6 @@ def build_paths(name):
         "growth_stats_jamm": growth_dir / f"STATS_LF_JAMM_{name}",
         "growth_nc": growth_dir / f"NC_{name}",
         "growth_steplog": growth_dir / f"STEPLOG_{name}",
-        "growth_lineage_frame": growth_dir / f"LINEAGE_LF_DPHI_{name}",
-        "growth_lineage_jamm": growth_dir / f"LINEAGE_LF_JAMM_{name}",
-        "growth_divlog": growth_dir / f"DIVLOG_{name}",
         "growth_traj": growth_dir / name,
         "growth_traj_gz": growth_dir / f"{name}.gz",
         "growth_log": growth_log_dir / f"stdout_{name[:-4]}.log",
@@ -151,11 +368,40 @@ def build_paths(name):
 
 
 def growth_done(paths):
-    return file_with_gz(paths["growth_frame"]) is not None
+    try:
+        frame_path = valid_gzip_file(paths["growth_frame"], parse_cell_packing)
+        jamm_path = valid_gzip_file(paths["growth_jamm"], parse_cell_packing)
+        traj_path = valid_gzip_file(paths["growth_traj"], parse_lobe_packing)
+        if frame_path is None or jamm_path is None or traj_path is None:
+            return False
+        frame_info = parse_cell_packing(frame_path)
+        jamm_info = parse_cell_packing(jamm_path)
+        parse_lobe_packing(traj_path)
+        parse_growth_stats(paths["growth_stats"], frame_info["count"] * 2)
+        parse_growth_stats(paths["growth_stats_jamm"], jamm_info["count"] * 2)
+        parse_nc(paths["growth_nc"], jamm_info["count"], frame_info["count"])
+        parse_steplog(paths["growth_steplog"], frame_info["count"])
+        parse_stdout_log(paths["growth_log"])
+        return True
+    except (FileNotFoundError, OSError, ValueError):
+        return False
 
 
 def shear_done(paths):
-    return paths["shear_g_data"].is_file() and paths["shear_g_data"].stat().st_size > 0 and file_with_gz(paths["shear_traj"]) is not None
+    try:
+        expected_count = parse_shear_g_data(paths["shear_g_data"])
+        parse_stdout_log(paths["shear_log"])
+        for candidate in (paths["shear_traj"], paths["shear_traj_gz"]):
+            if candidate.is_file():
+                frame_count = parse_lobe_packing(candidate)
+                if frame_count != int(FIXED["shear_steps"]):
+                    raise ValueError(
+                        f"shear trajectory has {frame_count} frames, expected {FIXED['shear_steps']}"
+                    )
+                break
+        return expected_count > 0
+    except (FileNotFoundError, OSError, ValueError):
+        return False
 
 
 def run_script(script, extra_args):
@@ -166,17 +412,14 @@ def run_script(script, extra_args):
 def run_growth(params, force):
     name = basename(params)
     paths = build_paths(name)
-    # Remove lineage-only artifacts if they were produced by an older branch build.
-    for path in (
-        paths["growth_lineage_frame"],
-        paths["growth_lineage_jamm"],
-        paths["growth_divlog"],
-    ):
-        remove_if_exists(path)
     if force:
         clean_growth(paths)
-    if not growth_done(paths):
+    elif growth_done(paths):
+        return name, paths
+    else:
         clean_growth(paths)
+
+    try:
         run_script(
             GROWTH_SCRIPT,
             [
@@ -193,14 +436,24 @@ def run_growth(params, force):
                 "--version", FIXED["version"],
             ],
         )
+        if not growth_done(paths):
+            raise RuntimeError(f"incomplete growth outputs for {name}")
+    except Exception:
+        clean_growth(paths)
+        raise
     return name, paths
 
 
 def run_shear(params, paths, force, keep_all_output):
     if force:
         clean_shear(paths)
-    if not shear_done(paths):
+    elif shear_done(paths):
+        clean_finished_shear(paths, keep_all_output)
+        return
+    else:
         clean_shear(paths)
+
+    try:
         run_script(
             SHEAR_SCRIPT,
             [
@@ -217,6 +470,11 @@ def run_shear(params, paths, force, keep_all_output):
                 "--shear-steps", FIXED["shear_steps"],
             ],
         )
+        if not shear_done(paths):
+            raise RuntimeError(f"incomplete shear outputs for {basename(params)}")
+    except Exception:
+        clean_shear(paths)
+        raise
     clean_finished_shear(paths, keep_all_output)
 
 
