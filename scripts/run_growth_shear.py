@@ -570,7 +570,7 @@ def run_shear(params, paths, force, keep_all_output):
         clean_shear(paths)
     elif shear_done(paths):
         clean_finished_shear(paths, keep_all_output)
-        return
+        return {"status": "completed", "name": basename(params), "paths": paths}
     else:
         clean_shear(paths)
 
