@@ -47,6 +47,12 @@ class JobTimeoutError(Exception):
     pass
 
 
+class OutputValidationError(Exception):
+    def __init__(self, stage, message):
+        super().__init__(message)
+        self.stage = stage
+
+
 def dphi_allowed(p0, dphi):
     p0_value = float(p0)
     dphi_value = float(dphi)
@@ -376,6 +382,17 @@ def clean_failed_growth(paths):
         remove_if_exists(path)
 
 
+def clean_failed_shear(paths):
+    for path in (
+        paths["shear_input_local"],
+        paths["shear_input_local_gz"],
+        paths["shear_g_data"],
+        paths["shear_traj"],
+        paths["shear_traj_gz"],
+    ):
+        remove_if_exists(path)
+
+
 def clean_shear(paths):
     for path in (
         paths["shear_input_local"],
@@ -486,11 +503,19 @@ def run_script(script, extra_args, timeout_seconds=None):
 def classify_growth_failure(exc):
     if isinstance(exc, JobTimeoutError):
         return "TIMEOUT"
+    if isinstance(exc, OutputValidationError) and exc.stage == "growth":
+        return "INVALID_OUTPUTS"
     if isinstance(exc, subprocess.CalledProcessError):
         if exc.returncode == EXIT_MIN_DT:
             return "MIN_DT"
         if exc.returncode == EXIT_MAX_POSTJAM_STEPS:
             return "MAX_POSTJAM_STEPS"
+    return None
+
+
+def classify_shear_failure(exc):
+    if isinstance(exc, OutputValidationError) and exc.stage == "shear":
+        return "INVALID_OUTPUTS"
     return None
 
 
@@ -523,12 +548,18 @@ def run_growth(params, force, timeout_seconds):
             timeout_seconds=timeout_seconds or None,
         )
         if not growth_done(paths):
-            raise RuntimeError(f"incomplete growth outputs for {name}")
+            raise OutputValidationError("growth", f"incomplete growth outputs for {name}")
     except Exception as exc:
         reason = classify_growth_failure(exc)
         if reason is not None:
             clean_failed_growth(paths)
-            return {"status": "failed", "reason": reason, "name": name, "paths": paths}
+            return {
+                "status": "failed",
+                "stage": "growth",
+                "reason": reason,
+                "name": name,
+                "paths": paths,
+            }
         clean_growth(paths)
         raise
     return {"status": "completed", "name": name, "paths": paths}
@@ -561,18 +592,31 @@ def run_shear(params, paths, force, keep_all_output):
             ],
         )
         if not shear_done(paths):
-            raise RuntimeError(f"incomplete shear outputs for {basename(params)}")
-    except Exception:
+            raise OutputValidationError("shear", f"incomplete shear outputs for {basename(params)}")
+    except Exception as exc:
+        reason = classify_shear_failure(exc)
+        if reason is not None:
+            clean_failed_shear(paths)
+            return {
+                "status": "failed",
+                "stage": "shear",
+                "reason": reason,
+                "name": basename(params),
+                "paths": paths,
+            }
         clean_shear(paths)
         raise
     clean_finished_shear(paths, keep_all_output)
+    return {"status": "completed", "name": basename(params), "paths": paths}
 
 
 def run_job(params, force, keep_all_output, timeout_seconds):
     growth_result = run_growth(params, force, timeout_seconds)
     if growth_result["status"] == "failed":
         return growth_result
-    run_shear(params, growth_result["paths"], force, keep_all_output)
+    shear_result = run_shear(params, growth_result["paths"], force, keep_all_output)
+    if shear_result["status"] == "failed":
+        return shear_result
     return {"status": "completed", "name": growth_result["name"]}
 
 
@@ -604,9 +648,9 @@ def main():
                 try:
                     result = future.result()
                     if result["status"] == "failed":
-                        failed_jobs.append((params, result["reason"]))
+                        failed_jobs.append((params, result["stage"], result["reason"]))
                         print(
-                            "Failed growth job: "
+                            f"Failed {result['stage']} job: "
                             f"lx={params['lx']} p0={params['p0']} "
                             f"dphi={params['dphi']} seed={params['seed']} "
                             f"reason={result['reason']}"
@@ -621,9 +665,7 @@ def main():
                         f"lx={params['lx']} p0={params['p0']} dphi={params['dphi']} seed={params['seed']}\n{exc}"
                     ) from exc
     print(f"Completed jobs: {completed_jobs}")
-    print(f"Failed growth jobs: {len(failed_jobs)}")
-    if failed_jobs:
-        raise SystemExit(1)
+    print(f"Failed jobs: {len(failed_jobs)}")
 
 
 if __name__ == "__main__":
