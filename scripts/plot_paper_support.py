@@ -37,6 +37,8 @@ DEFAULT_HIST_DPHI = 2e-2
 SHEAR_FIT_MAX_STRAIN = 5e-5
 COMPRESSED_PRESSURE_TOL = 1e-12
 MIN_RATIO_DELTA_Z = 0.05
+STATE_MIN_PRESSURE = 1e-16
+STATE_FOLDS = 5
 
 NC_FILENAME_RE = re.compile(
     r"^NC_v(?P<version>[^_]+)_ar(?P<ar>[^_]+)_div_(?P<divtype>[^_]+)"
@@ -601,6 +603,11 @@ def load_growth_rate_distributions(valid_names):
     return summary, histogram
 
 
+def load_growth_moments(valid_names):
+    summary, _ = load_growth_rate_distributions(valid_names)
+    return summary
+
+
 def load_bgrow_local_slopes(valid_names):
     rows = []
     for path in sorted((REPO_ROOT / "output" / "growth").glob("STEPLOG_*.dat")):
@@ -893,6 +900,154 @@ def build_bgrow_partition(growth_final, bext_main, growth_moments_main, bgrow_lo
         ),
     }
     return merged, ratio_curves, stats
+
+
+def build_state_sufficiency_table(growth_final, bext, shear):
+    keys = ["seed", "L", "Ly", "dphi", "p0"]
+    table = growth_final[keys + ["phi", "P", "u", "DeltaZ"]].merge(
+        bext[keys + ["B_ext"]],
+        on=keys,
+        how="inner",
+    )
+    table = table.merge(
+        shear[keys + ["G"]],
+        on=keys,
+        how="inner",
+    )
+    table = table.sort_values(["L", "p0", "dphi", "seed"]).reset_index(drop=True)
+    for column in ("phi", "P", "u", "DeltaZ", "B_ext", "G"):
+        table[column] = table[column].astype(float)
+    return table
+
+
+def state_model_feature_matrix(frame, model_name):
+    log_p = np.log10(np.clip(frame["P"].to_numpy(dtype=float), STATE_MIN_PRESSURE, None))
+    phi = frame["phi"].to_numpy(dtype=float)
+    u = frame["u"].to_numpy(dtype=float)
+    if model_name == "P_only":
+        columns = [np.ones(len(frame)), log_p, log_p * log_p]
+    elif model_name == "phi_only":
+        columns = [np.ones(len(frame)), phi, phi * phi]
+    elif model_name == "P_u":
+        columns = [np.ones(len(frame)), log_p, log_p * log_p, u, u * u, u * log_p]
+    else:
+        raise ValueError(f"Unknown state model: {model_name}")
+    return np.column_stack(columns)
+
+
+def grouped_seed_folds(frame, num_folds=STATE_FOLDS):
+    unique_seeds = np.sort(frame["seed"].unique())
+    if len(unique_seeds) == 0:
+        return []
+    if len(unique_seeds) == 1:
+        return [unique_seeds]
+    return [fold for fold in np.array_split(unique_seeds, min(num_folds, len(unique_seeds))) if len(fold) > 0]
+
+
+def fit_state_model(frame, target, model_name):
+    rows = []
+    for fold in grouped_seed_folds(frame):
+        test_mask = frame["seed"].isin(fold)
+        train = frame[~test_mask]
+        test = frame[test_mask]
+        if train.empty or test.empty:
+            continue
+        x_train = state_model_feature_matrix(train, model_name)
+        y_train = train[target].to_numpy(dtype=float)
+        coeffs, *_ = np.linalg.lstsq(x_train, y_train, rcond=None)
+        predictions = state_model_feature_matrix(test, model_name) @ coeffs
+        for row, prediction in zip(test.itertuples(index=False), predictions):
+            truth = float(getattr(row, target))
+            rows.append(
+                {
+                    "seed": row.seed,
+                    "L": row.L,
+                    "Ly": row.Ly,
+                    "dphi": row.dphi,
+                    "p0": row.p0,
+                    "target": target,
+                    "model": model_name,
+                    "y_true": truth,
+                    "y_pred": float(prediction),
+                    "residual": float(truth - prediction),
+                }
+            )
+    return rows
+
+
+def build_state_sufficiency(endpoint_table):
+    prediction_rows = []
+    for size, size_frame in endpoint_table.groupby("L", sort=True):
+        _ = size
+        for target in ("DeltaZ", "B_ext", "G"):
+            for model_name in ("P_only", "phi_only", "P_u"):
+                prediction_rows.extend(fit_state_model(size_frame, target, model_name))
+    if not prediction_rows:
+        raise SystemExit("Unable to build state-sufficiency predictions from the merged endpoint table")
+
+    predictions = pd.DataFrame(prediction_rows)
+    cast_metadata(predictions)
+    for column in ("dphi", "p0", "y_true", "y_pred", "residual"):
+        predictions[column] = predictions[column].astype(float)
+
+    grouped = predictions.groupby(["L", "target", "model"], as_index=False).apply(
+        lambda grp: pd.Series(
+            {
+                "rmse": float(np.sqrt(np.mean(np.square(grp["residual"].to_numpy())))),
+                "r2": 1.0
+                - float(np.sum(np.square(grp["residual"].to_numpy())))
+                / float(np.sum(np.square(grp["y_true"].to_numpy() - grp["y_true"].mean()))),
+            }
+        )
+    )
+
+    summary_rows = []
+    for row in grouped.itertuples(index=False):
+        summary_rows.append(
+            {
+                "summary_type": "metric",
+                "L": row.L,
+                "target": row.target,
+                "model": row.model,
+                "metric": "rmse",
+                "value": row.rmse,
+                "p0": np.nan,
+            }
+        )
+        summary_rows.append(
+            {
+                "summary_type": "metric",
+                "L": row.L,
+                "target": row.target,
+                "model": row.model,
+                "metric": "r2",
+                "value": row.r2,
+                "p0": np.nan,
+            }
+        )
+
+    residual_medians = (
+        predictions.groupby(["L", "target", "model", "p0"], as_index=False)["residual"]
+        .median()
+        .rename(columns={"residual": "value"})
+    )
+    for row in residual_medians.itertuples(index=False):
+        summary_rows.append(
+            {
+                "summary_type": "p0_median_residual",
+                "L": row.L,
+                "target": row.target,
+                "model": row.model,
+                "metric": "median_residual",
+                "value": row.value,
+                "p0": row.p0,
+            }
+        )
+
+    summary = pd.DataFrame(summary_rows)
+    cast_metadata(summary)
+    summary["value"] = summary["value"].astype(float)
+    return predictions, summary
 
 
 def build_growth_histogram_slice(histogram, growth_moments, main_L, hist_dphi):
@@ -1365,6 +1520,99 @@ def plot_growth_crossover(hist_slice, moment_curves, hist_dphi, output_dir, form
     save_figure(fig, output_dir, "fig_growth_crossover", formats)
 
 
+def plot_state_sufficiency(predictions, summary, output_dir, formats, main_L):
+    main_predictions = predictions[predictions["L"] == main_L].copy()
+    main_summary = summary[summary["L"] == main_L].copy()
+    if main_predictions.empty:
+        raise SystemExit(f"No state-sufficiency predictions found for L={main_L}")
+
+    fig, axes = plt.subplots(2, 3, figsize=(14.0, 8.2), constrained_layout=True)
+    targets = [
+        ("DeltaZ", r"Excess coordination $\Delta Z$"),
+        ("B_ext", r"External bulk modulus $B_{\mathrm{ext}}$"),
+        ("G", r"Shear modulus $G$"),
+    ]
+
+    for index, (target, ylabel) in enumerate(targets):
+        axis = axes[0, index]
+        subset = main_predictions[(main_predictions["target"] == target) & (main_predictions["model"] == "P_u")]
+        axis.scatter(
+            subset["y_true"],
+            subset["y_pred"],
+            s=22,
+            c=subset["p0"].map(P0_COLORS),
+            alpha=0.45,
+            linewidths=0,
+        )
+        min_value = min(subset["y_true"].min(), subset["y_pred"].min())
+        max_value = max(subset["y_true"].max(), subset["y_pred"].max())
+        xline = np.linspace(min_value, max_value, 100)
+        axis.plot(xline, xline, color="#111827", linestyle="--", linewidth=1.3)
+        metrics = (
+            main_summary[
+                (main_summary["summary_type"] == "metric")
+                & (main_summary["target"] == target)
+                & (main_summary["metric"] == "r2")
+            ][["model", "value"]]
+            .set_index("model")["value"]
+            .to_dict()
+        )
+        axis.text(
+            0.03,
+            0.96,
+            "\n".join(
+                [
+                    rf"$R^2(P)$ = {metrics.get('P_only', np.nan):.3f}",
+                    rf"$R^2(\phi)$ = {metrics.get('phi_only', np.nan):.3f}",
+                    rf"$R^2(P,u)$ = {metrics.get('P_u', np.nan):.3f}",
+                ]
+            ),
+            transform=axis.transAxes,
+            ha="left",
+            va="top",
+            fontsize=9,
+        )
+        axis.set_xlabel(f"Measured {ylabel}")
+        axis.set_ylabel(f"Predicted {ylabel}")
+        axis.set_title(f"State Model for {target}")
+        axis.grid(True, alpha=0.25)
+
+    for index, (target, _) in enumerate(targets):
+        axis = axes[1, index]
+        subset = main_summary[
+            (main_summary["summary_type"] == "p0_median_residual")
+            & (main_summary["target"] == target)
+            & (main_summary["model"].isin(["P_only", "P_u"]))
+        ].copy()
+        p0_values = p0_order(subset["p0"].unique())
+        positions = np.arange(len(p0_values))
+        for model_name, color, linestyle, marker, label in (
+            ("P_only", "#6b7280", "--", "s", "P only"),
+            ("P_u", "#111827", "-", "o", "(P, u)"),
+        ):
+            model_subset = subset[subset["model"] == model_name].set_index("p0").reindex(p0_values).reset_index()
+            axis.plot(
+                positions,
+                model_subset["value"],
+                color=color,
+                linestyle=linestyle,
+                marker=marker,
+                linewidth=1.8,
+                markersize=4.5,
+                label=label,
+            )
+        axis.set_xticks(positions)
+        axis.set_xticklabels([p0_label(value) for value in p0_values], rotation=35, ha="right")
+        axis.set_ylabel("Median residual")
+        axis.set_title(f"Residuals by $P_0$ for {target}")
+        axis.grid(True, alpha=0.25)
+        if index == 0:
+            axis.legend(frameon=False, fontsize=8, loc="best")
+
+    fig.suptitle(f"State Sufficiency at L={main_L}", fontsize=14)
+    save_figure(fig, output_dir, "fig_state_sufficiency", formats)
+
+
 def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists, hist_supported, lineage_supported):
     lines = [
         "# Paper-support plot map",
@@ -1374,6 +1622,7 @@ def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists, hist_suppo
         "- `fig_moduli_coefficients`: fitted `B_ext ~ Z` and `G ~ DeltaZ` relations, plus coefficient-body consistency checks.",
         "- `fig_pressure_moduli_decoupling`: suppressed pressure build-up under strong feedback alongside continued growth of `B_ext` and `G`.",
         "- `fig_bgrow_partition`: `B_grow / B_ext` compared against both `chi_c` and the full partition factor `lambda_c` extracted from the saved bud-level rates.",
+        f"- `fig_state_sufficiency`: compare `P`-only, `phi`-only, and `(P,u)` models for `DeltaZ`, `B_ext`, and `G` at `L = {main_L}`.",
         "",
         "Lineage-backed support:",
     ]
@@ -1393,7 +1642,7 @@ def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists, hist_suppo
         )
     if hist_supported:
         lines.insert(
-            7,
+            8,
             f"- `fig_growth_crossover`: bimodal-to-unimodal growth-rate crossover at `L = {main_L}` and dphi = {hist_dphi:.2g}, plus the heterogeneity diagnostic `h_gamma`.",
         )
     else:
@@ -1474,6 +1723,7 @@ def main():
     shear_main = filter_main(shear, args.main_L)
     growth_moments_main = filter_main(growth_moments, args.main_L)
 
+    all_growth_final = growth[growth["stage"] == "final"].copy()
     growth_final = growth_main[growth_main["stage"] == "final"].copy()
     curves = build_curve_summary(growth_final, bext_main, shear_main)
     structural_points, structural_medians, fit_slope = build_structural_branch(growth_main)
@@ -1495,6 +1745,8 @@ def main():
     hist_slice, moment_curves = build_growth_histogram_slice(
         histogram, growth_moments, args.main_L, args.hist_dphi
     )
+    state_table = build_state_sufficiency_table(all_growth_final, bext, shear)
+    state_predictions, state_summary = build_state_sufficiency(state_table)
 
     if skipped_nc_files:
         (output_dir / "skipped_nc_files.txt").write_text(
@@ -1505,6 +1757,7 @@ def main():
     save_dataframe(growth_main, output_dir / f"growth_endpoints_L{args.main_L}_main.csv")
     save_dataframe(bext_main, output_dir / f"bext_endpoints_L{args.main_L}_main.csv")
     save_dataframe(shear_main, output_dir / f"shear_endpoints_L{args.main_L}_main.csv")
+    save_dataframe(growth_moments_main, output_dir / f"growth_moment_points_L{args.main_L}_main.csv")
     save_dataframe(curves, output_dir / f"curve_summary_L{args.main_L}_main.csv")
     save_dataframe(structural_points, output_dir / f"structural_branch_points_L{args.main_L}_main.csv")
     save_dataframe(bext_coeff, output_dir / f"bext_coefficients_L{args.main_L}_main.csv")
@@ -1515,6 +1768,9 @@ def main():
     if hist_supported:
         save_dataframe(hist_slice, output_dir / f"growth_histogram_slice_L{args.main_L}_dphi{args.hist_dphi:.2f}.csv")
     save_dataframe(moment_curves, output_dir / f"growth_moments_L{args.main_L}_main.csv")
+    save_dataframe(state_table, output_dir / "state_sufficiency_endpoints.csv")
+    save_dataframe(state_predictions, output_dir / "state_sufficiency_predictions.csv")
+    save_dataframe(state_summary, output_dir / "state_sufficiency_summary.csv")
     save_rejections(rejections, output_dir)
     save_dataframe(
         pd.DataFrame(
@@ -1586,6 +1842,7 @@ def main():
     plot_bgrow_partition(partition_curves, partition_raw, partition_stats, output_dir, formats)
     if hist_supported:
         plot_growth_crossover(hist_slice, moment_curves, args.hist_dphi, output_dir, formats)
+    plot_state_sufficiency(state_predictions, state_summary, output_dir, formats, args.main_L)
 
     lineage_root = REPO_ROOT / "output" / "lineage_growth" / "growth"
     lineage_supported = any(lineage_root.glob("POSTJAMM_SUMMARY_*.dat")) and any(
@@ -1605,7 +1862,8 @@ def main():
         f"for L={args.main_L} with {len(curves)} curve rows, "
         f"{len(structural_points)} structural points, "
         f"{len(partition_raw)} B_grow/B_ext points, "
-        f"and {len(hist_slice)} pooled bud-growth samples.",
+        f"{len(hist_slice)} pooled bud-growth samples, "
+        f"and {len(state_predictions[state_predictions['L'] == args.main_L])} state-sufficiency predictions.",
         flush=True,
     )
 
