@@ -15,7 +15,7 @@ SHEAR_SCRIPT = REPO_ROOT / "examples" / "run_shear.sh"
 
 SIZES = ["8", "15", "20", "25"]
 P0S = ["-1", "1e-1", "1e-2", "1e-3", "1e-4", "1e-5"]
-DPHIS = ["1e-4", "3e-4", "1e-3", "3e-3", "1e-2", "3e-2", "1e-1", "1.2e-1"]
+DPHIS = ["1e-4", "3e-4", "1e-3", "3e-3", "1e-2", "3e-2", "6e-2", "1e-1", "1.2e-1"]
 SEEDS = [str(seed) for seed in range(1201, 1221)]
 
 FIXED = {
@@ -37,6 +37,20 @@ GROWTH_STEPLOG_HEADER = (
 SHEAR_G_DATA_HEADER = (
     "# strain shear_stress delta_shear_stress N Nc Nf Nu Ziso phi Nmm Nbb Nmb"
 )
+
+
+def dphi_allowed(p0, dphi):
+    p0_value = float(p0)
+    dphi_value = float(dphi)
+    if p0_value > 1e-3 or p0_value <= 0.0:
+        return True
+    if p0_value == 1e-3:
+        return dphi_value <= 1e-1
+    if p0_value == 1e-4:
+        return dphi_value <= 6e-2
+    if p0_value == 1e-5:
+        return dphi_value <= 3e-2
+    return True
 
 
 def parse_args():
@@ -66,6 +80,8 @@ def job_params():
     for size in SIZES:
         for p0 in P0S:
             for dphi in DPHIS:
+                if not dphi_allowed(p0, dphi):
+                    continue
                 #for size in SIZES:
                 for seed in SEEDS:
                     yield {"lx": size, "p0": p0, "dphi": dphi, "seed": seed}
