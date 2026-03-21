@@ -15,7 +15,7 @@ SHEAR_SCRIPT = REPO_ROOT / "examples" / "run_shear.sh"
 
 SIZES = ["8", "15", "20", "25"]
 P0S = ["-1", "1e-1", "1e-2", "1e-3", "1e-4", "1e-5", "1e-6"]
-DPHIS = ["1e-4", "3e-4", "1e-3", "3e-3", "1e-2", "3e-2", "6e-2", 1e-1", "1.2e-1"]
+DPHIS = ["1e-4", "3e-4", "1e-3", "3e-3", "1e-2", "3e-2", 1e-1", "1.2e-1"]
 SEEDS = [str(seed) for seed in range(1201, 1221)]
 
 FIXED = {
