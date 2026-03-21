@@ -409,7 +409,7 @@ def parse_postjamm_summary(path):
             if not line.strip():
                 continue
             fields = line.split()
-            if len(fields) != 15:
+            if len(fields) not in (15, 19):
                 return False
             int(fields[0])
             float(fields[1])
@@ -426,6 +426,11 @@ def parse_postjamm_summary(path):
             int(fields[12])
             int(fields[13])
             int(fields[14])
+            if len(fields) == 19:
+                int(fields[15])
+                int(fields[16])
+                int(fields[17])
+                int(fields[18])
             rows += 1
     return rows > 0
 

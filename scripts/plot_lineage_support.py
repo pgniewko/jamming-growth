@@ -315,29 +315,38 @@ def load_postjamm_summary(input_dir, valid_names):
                 if not line.strip():
                     continue
                 fields = line.split()
-                if len(fields) != 15:
+                if len(fields) not in (15, 19):
                     raise ValueError(f"unexpected post-jamming summary row width in {path.name}")
-                rows.append(
-                    {
-                        **meta,
-                        "step": int(fields[0]),
-                        "phi": float(fields[1]),
-                        "P": float(fields[2]),
-                        "N": int(fields[3]),
-                        "Nc": int(fields[4]),
-                        "Nf": int(fields[5]),
-                        "Nu": int(fields[6]),
-                        "Ziso": int(fields[7]),
-                        "total_growthrate": float(fields[8]),
-                        "chi_c": float(fields[9]),
-                        "n_compressed": int(fields[10]),
-                        "n_initial_free_total": int(fields[11]),
-                        "n_initial_free_active": int(fields[12]),
-                        "n_initial_free_completed": int(fields[13]),
-                        "n_initial_free_divided": int(fields[14]),
-                        "source_file": path.name,
-                    }
-                )
+                row = {
+                    **meta,
+                    "step": int(fields[0]),
+                    "phi": float(fields[1]),
+                    "P": float(fields[2]),
+                    "N": int(fields[3]),
+                    "Nc": int(fields[4]),
+                    "Nf": int(fields[5]),
+                    "Nu": int(fields[6]),
+                    "Ziso": int(fields[7]),
+                    "total_growthrate": float(fields[8]),
+                    "chi_c": float(fields[9]),
+                    "n_compressed": int(fields[10]),
+                    "n_initial_free_total": int(fields[11]),
+                    "n_initial_free_active": int(fields[12]),
+                    "n_initial_free_completed": int(fields[13]),
+                    "n_initial_free_divided": int(fields[14]),
+                    "source_file": path.name,
+                }
+                if len(fields) == 19:
+                    row["n_bud_unconstrained_total"] = int(fields[15])
+                    row["n_postjam_bud_unconstrained"] = int(fields[16])
+                    row["n_mother_unconstrained"] = int(fields[17])
+                    row["postjam_divisions_total"] = int(fields[18])
+                else:
+                    row["n_bud_unconstrained_total"] = np.nan
+                    row["n_postjam_bud_unconstrained"] = np.nan
+                    row["n_mother_unconstrained"] = np.nan
+                    row["postjam_divisions_total"] = np.nan
+                rows.append(row)
     if not rows:
         raise SystemExit(f"No post-jamming lineage summaries found under {input_dir}")
     frame = pd.DataFrame(rows)
@@ -440,13 +449,15 @@ def build_depletion_curves(postjamm, lineage_jamm):
     curves = curves.sort_values(RUN_KEYS + ["step"]).reset_index(drop=True)
     first_rows = (
         curves.groupby(RUN_KEYS, as_index=False)
-        .first()[RUN_KEYS + ["phi", "P", "N", "n_initial_free_total"]]
+        .first()[RUN_KEYS + ["phi", "P", "N", "Nf", "n_initial_free_total", "n_bud_unconstrained_total"]]
         .rename(
             columns={
                 "phi": "phi_j",
                 "P": "P_j",
                 "N": "N_j",
+                "Nf": "Nf_j",
                 "n_initial_free_total": "n_initial_free_total_j",
+                "n_bud_unconstrained_total": "n_bud_unconstrained_total_j",
             }
         )
     )
@@ -463,11 +474,18 @@ def build_depletion_curves(postjamm, lineage_jamm):
                 f"L={example['L']} seed={example['seed']} p0={example['p0']}"
             )
     total = curves["n_initial_free_total"].replace(0, np.nan)
+    n_nonfloat = (curves["N"] - curves["Nf"]).replace(0, np.nan)
     curves["active_fraction"] = curves["n_initial_free_active"] / total
     curves["completed_fraction"] = curves["n_initial_free_completed"] / total
     curves["divided_fraction"] = curves["n_initial_free_divided"] / total
     curves["delta_phi"] = curves["phi"] - curves["phi_j"]
-    curves["u_j_tracked"] = curves["n_initial_free_total"] / curves["N_j"]
+    n_nonfloat_j = (curves["N_j"] - curves["Nf_j"]).replace(0, np.nan)
+    curves["u_j_tracked"] = curves["n_initial_free_total_j"] / n_nonfloat_j
+    curves["n_nonfloat"] = n_nonfloat
+    curves["u_tracked"] = curves["n_initial_free_active"] / n_nonfloat
+    curves["u_initial_tracked_total"] = curves["n_initial_free_total"] / n_nonfloat
+    curves["postjam_bud_fraction"] = curves["n_postjam_bud_unconstrained"] / n_nonfloat
+    curves["mother_unconstrained_fraction"] = curves["n_mother_unconstrained"] / n_nonfloat
     curves["accounting_ok"] = (
         curves["n_initial_free_active"]
         + curves["n_initial_free_completed"]
@@ -480,7 +498,53 @@ def build_depletion_curves(postjamm, lineage_jamm):
             "tracked-reservoir accounting failed for "
             f"L={bad['L']} seed={bad['seed']} p0={bad['p0']} step={bad['step']}"
         )
+    if curves["n_bud_unconstrained_total"].notna().any():
+        bud_total_j = curves["n_bud_unconstrained_total_j"].replace(0, np.nan)
+        curves["total_bud_fraction_of_j"] = curves["n_bud_unconstrained_total"] / bud_total_j
+        curves["u_total_bud"] = curves["n_bud_unconstrained_total"] / n_nonfloat
+        curves["u_j_total_bud"] = curves["n_bud_unconstrained_total_j"] / n_nonfloat_j
+    else:
+        curves["total_bud_fraction_of_j"] = np.nan
+        curves["u_total_bud"] = np.nan
+        curves["u_j_total_bud"] = np.nan
     return curves
+
+
+def first_crossing(subset, value_column, threshold):
+    if value_column not in subset.columns:
+        return None
+    work = subset[["delta_phi", "phi", "P", value_column]].dropna()
+    if work.empty:
+        return None
+    hit = work[work[value_column] <= threshold]
+    if hit.empty:
+        return None
+    return hit.iloc[0]
+
+
+def crossing_delta_phi(subset, value_column, threshold):
+    row = first_crossing(subset, value_column, threshold)
+    if row is None:
+        return np.nan
+    return float(row["delta_phi"])
+
+
+def max_depletion_slope(subset, value_column):
+    work = subset[["delta_phi", value_column]].dropna().copy()
+    if len(work) < 2:
+        return np.nan
+    work = work.groupby("delta_phi", as_index=False)[value_column].first()
+    if len(work) < 2:
+        return np.nan
+    dphi = np.diff(work["delta_phi"].to_numpy())
+    dval = np.diff(work[value_column].to_numpy())
+    valid = dphi > 0
+    if not np.any(valid):
+        return np.nan
+    slopes = -dval[valid] / dphi[valid]
+    if len(slopes) == 0:
+        return np.nan
+    return float(np.nanmax(slopes))
 
 
 def build_secondary_summary(curves, thresholds, divlog_summary):
@@ -495,6 +559,7 @@ def build_secondary_summary(curves, thresholds, divlog_summary):
             a2_median=("a2", "median"),
             a2_q25=("a2", lambda s: s.quantile(0.25)),
             a2_q75=("a2", lambda s: s.quantile(0.75)),
+            a2_iqr=("a2", lambda s: s.quantile(0.75) - s.quantile(0.25)),
         )
         .fillna(np.nan)
     )
@@ -502,9 +567,19 @@ def build_secondary_summary(curves, thresholds, divlog_summary):
     curves = curves.merge(divlog_summary[RUN_KEYS + ["divlog_events"]], on=RUN_KEYS, how="left")
     for key, subset in curves.groupby(RUN_KEYS, sort=True):
         subset = subset.sort_values("step").reset_index(drop=True)
-        exhausted = subset[subset["n_initial_free_active"] == 0]
-        exhausted_by_endpoint = not exhausted.empty
-        target_row = exhausted.iloc[0] if exhausted_by_endpoint else subset.iloc[-1]
+        exhausted_track = subset[subset["n_initial_free_active"] == 0]
+        exhausted_track_by_endpoint = not exhausted_track.empty
+        target_track = exhausted_track.iloc[0] if exhausted_track_by_endpoint else subset.iloc[-1]
+        target_total = None
+        exhausted_total_by_endpoint = False
+        if subset["n_bud_unconstrained_total"].notna().any():
+            exhausted_total = subset[subset["n_bud_unconstrained_total"] == 0]
+            exhausted_total_by_endpoint = not exhausted_total.empty
+            target_total = exhausted_total.iloc[0] if exhausted_total_by_endpoint else subset.iloc[-1]
+        total_width_75 = crossing_delta_phi(subset, "total_bud_fraction_of_j", 0.75)
+        total_width_25 = crossing_delta_phi(subset, "total_bud_fraction_of_j", 0.25)
+        tracked_width_75 = crossing_delta_phi(subset, "active_fraction", 0.75)
+        tracked_width_25 = crossing_delta_phi(subset, "active_fraction", 0.25)
         rows.append(
             {
                 "seed": key[0],
@@ -514,23 +589,53 @@ def build_secondary_summary(curves, thresholds, divlog_summary):
                 "p0": key[4],
                 "phi_j": float(subset["phi_j"].iloc[0]),
                 "u_j_tracked": float(subset["u_j_tracked"].iloc[0]),
+                "u_j_total_bud": float(subset["u_j_total_bud"].iloc[0]) if pd.notna(subset["u_j_total_bud"].iloc[0]) else np.nan,
                 "tracked_total": int(subset["n_initial_free_total"].iloc[0]),
-                "phi_2_obs": float(target_row["phi"]) if exhausted_by_endpoint else np.nan,
-                "delta_phi_2_obs": float(target_row["delta_phi"]) if exhausted_by_endpoint else np.nan,
-                "P_2_obs": float(target_row["P"]) if exhausted_by_endpoint else np.nan,
-                "bar_chi_until_target": float(
-                    subset.loc[: target_row.name, "chi_c"].mean()
-                ),
+                "phi_2_track_obs": float(target_track["phi"]) if exhausted_track_by_endpoint else np.nan,
+                "delta_phi_2_track_obs": float(target_track["delta_phi"]) if exhausted_track_by_endpoint else np.nan,
+                "P_2_track_obs": float(target_track["P"]) if exhausted_track_by_endpoint else np.nan,
+                "phi_2_total_obs": float(target_total["phi"]) if exhausted_total_by_endpoint else np.nan,
+                "delta_phi_2_total_obs": float(target_total["delta_phi"]) if exhausted_total_by_endpoint else np.nan,
+                "P_2_total_obs": float(target_total["P"]) if exhausted_total_by_endpoint else np.nan,
+                "bar_chi_until_track": float(subset.loc[: target_track.name, "chi_c"].mean()),
+                "bar_chi_until_total": float(subset.loc[: target_total.name, "chi_c"].mean())
+                if target_total is not None
+                else np.nan,
                 "endpoint_active_fraction": float(subset["active_fraction"].iloc[-1]),
                 "endpoint_completed_fraction": float(subset["completed_fraction"].iloc[-1]),
                 "endpoint_divided_fraction": float(subset["divided_fraction"].iloc[-1]),
-                "exhausted_by_endpoint": int(exhausted_by_endpoint),
+                "endpoint_postjam_bud_fraction": float(subset["postjam_bud_fraction"].iloc[-1])
+                if pd.notna(subset["postjam_bud_fraction"].iloc[-1])
+                else np.nan,
+                "endpoint_mother_unconstrained_fraction": float(subset["mother_unconstrained_fraction"].iloc[-1])
+                if pd.notna(subset["mother_unconstrained_fraction"].iloc[-1])
+                else np.nan,
+                "max_postjam_bud_fraction": float(subset["postjam_bud_fraction"].max())
+                if subset["postjam_bud_fraction"].notna().any()
+                else np.nan,
+                "max_mother_unconstrained_fraction": float(subset["mother_unconstrained_fraction"].max())
+                if subset["mother_unconstrained_fraction"].notna().any()
+                else np.nan,
+                "delta_phi_total_75_25": float(total_width_25 - total_width_75)
+                if pd.notna(total_width_25) and pd.notna(total_width_75)
+                else np.nan,
+                "delta_phi_track_75_25": float(tracked_width_25 - tracked_width_75)
+                if pd.notna(tracked_width_25) and pd.notna(tracked_width_75)
+                else np.nan,
+                "max_total_depletion_slope": max_depletion_slope(subset, "total_bud_fraction_of_j"),
+                "max_track_depletion_slope": max_depletion_slope(subset, "active_fraction"),
+                "exhausted_track_by_endpoint": int(exhausted_track_by_endpoint),
+                "exhausted_total_by_endpoint": int(exhausted_total_by_endpoint),
                 "divlog_events": int(subset["divlog_events"].iloc[0]),
+                "postjam_divisions_total": int(subset["postjam_divisions_total"].iloc[-1])
+                if pd.notna(subset["postjam_divisions_total"].iloc[-1])
+                else np.nan,
                 "n_completion": int(subset["n_completion"].iloc[0]),
                 "n_divided": int(subset["n_divided"].iloc[0]),
                 "a2_median": float(subset["a2_median"].iloc[0]) if pd.notna(subset["a2_median"].iloc[0]) else np.nan,
                 "a2_q25": float(subset["a2_q25"].iloc[0]) if pd.notna(subset["a2_q25"].iloc[0]) else np.nan,
                 "a2_q75": float(subset["a2_q75"].iloc[0]) if pd.notna(subset["a2_q75"].iloc[0]) else np.nan,
+                "a2_iqr": float(subset["a2_iqr"].iloc[0]) if pd.notna(subset["a2_iqr"].iloc[0]) else np.nan,
             }
         )
     summary = pd.DataFrame(rows)
@@ -709,12 +814,60 @@ def plot_depletion(curves, output_dir, formats):
     save_figure(fig, output_dir, "fig_lineage_depletion", formats)
 
 
+def plot_total_bud_depletion(curves, output_dir, formats):
+    usable = curves[curves["total_bud_fraction_of_j"].notna()].copy()
+    if usable.empty:
+        return
+    summary = summarize_interpolated_curves(usable, "total_bud_fraction_of_j")
+    sizes = sorted(usable["L"].unique())
+    fig, axes = plt.subplots(1, len(sizes), figsize=(6.5 * len(sizes), 4.8), constrained_layout=True)
+    axes = np.atleast_1d(axes)
+    for axis, L in zip(axes, sizes):
+        size_curves = usable[usable["L"] == L]
+        size_summary = summary[summary["L"] == L]
+        for p0 in p0_order(size_curves["p0"].unique()):
+            subset = size_curves[size_curves["p0"] == p0]
+            for _, run in subset.groupby(RUN_KEYS, sort=True):
+                axis.plot(
+                    run["delta_phi"],
+                    run["total_bud_fraction_of_j"],
+                    color=p0_color(p0),
+                    linewidth=1.1,
+                    alpha=0.30,
+                )
+                exhausted = run[run["n_bud_unconstrained_total"] == 0]
+                if not exhausted.empty:
+                    first = exhausted.iloc[0]
+                    axis.scatter(first["delta_phi"], 0.0, color=p0_color(p0), s=26, zorder=3)
+            med = size_summary[size_summary["p0"] == p0].sort_values("delta_phi")
+            if med.empty:
+                continue
+            add_line_with_band(
+                axis,
+                med["delta_phi"].to_numpy(),
+                med["total_bud_fraction_of_j_median"].to_numpy(),
+                med["total_bud_fraction_of_j_q25"].to_numpy(),
+                med["total_bud_fraction_of_j_q75"].to_numpy(),
+                p0_color(p0),
+                label=p0_label(p0),
+            )
+        axis.set_xlabel(r"$\phi - \phi_J$")
+        axis.set_ylabel(r"Total unconstrained-bud fraction / $u_J^{\mathrm{bud}}$")
+        axis.set_ylim(-0.03, 1.03)
+        axis.set_title(f"L = {L}")
+    if len(axes):
+        axes[0].legend(frameon=False, fontsize=8, loc="upper right")
+    fig.suptitle("Depletion of Total Unconstrained Buds", fontsize=14)
+    save_figure(fig, output_dir, "fig_lineage_total_depletion", formats)
+
+
 def plot_injection_check(summary, output_dir, formats):
     summary = summary.sort_values(["L", "p0"]).reset_index(drop=True)
     labels = [f"L={int(row.L)}\n{p0_label(row.p0)}" for row in summary.itertuples()]
     x = np.arange(len(summary))
 
-    fig, ax = plt.subplots(figsize=(max(9.5, 1.6 * len(summary)), 5.0), constrained_layout=True)
+    fig, axes = plt.subplots(1, 2, figsize=(max(12.5, 1.9 * len(summary)), 5.0), constrained_layout=True)
+    ax = axes[0]
     ax.bar(x, summary["endpoint_completed_fraction"], color="#0f766e", label="Completed")
     ax.bar(
         x,
@@ -736,62 +889,163 @@ def plot_injection_check(summary, output_dir, formats):
     ax.set_title("Endpoint Partition of the Initial Free-Bud Reservoir")
     ax.grid(True, axis="y", alpha=0.25)
     ax.legend(frameon=False, fontsize=9, loc="upper right")
+
+    ax = axes[1]
+    ax.bar(x - 0.16, summary["max_postjam_bud_fraction"], width=0.28, color="#2563eb", label="Max post-jam buds")
+    ax.bar(
+        x + 0.16,
+        summary["max_mother_unconstrained_fraction"],
+        width=0.28,
+        color="#7c3aed",
+        label="Max mother-lobe contribution",
+    )
+    ax.set_xticks(x, labels)
+    ax.set_ylabel("Fraction of nonfloating cells")
+    ax.set_title("Transient Non-Reservoir Free Modes")
+    ax.grid(True, axis="y", alpha=0.25)
+    ax.legend(frameon=False, fontsize=9, loc="upper right")
     save_figure(fig, output_dir, "fig_lineage_injection_check", formats)
 
 
 def plot_secondary_summary(summary, output_dir, formats):
     fig, axes = plt.subplots(1, 2, figsize=(12.6, 4.9), constrained_layout=True)
-    exhausted = summary[summary["exhausted_by_endpoint"] == 1].copy()
-    not_exhausted = summary[summary["exhausted_by_endpoint"] == 0].copy()
-    for axis, value, ylabel, title in zip(
+    p0_values = p0_order(summary["p0"].dropna().unique())
+    x_positions = {value: index for index, value in enumerate(p0_values)}
+    for axis, total_value, tracked_value, ylabel, title in zip(
         axes,
-        ["delta_phi_2_obs", "P_2_obs"],
+        ["delta_phi_2_total_obs", "P_2_total_obs"],
+        ["delta_phi_2_track_obs", "P_2_track_obs"],
         [r"$\phi_2 - \phi_J$", r"$P_2$"],
         ["Observed Secondary-Arrest Location", "Observed Pressure at Secondary Arrest"],
     ):
         for L in sorted(summary["L"].unique()):
-            subset = exhausted[exhausted["L"] == L].sort_values("p0")
+            subset = summary[summary["L"] == L].sort_values("p0")
             if subset.empty:
                 continue
-            x = np.arange(len(subset))
-            axis.plot(
-                x,
-                subset[value],
-                color="#111827",
-                linestyle=SIZE_LINESTYLES.get(L, "-"),
-                linewidth=2.0,
-                marker="o",
-                markersize=5,
-                label=f"L = {L}",
-            )
-            axis.set_xticks(x, [p0_label(item) for item in subset["p0"]])
-        if not not_exhausted.empty:
+            total_subset = subset[subset["exhausted_total_by_endpoint"] == 1]
+            if not total_subset.empty:
+                xt = np.array([x_positions[item] for item in total_subset["p0"]], dtype=float)
+                axis.plot(
+                    xt,
+                    total_subset[total_value],
+                    color="#111827",
+                    linestyle=SIZE_LINESTYLES.get(L, "-"),
+                    linewidth=2.0,
+                    marker="o",
+                    markersize=5,
+                    label=f"L = {L}",
+                )
+            track_subset = subset[subset["exhausted_track_by_endpoint"] == 1]
+            if not track_subset.empty:
+                xs = np.array([x_positions[item] for item in track_subset["p0"]], dtype=float)
+                axis.plot(
+                    xs,
+                    track_subset[tracked_value],
+                    color="#6b7280",
+                    linestyle=SIZE_LINESTYLES.get(L, "-"),
+                    linewidth=1.6,
+                    marker="o",
+                    markersize=5,
+                    markerfacecolor="white",
+                )
+        not_exhausted_total = int((summary["exhausted_total_by_endpoint"] == 0).sum())
+        if not_exhausted_total:
             axis.text(
                 0.03,
                 0.06,
-                f"Not exhausted by endpoint: {len(not_exhausted)} run(s)",
+                f"Total-bud arrest missing by endpoint: {not_exhausted_total} run(s)",
                 transform=axis.transAxes,
                 ha="left",
                 va="bottom",
                 fontsize=9,
             )
+        axis.set_xticks(list(x_positions.values()), [p0_label(item) for item in p0_values])
         axis.set_ylabel(ylabel)
         axis.set_title(title)
         axis.grid(True, alpha=0.25)
     if len(summary["L"].unique()):
-        axes[0].legend(frameon=False, fontsize=9, loc="upper right")
+        size_handles = [
+            Line2D([0], [0], color="#111827", linewidth=2.0, linestyle=SIZE_LINESTYLES.get(L, "-"), label=f"L = {L}")
+            for L in sorted(summary["L"].unique())
+        ]
+        type_handles = [
+            Line2D([0], [0], color="#111827", linewidth=2.0, marker="o", label="Total buds"),
+            Line2D([0], [0], color="#6b7280", linewidth=1.6, marker="o", markerfacecolor="white", label="Tracked reservoir"),
+        ]
+        legend1 = axes[0].legend(handles=size_handles, frameon=False, fontsize=9, loc="upper right")
+        axes[0].add_artist(legend1)
+        axes[0].legend(handles=type_handles, frameon=False, fontsize=9, loc="lower right")
     fig.suptitle("Pilot Secondary-Arrest Summary", fontsize=14)
     save_figure(fig, output_dir, "fig_lineage_secondary_summary", formats)
 
 
+def plot_abruptness_summary(summary, output_dir, formats):
+    usable = summary[summary["delta_phi_total_75_25"].notna() | summary["delta_phi_track_75_25"].notna()].copy()
+    if usable.empty:
+        return
+    fig, axes = plt.subplots(1, 2, figsize=(12.6, 4.9), constrained_layout=True)
+    p0_values = p0_order(usable["p0"].dropna().unique())
+    x_positions = {value: index for index, value in enumerate(p0_values)}
+    for axis, width_col, slope_col, title in (
+        (axes[0], "delta_phi_total_75_25", "delta_phi_track_75_25", r"Width of Depletion Window"),
+        (axes[1], "max_total_depletion_slope", "max_track_depletion_slope", r"Peak Depletion Slope"),
+    ):
+        for L in sorted(usable["L"].unique()):
+            subset = usable[usable["L"] == L].sort_values("p0")
+            if subset.empty:
+                continue
+            x = np.array([x_positions[item] for item in subset["p0"]], dtype=float)
+            axis.plot(
+                x,
+                subset[width_col],
+                color="#111827",
+                linestyle=SIZE_LINESTYLES.get(L, "-"),
+                linewidth=2.0,
+                marker="o",
+                markersize=5,
+                label=f"L = {L}" if axis is axes[0] else None,
+            )
+            axis.plot(
+                x,
+                subset[slope_col],
+                color="#6b7280",
+                linestyle=SIZE_LINESTYLES.get(L, "-"),
+                linewidth=1.6,
+                marker="o",
+                markersize=5,
+                markerfacecolor="white",
+            )
+        axis.set_xticks(list(x_positions.values()), [p0_label(item) for item in p0_values])
+        axis.set_title(title)
+        axis.grid(True, alpha=0.25)
+    axes[0].set_ylabel(r"$\delta \phi_{75 \to 25}$")
+    axes[1].set_ylabel(r"Max $-\partial(u/u_J)/\partial \phi$")
+    if len(usable["L"].unique()):
+        size_handles = [
+            Line2D([0], [0], color="#111827", linewidth=2.0, linestyle=SIZE_LINESTYLES.get(L, "-"), label=f"L = {L}")
+            for L in sorted(usable["L"].unique())
+        ]
+        type_handles = [
+            Line2D([0], [0], color="#111827", linewidth=2.0, marker="o", label="Total buds"),
+            Line2D([0], [0], color="#6b7280", linewidth=1.6, marker="o", markerfacecolor="white", label="Tracked reservoir"),
+        ]
+        legend1 = axes[0].legend(handles=size_handles, frameon=False, fontsize=9, loc="upper left")
+        axes[0].add_artist(legend1)
+        axes[0].legend(handles=type_handles, frameon=False, fontsize=9, loc="lower left")
+    fig.suptitle("Secondary-Arrest Abruptness Diagnostics", fontsize=14)
+    save_figure(fig, output_dir, "fig_lineage_abruptness", formats)
+
+
 def write_summary_note(summary, output_dir, preset_name):
-    exhausted = int(summary["exhausted_by_endpoint"].sum())
+    exhausted_track = int(summary["exhausted_track_by_endpoint"].sum())
+    exhausted_total = int(summary["exhausted_total_by_endpoint"].sum())
     lines = [
         "# Lineage pilot summary",
         "",
         f"- Preset: `{preset_name}`",
         f"- Runs summarized: {len(summary)}",
-        f"- Exhausted by endpoint: {exhausted}/{len(summary)}",
+        f"- Tracked reservoir exhausted by endpoint: {exhausted_track}/{len(summary)}",
+        f"- Total unconstrained-bud count exhausted by endpoint: {exhausted_total}/{len(summary)}",
         f"- Sizes: {', '.join(str(item) for item in sorted(summary['L'].unique()))}",
         f"- Feedbacks: {', '.join(f'{item:g}' for item in sorted(summary['p0'].unique()))}",
     ]
@@ -843,14 +1097,17 @@ def main():
     plot_thresholds(thresholds, output_dir, formats)
     plot_two_stage(thresholds, output_dir, formats)
     plot_depletion(curves, output_dir, formats)
+    plot_total_bud_depletion(curves, output_dir, formats)
     plot_injection_check(summary, output_dir, formats)
     plot_secondary_summary(summary, output_dir, formats)
+    plot_abruptness_summary(summary, output_dir, formats)
     write_summary_note(summary, output_dir, args.preset)
 
     print(
         "Generated lineage-support plots "
         f"for {len(summary)} run(s) with "
-        f"{int(summary['exhausted_by_endpoint'].sum())} exhausted by the endpoint.",
+        f"{int(summary['exhausted_track_by_endpoint'].sum())} tracked-reservoir and "
+        f"{int(summary['exhausted_total_by_endpoint'].sum())} total-bud exhaustions by the endpoint.",
         flush=True,
     )
 

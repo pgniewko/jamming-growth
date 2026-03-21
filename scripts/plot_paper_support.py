@@ -1365,7 +1365,7 @@ def plot_growth_crossover(hist_slice, moment_curves, hist_dphi, output_dir, form
     save_figure(fig, output_dir, "fig_growth_crossover", formats)
 
 
-def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists, hist_supported):
+def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists, hist_supported, lineage_supported):
     lines = [
         "# Paper-support plot map",
         "",
@@ -1375,11 +1375,22 @@ def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists, hist_suppo
         "- `fig_pressure_moduli_decoupling`: suppressed pressure build-up under strong feedback alongside continued growth of `B_ext` and `G`.",
         "- `fig_bgrow_partition`: `B_grow / B_ext` compared against both `chi_c` and the full partition factor `lambda_c` extracted from the saved bud-level rates.",
         "",
-        "Not yet supported by the current output folder:",
-        "- Threshold-distribution objects such as `S(a*)` or direct completion-threshold histograms.",
-        "- Secondary-arrest quantities that need lineage/depletion runs (`phi_2(P0)`, `P_2(P0)`, `B_2(P0)`, `G_2(P0)`).",
-        "- Any direct test that needs the dedicated lineage outputs (`POSTJAMM_SUMMARY_*`, `TRANSITIONS_*`, division-injection terms), because `output/lineage_growth/` is still empty in this workspace.",
+        "Lineage-backed support:",
     ]
+    if lineage_supported:
+        lines.extend(
+            [
+                "- `scripts/plot_lineage_support.py`: threshold distributions, tracked-reservoir depletion, total unconstrained-bud depletion, injection diagnostics, and observed secondary-arrest proxies from `output/lineage_growth/`.",
+                "- Secondary-arrest quantities are now available in the lineage support outputs, but they are not yet folded into this main manuscript plotting script.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "- Threshold-distribution objects such as `S(a*)` or direct completion-threshold histograms remain unavailable in this main script without lineage outputs.",
+                "- Secondary-arrest quantities that need lineage/depletion runs (`phi_2(P0)`, `P_2(P0)`, abruptness diagnostics) are unavailable when `output/lineage_growth/` is missing.",
+            ]
+        )
     if hist_supported:
         lines.insert(
             7,
@@ -1576,12 +1587,17 @@ def main():
     if hist_supported:
         plot_growth_crossover(hist_slice, moment_curves, args.hist_dphi, output_dir, formats)
 
+    lineage_root = REPO_ROOT / "output" / "lineage_growth" / "growth"
+    lineage_supported = any(lineage_root.glob("POSTJAMM_SUMMARY_*.dat")) and any(
+        lineage_root.glob("TRANSITIONS_*.dat")
+    )
     write_claim_map(
         output_dir,
         args.main_L,
         args.hist_dphi,
         skipped_nc_exists=bool(skipped_nc_files),
         hist_supported=hist_supported,
+        lineage_supported=lineage_supported,
     )
 
     print(

@@ -88,6 +88,10 @@
       INTEGER initial_free_total, initial_free_completed
       INTEGER initial_free_divided, n_compressed
       INTEGER n_initial_free_active
+      INTEGER n_bud_unconstrained_total
+      INTEGER n_postjam_bud_unconstrained
+      INTEGER n_mother_unconstrained
+      INTEGER postjam_divisions_total
       INTEGER postjam_steps, failure_code
 
       COMMON /f2com/ width
@@ -141,6 +145,7 @@
       initial_free_total = 0
       initial_free_completed = 0
       initial_free_divided = 0
+      postjam_divisions_total = 0
 
       DO i=1,Ntot
          tracked_initial_free(i)=0
@@ -204,6 +209,10 @@
      + // ' n_compressed n_initial_free_total'
      + // ' n_initial_free_active n_initial_free_completed'
      + // ' n_initial_free_divided'
+     + // ' n_bud_unconstrained_total'
+     + // ' n_postjam_bud_unconstrained'
+     + // ' n_mother_unconstrained'
+     + // ' postjam_divisions_total'
       
       ! initial size & aspect ratios - total vol = (1+rat)*alpha0
       d(1)=1d0
@@ -354,6 +363,8 @@
             ENDDO
             FLUSH(15)
             IF(tracking_initialized.EQ.1) THEN
+               postjam_divisions_total =
+     +            postjam_divisions_total + event_count
                CALL lineage_contacts(
      +              x,y,th,D1,D,alpha,N,
      +              curr_bud_contacts,curr_bud_unconstrained)
@@ -431,12 +442,20 @@
                CALL out_numbers(N, Nf, Nu, Ziso)
                CALL chi_c_active_counts(
      +              N,P0,PP,tracked_initial_free,
-     +              chi_c_est,n_compressed,n_initial_free_active)
+     +              curr_bud_unconstrained,Nu,
+     +              chi_c_est,n_compressed,n_initial_free_active,
+     +              n_bud_unconstrained_total,
+     +              n_postjam_bud_unconstrained,
+     +              n_mother_unconstrained)
                CALL write_postjamm_summary(
      +              18,k,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,
      +              chi_c_est,n_compressed,initial_free_total,
      +              n_initial_free_active,initial_free_completed,
-     +              initial_free_divided)
+     +              initial_free_divided,
+     +              n_bud_unconstrained_total,
+     +              n_postjam_bud_unconstrained,
+     +              n_mother_unconstrained,
+     +              postjam_divisions_total)
                FLUSH(17)
                FLUSH(18)
             ENDIF
@@ -546,14 +565,23 @@
      +         tracked_initial_bud_diameter,initial_free_total,
      +         initial_free_completed,initial_free_divided,
      +         tracking_initialized)
+            postjam_divisions_total = 0
             CALL chi_c_active_counts(
      +         N,P0,PP,tracked_initial_free,
-     +         chi_c_est,n_compressed,n_initial_free_active)
+     +         curr_bud_unconstrained,Nu,
+     +         chi_c_est,n_compressed,n_initial_free_active,
+     +         n_bud_unconstrained_total,
+     +         n_postjam_bud_unconstrained,
+     +         n_mother_unconstrained)
             CALL write_postjamm_summary(
      +         18,k,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,
      +         chi_c_est,n_compressed,initial_free_total,
      +         n_initial_free_active,initial_free_completed,
-     +         initial_free_divided)
+     +         initial_free_divided,
+     +         n_bud_unconstrained_total,
+     +         n_postjam_bud_unconstrained,
+     +         n_mother_unconstrained,
+     +         postjam_divisions_total)
             FLUSH(18)
             above_jamming = 1
             at_jamming = 0
@@ -1276,17 +1304,26 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
 
       SUBROUTINE chi_c_active_counts(
      +     N,P0,PP,tracked_initial_free,
-     +     chi_c_est,n_compressed,n_initial_free_active)
+     +     bud_unconstrained,Nu,
+     +     chi_c_est,n_compressed,n_initial_free_active,
+     +     n_bud_unconstrained_total,
+     +     n_postjam_bud_unconstrained,
+     +     n_mother_unconstrained)
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
       INTEGER N, i, n_compressed, n_initial_free_active
-      INTEGER tracked_initial_free(Ntot)
+      INTEGER n_bud_unconstrained_total
+      INTEGER n_postjam_bud_unconstrained
+      INTEGER n_mother_unconstrained
+      INTEGER Nu
+      INTEGER tracked_initial_free(Ntot), bud_unconstrained(Ntot)
       DOUBLE PRECISION P0, PP(Ntot), chi_c_est, chi_sum
 
       chi_sum = 0d0
       n_compressed = 0
       n_initial_free_active = 0
+      n_bud_unconstrained_total = 0
 
       DO i=1,N
          IF(PP(i).GT.0d0) THEN
@@ -1300,7 +1337,21 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
          IF(tracked_initial_free(i).EQ.1) THEN
             n_initial_free_active = n_initial_free_active + 1
          ENDIF
+         IF(bud_unconstrained(i).EQ.1) THEN
+            n_bud_unconstrained_total = n_bud_unconstrained_total + 1
+         ENDIF
       ENDDO
+
+      n_postjam_bud_unconstrained =
+     +     n_bud_unconstrained_total - n_initial_free_active
+      IF(n_postjam_bud_unconstrained.LT.0) THEN
+         n_postjam_bud_unconstrained = 0
+      ENDIF
+
+      n_mother_unconstrained = Nu - n_bud_unconstrained_total
+      IF(n_mother_unconstrained.LT.0) THEN
+         n_mother_unconstrained = 0
+      ENDIF
 
       IF(n_compressed.GT.0) THEN
          chi_c_est = chi_sum / dble(n_compressed)
@@ -1314,18 +1365,28 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
      +     unit_no,step,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,
      +     chi_c_est,n_compressed,initial_free_total,
      +     n_initial_free_active,initial_free_completed,
-     +     initial_free_divided)
+     +     initial_free_divided,
+     +     n_bud_unconstrained_total,
+     +     n_postjam_bud_unconstrained,
+     +     n_mother_unconstrained,
+     +     postjam_divisions_total)
       IMPLICIT NONE
       INTEGER unit_no, step, N, Nc, Nf, Nu, Ziso
       INTEGER n_compressed, initial_free_total
       INTEGER n_initial_free_active, initial_free_completed
       INTEGER initial_free_divided
+      INTEGER n_bud_unconstrained_total
+      INTEGER n_postjam_bud_unconstrained
+      INTEGER n_mother_unconstrained
+      INTEGER postjam_divisions_total
       DOUBLE PRECISION phi, P, total_growthrate, chi_c_est
 
-      WRITE(unit_no,'(I12,2E26.18,5I12,2E26.18,5I12)')
+      WRITE(unit_no,'(I12,2E26.18,5I12,2E26.18,9I12)')
      +     step,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,chi_c_est,
      +     n_compressed,initial_free_total,n_initial_free_active,
-     +     initial_free_completed,initial_free_divided
+     +     initial_free_completed,initial_free_divided,
+     +     n_bud_unconstrained_total,n_postjam_bud_unconstrained,
+     +     n_mother_unconstrained,postjam_divisions_total
 
       END
 
