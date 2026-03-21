@@ -3,6 +3,7 @@
 import argparse
 import gzip
 import os
+import signal
 import subprocess
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
@@ -52,6 +53,13 @@ STEPLOG_HEADER = (
     "# step N fret_per_particle P dt phi total_growthrate "
     "before_jamming at_jamming above_jamming"
 )
+DEFAULT_JOB_TIMEOUT_SECONDS = 21600
+EXIT_MIN_DT = 10
+EXIT_MAX_POSTJAM_STEPS = 11
+
+
+class JobTimeoutError(Exception):
+    pass
 
 
 def parse_csv_list(value):
@@ -89,6 +97,16 @@ def parse_args():
         action="store_true",
         help="Keep transient growth-style outputs and the pre-jamming lineage snapshot after successful jobs.",
     )
+    parser.add_argument(
+        "--job-timeout-seconds",
+        type=int,
+        default=DEFAULT_JOB_TIMEOUT_SECONDS,
+        help=(
+            "Kill a lineage-growth job if it runs longer than this many seconds. "
+            "Use 0 to disable. Default: "
+            f"{DEFAULT_JOB_TIMEOUT_SECONDS}"
+        ),
+    )
     args = parser.parse_args()
     preset = PRESETS.get(args.preset, {})
     for field in ("sizes", "p0s", "dphis", "seeds"):
@@ -102,6 +120,8 @@ def parse_args():
             setattr(args, field, list(value))
     if args.n_cpus is None:
         args.n_cpus = int(preset.get("n_cpus", default_cpus))
+    if args.job_timeout_seconds < 0:
+        parser.error("--job-timeout-seconds must be non-negative")
     return args
 
 
@@ -253,6 +273,8 @@ def parse_steplog(path, expected_final_count):
         saw_postjam = False
         for line in handle:
             if not line.strip():
+                continue
+            if line.lstrip().startswith("#"):
                 continue
             fields = line.split()
             if len(fields) != 10:
@@ -452,6 +474,26 @@ def clean_job(paths):
         remove_if_exists(path)
 
 
+def clean_failed_job(paths):
+    for path in (
+        paths["frame"],
+        paths["frame"].with_name(paths["frame"].name + ".gz"),
+        paths["jamm"],
+        paths["jamm"].with_name(paths["jamm"].name + ".gz"),
+        paths["stats_frame"],
+        paths["stats_jamm"],
+        paths["lineage_frame"],
+        paths["lineage_jamm"],
+        paths["divlog"],
+        paths["transitions"],
+        paths["postjamm_summary"],
+        paths["nc"],
+        paths["traj"],
+        paths["traj"].with_name(paths["traj"].name + ".gz"),
+    ):
+        remove_if_exists(path)
+
+
 def clean_finished_job(paths, keep_all_output):
     if keep_all_output:
         return
@@ -521,7 +563,7 @@ def lineage_done(paths):
     return True
 
 
-def run_growth(params):
+def run_growth(params, timeout_seconds):
     cmd = [
         "bash",
         str(GROWTH_SCRIPT),
@@ -554,29 +596,64 @@ def run_growth(params):
         "--version",
         FIXED["version"],
     ]
-    subprocess.run(cmd, cwd=REPO_ROOT, check=True)
+    process = subprocess.Popen(cmd, cwd=REPO_ROOT, start_new_session=True)
+    try:
+        returncode = process.wait(timeout=timeout_seconds or None)
+    except subprocess.TimeoutExpired as exc:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+        raise JobTimeoutError(
+            f"timed out after {timeout_seconds} seconds"
+        ) from exc
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, cmd)
 
 
-def run_job(params, force, keep_all_output):
+def classify_growth_failure(exc):
+    if isinstance(exc, JobTimeoutError):
+        return "TIMEOUT"
+    if isinstance(exc, subprocess.CalledProcessError):
+        if exc.returncode == EXIT_MIN_DT:
+            return "MIN_DT"
+        if exc.returncode == EXIT_MAX_POSTJAM_STEPS:
+            return "MAX_POSTJAM_STEPS"
+    return None
+
+
+def run_job(params, force, keep_all_output, timeout_seconds):
     name = basename(params)
     paths = build_paths(name)
     if force:
         clean_job(paths)
     elif lineage_done(paths):
         clean_finished_job(paths, keep_all_output)
-        return name
+        return {"status": "completed", "name": name}
     else:
         clean_job(paths)
 
     try:
-        run_growth(params)
+        run_growth(params, timeout_seconds)
         clean_finished_job(paths, keep_all_output)
         if not lineage_done(paths):
             raise RuntimeError(f"incomplete lineage-growth outputs for {name}")
-    except Exception:
+    except Exception as exc:
+        reason = classify_growth_failure(exc)
+        if reason is not None:
+            clean_failed_job(paths)
+            return {"status": "failed", "reason": reason, "name": name}
         clean_job(paths)
         raise
-    return name
+    return {"status": "completed", "name": name}
 
 
 def main():
@@ -592,16 +669,34 @@ def main():
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     futures = {}
+    completed_jobs = 0
+    failed_jobs = []
     with ThreadPoolExecutor(max_workers=args.n_cpus) as executor:
         for params in job_params(args):
-            future = executor.submit(run_job, params, args.force, args.keep_all_output)
+            future = executor.submit(
+                run_job,
+                params,
+                args.force,
+                args.keep_all_output,
+                args.job_timeout_seconds,
+            )
             futures[future] = params
         while futures:
             done, _ = wait(futures, return_when=FIRST_COMPLETED)
             for future in done:
                 params = futures.pop(future)
                 try:
-                    future.result()
+                    result = future.result()
+                    if result["status"] == "failed":
+                        failed_jobs.append((params, result["reason"]))
+                        print(
+                            "Failed lineage-growth job: "
+                            f"lx={params['lx']} p0={params['p0']} "
+                            f"dphi={params['dphi']} seed={params['seed']} "
+                            f"reason={result['reason']}"
+                        )
+                    else:
+                        completed_jobs += 1
                 except Exception as exc:
                     for pending in futures:
                         pending.cancel()
@@ -610,6 +705,10 @@ def main():
                         f"lx={params['lx']} p0={params['p0']} "
                         f"dphi={params['dphi']} seed={params['seed']}\n{exc}"
                     ) from exc
+    print(f"Completed lineage-growth jobs: {completed_jobs}")
+    print(f"Failed lineage-growth jobs: {len(failed_jobs)}")
+    if failed_jobs:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

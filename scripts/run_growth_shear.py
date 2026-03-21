@@ -3,6 +3,7 @@
 import argparse
 import gzip
 import os
+import signal
 import subprocess
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
@@ -37,6 +38,13 @@ GROWTH_STEPLOG_HEADER = (
 SHEAR_G_DATA_HEADER = (
     "# strain shear_stress delta_shear_stress N Nc Nf Nu Ziso phi Nmm Nbb Nmb"
 )
+DEFAULT_JOB_TIMEOUT_SECONDS = 21600
+EXIT_MIN_DT = 10
+EXIT_MAX_POSTJAM_STEPS = 11
+
+
+class JobTimeoutError(Exception):
+    pass
 
 
 def dphi_allowed(p0, dphi):
@@ -72,7 +80,20 @@ def parse_args():
         action="store_true",
         help="Keep shear trajectory files after successful jobs.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--job-timeout-seconds",
+        type=int,
+        default=DEFAULT_JOB_TIMEOUT_SECONDS,
+        help=(
+            "Kill a growth job if it runs longer than this many seconds. "
+            "Use 0 to disable. Default: "
+            f"{DEFAULT_JOB_TIMEOUT_SECONDS}"
+        ),
+    )
+    args = parser.parse_args()
+    if args.job_timeout_seconds < 0:
+        raise SystemExit("--job-timeout-seconds must be non-negative")
+    return args
 
 
 def all_job_params():
@@ -243,6 +264,8 @@ def parse_steplog(path, expected_final_count):
             text = line.strip()
             if not text:
                 continue
+            if text.startswith("#"):
+                continue
             fields = text.split()
             if len(fields) != 10:
                 raise ValueError(f"expected 10 columns per steplog row, found {len(fields)}")
@@ -338,6 +361,21 @@ def clean_growth(paths):
         remove_if_exists(path)
 
 
+def clean_failed_growth(paths):
+    for path in (
+        paths["growth_frame"],
+        paths["growth_frame_gz"],
+        paths["growth_jamm"],
+        paths["growth_jamm_gz"],
+        paths["growth_stats"],
+        paths["growth_stats_jamm"],
+        paths["growth_nc"],
+        paths["growth_traj"],
+        paths["growth_traj_gz"],
+    ):
+        remove_if_exists(path)
+
+
 def clean_shear(paths):
     for path in (
         paths["shear_input_local"],
@@ -422,18 +460,47 @@ def shear_done(paths):
         return False
 
 
-def run_script(script, extra_args):
+def run_script(script, extra_args, timeout_seconds=None):
     cmd = ["bash", str(script), "--results-root", str(OUTPUT_ROOT), *extra_args]
-    subprocess.run(cmd, cwd=REPO_ROOT, check=True)
+    process = subprocess.Popen(cmd, cwd=REPO_ROOT, start_new_session=True)
+    try:
+        returncode = process.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+        raise JobTimeoutError(f"timed out after {timeout_seconds} seconds") from exc
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, cmd)
 
 
-def run_growth(params, force):
+def classify_growth_failure(exc):
+    if isinstance(exc, JobTimeoutError):
+        return "TIMEOUT"
+    if isinstance(exc, subprocess.CalledProcessError):
+        if exc.returncode == EXIT_MIN_DT:
+            return "MIN_DT"
+        if exc.returncode == EXIT_MAX_POSTJAM_STEPS:
+            return "MAX_POSTJAM_STEPS"
+    return None
+
+
+def run_growth(params, force, timeout_seconds):
     name = basename(params)
     paths = build_paths(name)
     if force:
         clean_growth(paths)
     elif growth_done(paths):
-        return name, paths
+        return {"status": "completed", "name": name, "paths": paths}
     else:
         clean_growth(paths)
 
@@ -453,13 +520,18 @@ def run_growth(params, force):
                 "--divtype", FIXED["divtype"],
                 "--version", FIXED["version"],
             ],
+            timeout_seconds=timeout_seconds or None,
         )
         if not growth_done(paths):
             raise RuntimeError(f"incomplete growth outputs for {name}")
-    except Exception:
+    except Exception as exc:
+        reason = classify_growth_failure(exc)
+        if reason is not None:
+            clean_failed_growth(paths)
+            return {"status": "failed", "reason": reason, "name": name, "paths": paths}
         clean_growth(paths)
         raise
-    return name, paths
+    return {"status": "completed", "name": name, "paths": paths}
 
 
 def run_shear(params, paths, force, keep_all_output):
@@ -496,10 +568,12 @@ def run_shear(params, paths, force, keep_all_output):
     clean_finished_shear(paths, keep_all_output)
 
 
-def run_job(params, force, keep_all_output):
-    name, paths = run_growth(params, force)
-    run_shear(params, paths, force, keep_all_output)
-    return name
+def run_job(params, force, keep_all_output, timeout_seconds):
+    growth_result = run_growth(params, force, timeout_seconds)
+    if growth_result["status"] == "failed":
+        return growth_result
+    run_shear(params, growth_result["paths"], force, keep_all_output)
+    return {"status": "completed", "name": growth_result["name"]}
 
 
 def main():
@@ -511,16 +585,34 @@ def main():
 
     jobs = list(job_params())
     futures = {}
+    completed_jobs = 0
+    failed_jobs = []
     with ThreadPoolExecutor(max_workers=args.n_cpus) as executor:
         for params in jobs:
-            future = executor.submit(run_job, params, args.force, args.keep_all_output)
+            future = executor.submit(
+                run_job,
+                params,
+                args.force,
+                args.keep_all_output,
+                args.job_timeout_seconds,
+            )
             futures[future] = params
         while futures:
             done, _ = wait(futures, return_when=FIRST_COMPLETED)
             for future in done:
                 params = futures.pop(future)
                 try:
-                    future.result()
+                    result = future.result()
+                    if result["status"] == "failed":
+                        failed_jobs.append((params, result["reason"]))
+                        print(
+                            "Failed growth job: "
+                            f"lx={params['lx']} p0={params['p0']} "
+                            f"dphi={params['dphi']} seed={params['seed']} "
+                            f"reason={result['reason']}"
+                        )
+                    else:
+                        completed_jobs += 1
                 except Exception as exc:
                     for pending in futures:
                         pending.cancel()
@@ -528,6 +620,10 @@ def main():
                         "Failed job: "
                         f"lx={params['lx']} p0={params['p0']} dphi={params['dphi']} seed={params['seed']}\n{exc}"
                     ) from exc
+    print(f"Completed jobs: {completed_jobs}")
+    print(f"Failed growth jobs: {len(failed_jobs)}")
+    if failed_jobs:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

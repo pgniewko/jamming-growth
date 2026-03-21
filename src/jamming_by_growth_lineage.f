@@ -26,8 +26,15 @@
       ! CONSTANT PARAMETERS
       INTEGER Ntot
       PARAMETER(Ntot=4096)
+      INTEGER MAX_POSTJAM_STEPS
+      PARAMETER(MAX_POSTJAM_STEPS=100000)
+      INTEGER EXIT_MIN_DT, EXIT_MAX_POSTJAM_STEPS
+      PARAMETER(EXIT_MIN_DT=10)
+      PARAMETER(EXIT_MAX_POSTJAM_STEPS=11)
       DOUBLE PRECISION pi
-      PARAMETER(pi=3.1415926535897932d0)      
+      PARAMETER(pi=3.1415926535897932d0)
+      DOUBLE PRECISION DT_MIN
+      PARAMETER(DT_MIN=1d-12)
       ! FILE NAMES
       CHARACTER file1*80     
       CHARACTER file_LF_JAMM*120
@@ -81,6 +88,7 @@
       INTEGER initial_free_total, initial_free_completed
       INTEGER initial_free_divided, n_compressed
       INTEGER n_initial_free_active
+      INTEGER postjam_steps, failure_code
 
       COMMON /f2com/ width
       COMMON /f3com/ alpha
@@ -148,6 +156,8 @@
       before_jamming =  0
       at_jamming = 0
       above_jamming = 0
+      postjam_steps = 0
+      failure_code = 0
       Nc = 0
 
       ! TRAJECTORY FILE
@@ -311,9 +321,10 @@
         
          
          CALL system_status(N,D,D1,alpha,ftol,wide,dt,
-     +     fret, phi_j, dphi,
+     +     fret, phi_j, dphi, DT_MIN, MAX_POSTJAM_STEPS,
      +     reject_time_step, terminate_sim,
-     +     before_jamming, at_jamming, above_jamming)
+     +     before_jamming, at_jamming, above_jamming,
+     +     postjam_steps, failure_code)
      
          
          ! REJECT THE MOVE
@@ -434,6 +445,21 @@
      +        total_growthrate,before_jamming,at_jamming,above_jamming
          WRITE(14,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
      +        total_growthrate,before_jamming,at_jamming,above_jamming
+         IF(failure_code.EQ.EXIT_MIN_DT) THEN
+            WRITE(*,'(A,1X,A,1X,2I12,5E26.18)')
+     +         '# FAILURE','MIN_DT',k,N,dt,phi,phi_j,phi_j+dphi,
+     +         total_growthrate
+            WRITE(14,'(A,1X,A,1X,2I12,5E26.18)')
+     +         '# FAILURE','MIN_DT',k,N,dt,phi,phi_j,phi_j+dphi,
+     +         total_growthrate
+         ELSE IF(failure_code.EQ.EXIT_MAX_POSTJAM_STEPS) THEN
+            WRITE(*,'(A,1X,A,1X,2I12,5E26.18)')
+     +         '# FAILURE','MAX_POSTJAM_STEPS',k,N,dt,phi,phi_j,
+     +         phi_j+dphi,total_growthrate
+            WRITE(14,'(A,1X,A,1X,2I12,5E26.18)')
+     +         '# FAILURE','MAX_POSTJAM_STEPS',k,N,dt,phi,phi_j,
+     +         phi_j+dphi,total_growthrate
+         ENDIF
          FLUSH(14)
          
          IF(mod(k,skip).EQ.0) THEN
@@ -537,50 +563,52 @@
 !!!!!! THE MAIN LOOP ENDS HERE  !!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!   
       
-      phi = calc_phi(D, alpha, D1, N)
-      CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)   
-      ! save the last configuration to the file
-      WRITE(1,*)  2*N, phi
-      WRITE(12,*) N, phi
-      WRITE(22,*) 2*N, phi, total_growthrate
-      DO i=1,N
-          WRITE(12,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
-                    
-          cc=dcos(th(i))
-          ss=dsin(th(i))
-          dd=alpha(i)-1d0
-          dr(1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)/2d0
-          dr(2)=-(1d0+dd)/(1d0+dd**2)*D(i)/2d0
-          DO kk=1,2
-              xa(kk)=x(i)+dr(kk)*cc
-              ya(kk)=y(i)+dr(kk)*ss
-          ENDDO
-          
-          WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-          WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
-          
-          ratei_eff = rate(i)
-          IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
-              ratei_eff = rate(i)*dexp(-PP(i)/P0)
-          ENDIF
-          WRITE(22,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
-     +     PPm(i),ratei_eff,rate(i),P0
-          WRITE(22,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
-     +     PP(i),ratei_eff,rate(i),P0
-     
-      ENDDO
-      FLUSH(1)
-      FLUSH(12)
-      FLUSH(22)
-      CALL save_lineage_state(file_LINEAGE_DPHI,
-     +     N,x,y,th,D,D1,alpha,PP,cell_id,parent_id)
+      IF(failure_code.EQ.0) THEN
+         phi = calc_phi(D, alpha, D1, N)
+         CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)
+         ! save the last configuration to the file
+         WRITE(1,*)  2*N, phi
+         WRITE(12,*) N, phi
+         WRITE(22,*) 2*N, phi, total_growthrate
+         DO i=1,N
+             WRITE(12,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
 
-      CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
-      CALL out_numbers(N, Nf, Nu, Ziso)
+             cc=dcos(th(i))
+             ss=dsin(th(i))
+             dd=alpha(i)-1d0
+             dr(1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)/2d0
+             dr(2)=-(1d0+dd)/(1d0+dd**2)*D(i)/2d0
+             DO kk=1,2
+                 xa(kk)=x(i)+dr(kk)*cc
+                 ya(kk)=y(i)+dr(kk)*ss
+             ENDDO
 
-      WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
-     +     phi,P,fret,P0,total_growthrate
-      FLUSH(13)
+             WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
+             WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
+
+             ratei_eff = rate(i)
+             IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
+                 ratei_eff = rate(i)*dexp(-PP(i)/P0)
+             ENDIF
+             WRITE(22,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
+     +        PPm(i),ratei_eff,rate(i),P0
+             WRITE(22,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
+     +        PP(i),ratei_eff,rate(i),P0
+
+         ENDDO
+         FLUSH(1)
+         FLUSH(12)
+         FLUSH(22)
+         CALL save_lineage_state(file_LINEAGE_DPHI,
+     +        N,x,y,th,D,D1,alpha,PP,cell_id,parent_id)
+
+         CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
+         CALL out_numbers(N, Nf, Nu, Ziso)
+
+         WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+     +        phi,P,fret,P0,total_growthrate
+         FLUSH(13)
+      ENDIF
       
       CLOSE(1)
       CLOSE(12)
@@ -590,6 +618,9 @@
       CLOSE(17)
       CLOSE(18)
       CLOSE(22)
+      IF(failure_code.NE.0) THEN
+         CALL EXIT(failure_code)
+      ENDIF
       END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -907,18 +938,23 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE system_status(N,D,D1,alpha,ftol,wide,dt,
-     +     fret, phi_j,dphi,
+     +     fret, phi_j,dphi,dt_min,max_postjam_steps,
      +     reject_time_step, terminate_sim,
-     +     before_jamming, at_jamming, above_jamming)
+     +     before_jamming, at_jamming, above_jamming,
+     +     postjam_steps, failure_code)
       IMPLICIT NONE
       INTEGER Ntot, N
       PARAMETER(Ntot = 4096)
+      INTEGER EXIT_MIN_DT, EXIT_MAX_POSTJAM_STEPS
+      PARAMETER(EXIT_MIN_DT=10)
+      PARAMETER(EXIT_MAX_POSTJAM_STEPS=11)
       
-      DOUBLE PRECISION delta, phi, calc_phi
+      DOUBLE PRECISION delta, phi, calc_phi, dt_min
       DOUBLE PRECISION D(Ntot),alpha(Ntot), D1
       DOUBLE PRECISION fret,phi_j,ftol,wide,dt,dphi
-      INTEGER reject_time_step, terminate_sim
+      INTEGER reject_time_step, terminate_sim, max_postjam_steps
       INTEGER before_jamming, at_jamming, above_jamming
+      INTEGER postjam_steps, failure_code
       
       delta = 0.5d-8  
       phi = calc_phi(D, alpha, D1, N)
@@ -932,6 +968,8 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
           reject_time_step = 0
           dt = 1d0
           phi_j = 0d0
+          postjam_steps = 0
+          failure_code = 0
           RETURN
       ENDIF
       
@@ -942,6 +980,7 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
              dt = 0.5*dt
              reject_time_step = 1
              terminate_sim = 0
+             failure_code = 0
              RETURN 
           ELSE IF(fret.GT.(ftol*N) .AND. fret.LT.(ftol*wide*N))THEN
              before_jamming = 0
@@ -951,26 +990,44 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
              reject_time_step = 0
              terminate_sim = 0
              phi_j = phi
+             postjam_steps = 0
+             failure_code = 0
              RETURN
         ENDIF
       ENDIF
            
       
       at_jamming = 0
+      postjam_steps = postjam_steps + 1
       ! ITERATE TIME-STEP TO FIND PROPER DPHI
       IF(phi .LT. phi_j+dphi-delta) THEN
+          IF(postjam_steps.GE.max_postjam_steps) THEN
+             reject_time_step = 0
+             terminate_sim = 1
+             failure_code = EXIT_MAX_POSTJAM_STEPS
+             RETURN
+          ENDIF
           dt = 1
           terminate_sim = 0
           reject_time_step = 0
+          failure_code = 0
           RETURN
       ELSE IF(phi .GT. phi_j+dphi+delta) THEN
           dt = 0.5 * dt
+          IF(dt.LT.dt_min) THEN
+             reject_time_step = 1
+             terminate_sim = 1
+             failure_code = EXIT_MIN_DT
+             RETURN
+          ENDIF
           reject_time_step = 1
           terminate_sim = 0
+          failure_code = 0
           RETURN
       ELSE
           reject_time_step = 0
           terminate_sim = 1
+          failure_code = 0
           RETURN
       ENDIF
       
