@@ -111,15 +111,7 @@ python3 scripts/run_growth_shear.py --force
 Monitor completed growth + shear jobs:
 
 ```bash
-python3 scripts/monitor_completed_jobs.py --once
-```
-
-Optionally write the latest report plus timestamped snapshots:
-
-```bash
-python3 scripts/monitor_completed_jobs.py --write-reports \
-  --latest-report output/job-monitor/latest.txt \
-  --history-dir output/job-monitor/history
+python3 scripts/monitor_completed_jobs.py
 ```
 
 Run the compact lineage-growth stage after building:

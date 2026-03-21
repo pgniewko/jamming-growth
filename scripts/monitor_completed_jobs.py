@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 
-import argparse
-import time
 from collections import Counter
 from datetime import datetime
-from pathlib import Path
 
 from run_growth_shear import basename, build_paths, growth_done, job_params, shear_done
 
@@ -20,38 +17,6 @@ PAIRWISE_DIMENSIONS = (
     ("lx", "dphi", "L x dphi"),
     ("p0", "dphi", "P0 x dphi"),
 )
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Monitor completed growth+shear jobs.")
-    parser.add_argument(
-        "--interval-seconds",
-        type=int,
-        default=300,
-        help="Polling interval in seconds. Default: 300",
-    )
-    parser.add_argument(
-        "--write-reports",
-        action="store_true",
-        help="Also write rendered reports to disk.",
-    )
-    parser.add_argument(
-        "--latest-report",
-        type=Path,
-        help="Path for the latest rendered report.",
-    )
-    parser.add_argument(
-        "--history-dir",
-        type=Path,
-        help="Directory for timestamped report snapshots.",
-    )
-    parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Render one report and exit.",
-    )
-    return parser.parse_args()
-
 
 def format_percent(completed, total):
     if total == 0:
@@ -186,29 +151,10 @@ def render_report(status):
 
     return "\n\n".join(sections) + "\n"
 
-
-def write_report(report_text, latest_report, history_dir):
-    if latest_report is None or history_dir is None:
-        raise SystemExit("--latest-report and --history-dir are required with --write-reports")
-    latest_report.parent.mkdir(parents=True, exist_ok=True)
-    history_dir.mkdir(parents=True, exist_ok=True)
-    latest_report.write_text(report_text)
-    snapshot_name = datetime.now().astimezone().strftime("%Y%m%dT%H%M%S%z.txt")
-    (history_dir / snapshot_name).write_text(report_text)
-
-
 def main():
-    args = parse_args()
-
-    while True:
-        status = collect_status()
-        report_text = render_report(status)
-        print(report_text, flush=True)
-        if args.write_reports:
-            write_report(report_text, args.latest_report, args.history_dir)
-        if args.once:
-            return
-        time.sleep(args.interval_seconds)
+    status = collect_status()
+    report_text = render_report(status)
+    print(report_text, flush=True)
 
 
 if __name__ == "__main__":
