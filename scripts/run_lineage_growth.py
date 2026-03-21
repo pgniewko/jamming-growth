@@ -26,6 +26,23 @@ FIXED = {
     "version": "1.0",
 }
 
+PRESETS = {
+    "pilot-large": {
+        "sizes": ["15", "20"],
+        "p0s": ["2e-3", "1e-2"],
+        "dphis": ["1.2e-1"],
+        "seeds": ["1201", "1202"],
+        "n_cpus": 4,
+    },
+    "full-large": {
+        "sizes": ["15", "20"],
+        "p0s": ["-1", "2e-3", "5e-3", "1e-2"],
+        "dphis": ["1.2e-1"],
+        "seeds": ["1201", "1202", "1203", "1204", "1205", "1206"],
+        "n_cpus": 6,
+    },
+}
+
 EVENT_CODES = {
     "first_bud_contact": 1,
     "free_to_constrained": 2,
@@ -46,18 +63,36 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Run a compact growth-only lineage stage for an explicit parameter set."
     )
-    parser.add_argument("--sizes", required=True, type=parse_csv_list, help="Comma-separated box sizes.")
-    parser.add_argument("--p0s", required=True, type=parse_csv_list, help="Comma-separated feedback strengths.")
-    parser.add_argument("--dphis", required=True, type=parse_csv_list, help="Comma-separated overcompressions.")
-    parser.add_argument("--seeds", required=True, type=parse_csv_list, help="Comma-separated positive seeds.")
+    parser.add_argument(
+        "--preset",
+        choices=sorted(PRESETS),
+        help="Named default parameter set. Explicit --sizes/--p0s/--dphis/--seeds override preset values.",
+    )
+    parser.add_argument("--sizes", type=parse_csv_list, help="Comma-separated box sizes.")
+    parser.add_argument("--p0s", type=parse_csv_list, help="Comma-separated feedback strengths.")
+    parser.add_argument("--dphis", type=parse_csv_list, help="Comma-separated overcompressions.")
+    parser.add_argument("--seeds", type=parse_csv_list, help="Comma-separated positive seeds.")
     parser.add_argument(
         "--n-cpus",
         type=int,
-        default=default_cpus,
-        help=f"Number of concurrent jobs. Default: {default_cpus}",
+        default=None,
+        help=f"Number of concurrent jobs. Default: preset value or {default_cpus}",
     )
     parser.add_argument("--force", action="store_true", help="Rerun completed jobs.")
-    return parser.parse_args()
+    args = parser.parse_args()
+    preset = PRESETS.get(args.preset, {})
+    for field in ("sizes", "p0s", "dphis", "seeds"):
+        if getattr(args, field) is None:
+            value = preset.get(field)
+            if value is None:
+                parser.error(
+                    "either provide --preset or explicitly pass all of "
+                    "--sizes/--p0s/--dphis/--seeds"
+                )
+            setattr(args, field, list(value))
+    if args.n_cpus is None:
+        args.n_cpus = int(preset.get("n_cpus", default_cpus))
+    return args
 
 
 def job_params(args):

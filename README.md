@@ -135,6 +135,14 @@ Choose concurrency or force reruns:
 python3 scripts/run_lineage_growth.py --sizes 8 --p0s 1e-3 --dphis 1e-3 --seeds 1201 --n-cpus 4 --force
 ```
 
+Use the built-in large-system presets for the lineage pilot and the follow-on
+paper sweep:
+
+```bash
+python3 scripts/run_lineage_growth.py --preset pilot-large --n-cpus 4
+python3 scripts/run_lineage_growth.py --preset full-large --n-cpus 6
+```
+
 The lineage run writes the usual growth endpoints plus lineage-specific raw
 data for post-jamming depletion analysis:
 
@@ -143,6 +151,13 @@ data for post-jamming depletion analysis:
 - `TRANSITIONS_*` for tracked initial-free-bud transitions
 - `POSTJAMM_SUMMARY_*` for accepted post-jamming summary rows (`phi`, counts,
   `chi_c`, and tracked-reservoir depletion state)
+
+Generate the lineage pilot review tables and figures from the raw lineage
+outputs:
+
+```bash
+.venv/bin/python scripts/plot_lineage_support.py --preset pilot-large
+```
 
 Keep shear trajectory files after successful jobs:
 
@@ -164,6 +179,16 @@ reruns, probe size, and output retention:
 ```bash
 python3 scripts/run_bext.py --help
 ```
+
+Generate the manuscript-support figure set from the existing growth, shear,
+and `B_ext` outputs:
+
+```bash
+.venv/bin/python scripts/plot_paper_support.py
+```
+
+By default this writes the current canonical figures and CSV summaries under
+`output/plots/`.
 
 ## Repo Layout
 
