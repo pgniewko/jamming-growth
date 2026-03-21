@@ -103,6 +103,11 @@ def parse_args():
         help=f"Primary system size used for replicated manuscript plots. Default: {DEFAULT_MAIN_L}",
     )
     parser.add_argument(
+        "--sizes",
+        type=parse_csv_int_list,
+        help="Comma-separated sizes to include from the discovered valid data. Default: use all discovered sizes.",
+    )
+    parser.add_argument(
         "--hist-dphi",
         type=float,
         default=DEFAULT_HIST_DPHI,
@@ -114,6 +119,16 @@ def parse_args():
         help="Comma-separated image formats to write. Default: png",
     )
     return parser.parse_args()
+
+
+def parse_csv_int_list(value):
+    items = [item.strip() for item in value.split(",") if item.strip()]
+    if not items:
+        raise argparse.ArgumentTypeError("expected a non-empty comma-separated list")
+    try:
+        return [int(item) for item in items]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("sizes must be integers") from exc
 
 
 def plot_formats(value):
@@ -226,6 +241,12 @@ def add_contact_observables(frame):
     frame["Ziso"] = frame["Ziso_total"] / frame["n_nonfloat"]
     frame["DeltaZ"] = (frame["Nc"] - frame["Ziso_total"]) / frame["n_nonfloat"]
     return frame
+
+
+def filter_sizes(frame, sizes):
+    if sizes is None or frame.empty:
+        return frame.copy()
+    return frame[frame["L"].isin(sizes)].copy()
 
 
 def load_growth_endpoints(valid_names):
@@ -620,7 +641,7 @@ def load_bgrow_local_slopes(valid_names):
 
 
 def filter_main(frame, main_L):
-    return frame[(frame["L"] == main_L) & (frame["p0"].isin(DEFAULT_MAIN_P0S))].copy()
+    return frame[frame["L"] == main_L].copy()
 
 
 def summarize_curves(frame, value_column):
@@ -1187,7 +1208,7 @@ def plot_decoupling(curves, output_dir, formats):
 
 
 def plot_bgrow_partition(partition_curves, partition_raw, partition_stats, output_dir, formats):
-    feedback_curves = partition_curves[partition_curves["p0"].isin(DEFAULT_MAIN_P0S)].copy()
+    feedback_curves = partition_curves[partition_curves["p0"] > 0.0].copy()
     fig, axes = plt.subplots(1, 2, figsize=(13.2, 5.2), constrained_layout=True)
 
     axis = axes[0]
@@ -1380,6 +1401,8 @@ def write_claim_map(output_dir, main_L, hist_dphi, skipped_nc_exists, hist_suppo
 
 
 def main():
+    global P0_COLORS
+
     args = parse_args()
     formats = plot_formats(args.formats)
     output_dir = args.output_dir.resolve()
@@ -1411,6 +1434,29 @@ def main():
     shear = load_shear_endpoints(valid_shear_names)
     growth_moments, histogram = load_growth_rate_distributions(valid_growth_names)
     bgrow_local = load_bgrow_local_slopes(valid_growth_names)
+
+    selected_sizes = args.sizes
+    growth = filter_sizes(growth, selected_sizes)
+    bext = filter_sizes(bext, selected_sizes)
+    shear = filter_sizes(shear, selected_sizes)
+    growth_moments = filter_sizes(growth_moments, selected_sizes)
+    histogram = filter_sizes(histogram, selected_sizes)
+    bgrow_local = filter_sizes(bgrow_local, selected_sizes)
+
+    if selected_sizes is not None and args.main_L not in selected_sizes:
+        raise SystemExit(f"--main-L={args.main_L} must be included in --sizes={','.join(map(str, selected_sizes))}")
+
+    available_sizes = sorted(set(int(value) for value in growth["L"].unique()))
+    if args.main_L not in available_sizes:
+        raise SystemExit(
+            "No validated growth data found for "
+            f"--main-L={args.main_L}. Available sizes after filtering: {', '.join(map(str, available_sizes)) or 'none'}"
+        )
+
+    selected_p0_values = sorted(
+        set(pd.concat([growth["p0"], bext["p0"], shear["p0"], growth_moments["p0"], bgrow_local["p0"]]).unique())
+    )
+    P0_COLORS = build_p0_colors(selected_p0_values)
 
     growth_main = filter_main(growth, args.main_L)
     bext_main = filter_main(bext, args.main_L)
