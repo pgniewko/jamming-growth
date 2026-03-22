@@ -357,7 +357,7 @@
          CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)
          IF(reject_time_step.EQ.0) THEN
             DO i=1,event_count
-               WRITE(15,'(I12,E26.18,4I12)')k,phi,
+               WRITE(15,'(I12,E27.18E3,4I12)')k,phi,
      +              event_parent_id(i),event_new_id(i),
      +              event_parent_index(i),event_new_index(i)
             ENDDO
@@ -460,22 +460,22 @@
                FLUSH(18)
             ENDIF
          ENDIF
-         WRITE(*,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
+         WRITE(*,'(2I12,5E27.18E3,3I8)')k,N,fret/dble(N),P,dt,phi,
      +        total_growthrate,before_jamming,at_jamming,above_jamming
-         WRITE(14,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
+         WRITE(14,'(2I12,5E27.18E3,3I8)')k,N,fret/dble(N),P,dt,phi,
      +        total_growthrate,before_jamming,at_jamming,above_jamming
          IF(failure_code.EQ.EXIT_MIN_DT) THEN
-            WRITE(*,'(A,1X,A,1X,2I12,5E26.18)')
+            WRITE(*,'(A,1X,A,1X,2I12,5E27.18E3)')
      +         '# FAILURE','MIN_DT',k,N,dt,phi,phi_j,phi_j+dphi,
      +         total_growthrate
-            WRITE(14,'(A,1X,A,1X,2I12,5E26.18)')
+            WRITE(14,'(A,1X,A,1X,2I12,5E27.18E3)')
      +         '# FAILURE','MIN_DT',k,N,dt,phi,phi_j,phi_j+dphi,
      +         total_growthrate
          ELSE IF(failure_code.EQ.EXIT_MAX_POSTJAM_STEPS) THEN
-            WRITE(*,'(A,1X,A,1X,2I12,5E26.18)')
+            WRITE(*,'(A,1X,A,1X,2I12,5E27.18E3)')
      +         '# FAILURE','MAX_POSTJAM_STEPS',k,N,dt,phi,phi_j,
      +         phi_j+dphi,total_growthrate
-            WRITE(14,'(A,1X,A,1X,2I12,5E26.18)')
+            WRITE(14,'(A,1X,A,1X,2I12,5E27.18E3)')
      +         '# FAILURE','MAX_POSTJAM_STEPS',k,N,dt,phi,phi_j,
      +         phi_j+dphi,total_growthrate
          ENDIF
@@ -493,8 +493,8 @@
                   xa(kk)=x(i)+dr(kk)*cc
                   ya(kk)=y(i)+dr(kk)*ss
                ENDDO
-               WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0
-               WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1
+               WRITE(1,'(3E27.18E3,I12)')xa(1),ya(1),d(i),0
+               WRITE(1,'(3E27.18E3,I12)')xa(2),ya(2),d(i)*dd,1
             ENDDO
             FLUSH(1) 
          ENDIF
@@ -514,7 +514,7 @@
             WRITE(11,*) N,phi
             WRITE(21,*) 2*N,phi,total_growthrate
             DO i=1,N
-                WRITE(11,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
+                WRITE(11,'(5E27.18E3)') x(i),y(i),D(i),alpha(i),th(i)
                 
                 cc=dcos(th(i))
                 ss=dsin(th(i))
@@ -525,17 +525,19 @@
                     xa(kk)=x(i)+dr(kk)*cc
                     ya(kk)=y(i)+dr(kk)*ss
                 ENDDO
-                WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-                WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
+                WRITE(1,'(3E27.18E3,I12)')xa(1),ya(1),d(i),0     ! TRA
+                WRITE(1,'(3E27.18E3,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
                 
                 ratei_eff = rate(i)
                 IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
                     ratei_eff = rate(i)*dexp(-PP(i)/P0)
                 ENDIF
-                WRITE(21,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
+                WRITE(21,'(3E27.18E3,I12,4E27.18E3)')
+     +                   xa(1),ya(1),d(i),0,
      +                   PPm(i),ratei_eff,rate(i),P0
-                WRITE(21,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,
-     +                  1,PP(i),ratei_eff,rate(i),P0
+                WRITE(21,'(3E27.18E3,I12,4E27.18E3)')
+     +                   xa(2),ya(2),d(i)*dd,1,
+     +                   PP(i),ratei_eff,rate(i),P0
      
             ENDDO
             FLUSH(1)
@@ -551,7 +553,7 @@
             CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
             CALL out_numbers(N, Nf, Nu, Ziso)
 
-            WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+            WRITE(13,'(8I8,5E27.18E3)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
      +      phi,P,fret,P0,total_growthrate
             FLUSH(13)
             CALL lineage_contacts(
@@ -599,7 +601,7 @@
          WRITE(12,*) N, phi
          WRITE(22,*) 2*N, phi, total_growthrate
          DO i=1,N
-             WRITE(12,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
+             WRITE(12,'(5E27.18E3)') x(i),y(i),D(i),alpha(i),th(i)
 
              cc=dcos(th(i))
              ss=dsin(th(i))
@@ -611,17 +613,17 @@
                  ya(kk)=y(i)+dr(kk)*ss
              ENDDO
 
-             WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-             WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
+             WRITE(1,'(3E27.18E3,I12)')xa(1),ya(1),d(i),0     ! TRA
+             WRITE(1,'(3E27.18E3,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
 
              ratei_eff = rate(i)
              IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
                  ratei_eff = rate(i)*dexp(-PP(i)/P0)
              ENDIF
-             WRITE(22,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
-     +        PPm(i),ratei_eff,rate(i),P0
-             WRITE(22,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
-     +        PP(i),ratei_eff,rate(i),P0
+             WRITE(22,'(3E27.18E3,I12,4E27.18E3)')
+     +        xa(1),ya(1),d(i),0,PPm(i),ratei_eff,rate(i),P0
+             WRITE(22,'(3E27.18E3,I12,4E27.18E3)')
+     +        xa(2),ya(2),d(i)*dd,1,PP(i),ratei_eff,rate(i),P0
 
          ENDDO
          FLUSH(1)
@@ -633,7 +635,7 @@
          CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
          CALL out_numbers(N, Nf, Nu, Ziso)
 
-         WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+         WRITE(13,'(8I8,5E27.18E3)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
      +        phi,P,fret,P0,total_growthrate
          FLUSH(13)
       ENDIF
@@ -1213,7 +1215,7 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
          IF(PP(i).GT.0d0) THEN
             bud_compressed(i) = 1
          ENDIF
-         WRITE(16,'(3I12,2E26.18,3I12)')i,cell_id(i),parent_id(i),
+         WRITE(16,'(3I12,2E27.18E3,3I12)')i,cell_id(i),parent_id(i),
      +        alpha(i),bud_diameter,bud_contacts(i),
      +        bud_unconstrained(i),bud_compressed(i)
       ENDDO
@@ -1279,7 +1281,7 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       DOUBLE PRECISION bud_diameter, delta_bud_area
       CHARACTER*(*) event_label
 
-      WRITE(unit_no,'(I12,E26.18,2I12,3E26.18,4I12,1X,A)')
+      WRITE(unit_no,'(I12,E27.18E3,2I12,3E27.18E3,4I12,1X,A)')
      +     step,phi,cell_id,parent_id,initial_bud_diameter,
      +     bud_diameter,delta_bud_area,bud_contacts,
      +     bud_unconstrained,bud_compressed,event_code,event_label
@@ -1381,7 +1383,7 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       INTEGER postjam_divisions_total
       DOUBLE PRECISION phi, P, total_growthrate, chi_c_est
 
-      WRITE(unit_no,'(I12,2E26.18,5I12,2E26.18,9I12)')
+      WRITE(unit_no,'(I12,2E27.18E3,5I12,2E27.18E3,9I12)')
      +     step,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,chi_c_est,
      +     n_compressed,initial_free_total,n_initial_free_active,
      +     initial_free_completed,initial_free_divided,

@@ -269,22 +269,22 @@
 
          phi = calc_phi(D, alpha, D1, N)
          CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)
-         WRITE(*,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
+         WRITE(*,'(2I12,5E27.18E3,3I8)')k,N,fret/dble(N),P,dt,phi,
      +        total_growthrate,before_jamming,at_jamming,above_jamming
-         WRITE(14,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
+         WRITE(14,'(2I12,5E27.18E3,3I8)')k,N,fret/dble(N),P,dt,phi,
      +        total_growthrate,before_jamming,at_jamming,above_jamming
          IF(failure_code.EQ.EXIT_MIN_DT) THEN
-            WRITE(*,'(A,1X,A,1X,2I12,5E26.18)')
+            WRITE(*,'(A,1X,A,1X,2I12,5E27.18E3)')
      +         '# FAILURE','MIN_DT',k,N,dt,phi,phi_j,phi_j+dphi,
      +         total_growthrate
-            WRITE(14,'(A,1X,A,1X,2I12,5E26.18)')
+            WRITE(14,'(A,1X,A,1X,2I12,5E27.18E3)')
      +         '# FAILURE','MIN_DT',k,N,dt,phi,phi_j,phi_j+dphi,
      +         total_growthrate
          ELSE IF(failure_code.EQ.EXIT_MAX_POSTJAM_STEPS) THEN
-            WRITE(*,'(A,1X,A,1X,2I12,5E26.18)')
+            WRITE(*,'(A,1X,A,1X,2I12,5E27.18E3)')
      +         '# FAILURE','MAX_POSTJAM_STEPS',k,N,dt,phi,phi_j,
      +         phi_j+dphi,total_growthrate
-            WRITE(14,'(A,1X,A,1X,2I12,5E26.18)')
+            WRITE(14,'(A,1X,A,1X,2I12,5E27.18E3)')
      +         '# FAILURE','MAX_POSTJAM_STEPS',k,N,dt,phi,phi_j,
      +         phi_j+dphi,total_growthrate
          ENDIF
@@ -302,8 +302,8 @@
                   xa(kk)=x(i)+dr(kk)*cc
                   ya(kk)=y(i)+dr(kk)*ss
                ENDDO
-               WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0
-               WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1
+               WRITE(1,'(3E27.18E3,I12)')xa(1),ya(1),d(i),0
+               WRITE(1,'(3E27.18E3,I12)')xa(2),ya(2),d(i)*dd,1
             ENDDO
             FLUSH(1) 
          ENDIF
@@ -323,7 +323,7 @@
             WRITE(11,*) N,phi
             WRITE(21,*) 2*N,phi,total_growthrate
             DO i=1,N
-                WRITE(11,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
+                WRITE(11,'(5E27.18E3)') x(i),y(i),D(i),alpha(i),th(i)
                 
                 cc=dcos(th(i))
                 ss=dsin(th(i))
@@ -334,17 +334,19 @@
                     xa(kk)=x(i)+dr(kk)*cc
                     ya(kk)=y(i)+dr(kk)*ss
                 ENDDO
-                WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-                WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
+                WRITE(1,'(3E27.18E3,I12)')xa(1),ya(1),d(i),0     ! TRA
+                WRITE(1,'(3E27.18E3,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
                 
                 ratei_eff = rate(i)
                 IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
                     ratei_eff = rate(i)*dexp(-PP(i)/P0)
                 ENDIF
-                WRITE(21,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
+                WRITE(21,'(3E27.18E3,I12,4E27.18E3)')
+     +                   xa(1),ya(1),d(i),0,
      +                   PPm(i),ratei_eff,rate(i),P0
-                WRITE(21,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,
-     +                  1,PP(i),ratei_eff,rate(i),P0
+                WRITE(21,'(3E27.18E3,I12,4E27.18E3)')
+     +                   xa(2),ya(2),d(i)*dd,1,
+     +                   PP(i),ratei_eff,rate(i),P0
      
             ENDDO
             FLUSH(1)
@@ -358,7 +360,7 @@
             CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
             CALL out_numbers(N, Nf, Nu, Ziso)
 
-            WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+            WRITE(13,'(8I8,5E27.18E3)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
      +      phi,P,fret,P0,total_growthrate
             FLUSH(13)
             above_jamming = 1
@@ -377,7 +379,7 @@
          WRITE(12,*) N, phi
          WRITE(22,*) 2*N, phi, total_growthrate
          DO i=1,N
-             WRITE(12,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
+             WRITE(12,'(5E27.18E3)') x(i),y(i),D(i),alpha(i),th(i)
 
              cc=dcos(th(i))
              ss=dsin(th(i))
@@ -389,17 +391,17 @@
                  ya(kk)=y(i)+dr(kk)*ss
              ENDDO
 
-             WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-             WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
+             WRITE(1,'(3E27.18E3,I12)')xa(1),ya(1),d(i),0     ! TRA
+             WRITE(1,'(3E27.18E3,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
 
              ratei_eff = rate(i)
              IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
                  ratei_eff = rate(i)*dexp(-PP(i)/P0)
              ENDIF
-             WRITE(22,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
-     +        PPm(i),ratei_eff,rate(i),P0
-             WRITE(22,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
-     +        PP(i),ratei_eff,rate(i),P0
+             WRITE(22,'(3E27.18E3,I12,4E27.18E3)')
+     +        xa(1),ya(1),d(i),0,PPm(i),ratei_eff,rate(i),P0
+             WRITE(22,'(3E27.18E3,I12,4E27.18E3)')
+     +        xa(2),ya(2),d(i)*dd,1,PP(i),ratei_eff,rate(i),P0
 
          ENDDO
          FLUSH(1)
@@ -409,7 +411,7 @@
          CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
          CALL out_numbers(N, Nf, Nu, Ziso)
 
-         WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+         WRITE(13,'(8I8,5E27.18E3)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
      +        phi,P,fret,P0,total_growthrate
          FLUSH(13)
       ENDIF
