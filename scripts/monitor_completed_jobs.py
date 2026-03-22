@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 
+import argparse
 from collections import Counter
 from datetime import datetime
 
-from run_growth_shear import (
-    all_job_params,
-    basename,
-    build_paths,
-    dphi_allowed,
-    growth_done,
-    job_params,
-    shear_done,
-)
+from pipeline_config import all_job_params, basename, dphi_allowed, job_params
+from pipeline_paths import bext_paths, growth_paths, shear_paths
+from pipeline_validate import bext_done, growth_done, shear_done
 
 
 DIMENSIONS = (
@@ -25,6 +20,21 @@ PAIRWISE_DIMENSIONS = (
     ("lx", "dphi", "L x dphi"),
     ("p0", "dphi", "P0 x dphi"),
 )
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Monitor completed growth, shear, and B_ext jobs.")
+    parser.add_argument(
+        "--dphi-probe",
+        type=float,
+        default=1e-6,
+        help="Probe compression used to locate B_ext outputs. Default: 1e-6",
+    )
+    args = parser.parse_args()
+    if args.dphi_probe <= 0.0:
+        raise SystemExit("--dphi-probe must be positive")
+    return args
+
 
 def format_percent(completed, total):
     if total == 0:
@@ -55,7 +65,14 @@ def pair_is_allowed(left, right, left_value, right_value):
     return True
 
 
-def collect_status():
+def _sort_key(value):
+    try:
+        return (0, float(value))
+    except ValueError:
+        return (1, value)
+
+
+def collect_status(dphi_probe):
     all_jobs = list(all_job_params())
     jobs = list(job_params())
     expected_single = {key: Counter() for key, _label in DIMENSIONS}
@@ -63,16 +80,29 @@ def collect_status():
     expected_pair = {(left, right): Counter() for left, right, _label in PAIRWISE_DIMENSIONS}
     completed_pair = {(left, right): Counter() for left, right, _label in PAIRWISE_DIMENSIONS}
 
-    completed_jobs = 0
+    growth_completed = 0
+    shear_completed = 0
+    bext_completed = 0
+    pipeline_completed = 0
+
     for params in jobs:
         for key, _label in DIMENSIONS:
             expected_single[key][params[key]] += 1
         for left, right, _label in PAIRWISE_DIMENSIONS:
             expected_pair[(left, right)][(params[left], params[right])] += 1
 
-        paths = build_paths(basename(params))
-        if growth_done(paths) and shear_done(paths):
-            completed_jobs += 1
+        name = basename(params)
+        growth_ok = growth_done(growth_paths(name))
+        shear_ok = shear_done(shear_paths(name))
+        bext_ok = bext_done(bext_paths(name, dphi_probe))
+        if growth_ok:
+            growth_completed += 1
+        if shear_ok:
+            shear_completed += 1
+        if bext_ok:
+            bext_completed += 1
+        if growth_ok and shear_ok and bext_ok:
+            pipeline_completed += 1
             for key, _label in DIMENSIONS:
                 completed_single[key][params[key]] += 1
             for left, right, _label in PAIRWISE_DIMENSIONS:
@@ -81,12 +111,16 @@ def collect_status():
     return {
         "all_jobs": all_jobs,
         "jobs": jobs,
-        "completed_jobs": completed_jobs,
+        "growth_completed": growth_completed,
+        "shear_completed": shear_completed,
+        "bext_completed": bext_completed,
+        "pipeline_completed": pipeline_completed,
         "expected_single": expected_single,
         "completed_single": completed_single,
         "expected_pair": expected_pair,
         "completed_pair": completed_pair,
     }
+
 
 def render_single_dimension_tables(status):
     sections = []
@@ -97,7 +131,7 @@ def render_single_dimension_tables(status):
             completed = status["completed_single"][key][value]
             rows.append((value, completed, expected, format_percent(completed, expected)))
         sections.append(
-            f"{label}\n{render_table((label, 'Completed', 'Total', 'Percent'), rows)}"
+            f"{label}\n{render_table((label, 'Pipeline Complete', 'Total', 'Percent'), rows)}"
         )
     return "\n\n".join(sections)
 
@@ -147,46 +181,39 @@ def render_pairwise_table(left, right, label, status):
     return f"{label}\n{render_table(headers, rows)}"
 
 
-def _sort_key(value):
-    try:
-        return (0, float(value))
-    except ValueError:
-        return (1, value)
-
-
 def render_report(status):
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     total_grid_jobs = len(status["all_jobs"])
     total_jobs = len(status["jobs"])
-    completed_jobs = status["completed_jobs"]
-    total_grid_points = len(
-        {(params["lx"], params["p0"], params["dphi"]) for params in status["all_jobs"]}
-    )
-    active_grid_points = len(
-        {(params["lx"], params["p0"], params["dphi"]) for params in status["jobs"]}
-    )
+    total_grid_points = len({(params["lx"], params["p0"], params["dphi"]) for params in status["all_jobs"]})
+    active_grid_points = len({(params["lx"], params["p0"], params["dphi"]) for params in status["jobs"]})
+
+    summary_rows = [
+        ("Growth complete", status["growth_completed"], total_jobs, format_percent(status["growth_completed"], total_jobs)),
+        ("Shear complete", status["shear_completed"], total_jobs, format_percent(status["shear_completed"], total_jobs)),
+        ("B_ext complete", status["bext_completed"], total_jobs, format_percent(status["bext_completed"], total_jobs)),
+        ("Pipeline complete", status["pipeline_completed"], total_jobs, format_percent(status["pipeline_completed"], total_jobs)),
+    ]
 
     sections = [
         f"Completed job monitor snapshot\nTimestamp: {timestamp}",
         (
             "Summary\n"
-            f"Completed growth+shear jobs: {completed_jobs}/{total_jobs} "
-            f"({format_percent(completed_jobs, total_jobs).strip()})\n"
             f"Scheduled jobs after dphi filter: {total_jobs}/{total_grid_jobs}\n"
-            f"Active grid points (L, P0, dphi): {active_grid_points}/{total_grid_points}"
+            f"Active grid points (L, P0, dphi): {active_grid_points}/{total_grid_points}\n"
+            f"{render_table(('Stage', 'Completed', 'Total', 'Percent'), summary_rows)}"
         ),
         render_single_dimension_tables(status),
     ]
-
     for left, right, label in PAIRWISE_DIMENSIONS:
         sections.append(render_pairwise_table(left, right, label, status))
-
     return "\n\n".join(sections) + "\n"
 
+
 def main():
-    status = collect_status()
-    report_text = render_report(status)
-    print(report_text, flush=True)
+    args = parse_args()
+    status = collect_status(args.dphi_probe)
+    print(render_report(status), flush=True)
 
 
 if __name__ == "__main__":

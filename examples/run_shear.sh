@@ -19,6 +19,7 @@ strain_step="1e-6"
 shear_steps="5000"
 results_root="${ROOT_DIR}/output/debug"
 force=0
+save_all_data=0
 
 compress_if_present() {
     local path="$1"
@@ -47,6 +48,7 @@ Options:
   --strain-step VALUE   Shear strain increment passed to the Fortran code. Default: 1e-6
   --shear-steps VALUE   Number of shear steps. Default: 5000
   --force               Overwrite existing outputs.
+  --save-all-data       Retain the shear trajectory.
   -h, --help            Show this help.
 EOF
 }
@@ -66,6 +68,7 @@ while [[ $# -gt 0 ]]; do
         --strain-step|--ddelrx) strain_step="$2"; shift 2 ;;
         --shear-steps) shear_steps="$2"; shift 2 ;;
         --force) force=1; shift ;;
+        --save-all-data) save_all_data=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *)
             echo "Unknown argument: $1" >&2
@@ -103,9 +106,11 @@ if [[ ! -f "${input_file}" && ! -f "${input_file}.gz" ]]; then
     exit 1
 fi
 
-if [[ ${force} -eq 0 && -s "${g_data_file}" && ( -s "${shear_traj_file}" || -s "${shear_traj_file}.gz" ) ]]; then
+if [[ ${force} -eq 0 && -s "${g_data_file}" && -s "${stdout_log}" ]]; then
+    if [[ ${save_all_data} -eq 0 || -s "${shear_traj_file}" || -s "${shear_traj_file}.gz" ]]; then
     echo "Skipping existing shear run: ${g_data_file}"
     exit 0
+    fi
 fi
 
 if [[ -f "${input_file}" ]]; then
@@ -132,7 +137,12 @@ EOF
 )
 
 compress_if_present "${local_input}"
-compress_if_present "${shear_traj_file}"
+if [[ ${save_all_data} -eq 1 ]]; then
+    compress_if_present "${shear_traj_file}"
+else
+    rm -f "${shear_traj_file}" "${shear_traj_file}.gz"
+fi
+rm -f "${local_input}" "${local_input}.gz"
 
 echo "Saved shear outputs in ${shear_dir}"
 echo "Saved shear stdout in ${stdout_log}"
