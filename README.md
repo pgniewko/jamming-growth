@@ -82,6 +82,12 @@ By default that keeps the compressed endpoint packings and analysis files:
 - `DIVLOG_<base>`
 - `TRANSITIONS_<base>`
 - `POSTJAMM_SUMMARY_<base>`
+- `COHORT_INITIAL_FREE_<base>.gz`
+
+`COHORT_INITIAL_FREE_<base>.gz` is a compact, one-row-per-bud summary for buds
+that were unconstrained at jamming. It stores the observed `a*` event when a bud
+becomes constrained, plus the final right-censored state for buds that remain
+unconstrained at the saved `dphi`.
 
 The raw growth trajectory is deleted by default. Keep it with:
 
@@ -160,7 +166,8 @@ The monitor validates content, not just filenames. A tuple is reported as:
 
 ## Restart Behavior
 
-Without `--force`, valid completed work is skipped.
+Without `--force`, the single-job wrappers and sweep launchers skip only outputs
+that validate successfully.
 
 If a tuple is incomplete, empty, truncated, or otherwise invalid, only that
 tuple is cleaned and rerun:

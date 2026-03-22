@@ -28,6 +28,34 @@ compress_if_present() {
     fi
 }
 
+shear_outputs_valid() {
+    PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/jg-pycache" python3 - \
+        "${shear_dir}" "${log_dir}" "${basename}" "${ROOT_DIR}/scripts" <<'PY'
+from pathlib import Path
+import sys
+
+shear_dir = Path(sys.argv[1])
+log_dir = Path(sys.argv[2])
+basename = sys.argv[3]
+scripts_dir = Path(sys.argv[4])
+
+sys.path.insert(0, str(scripts_dir))
+
+from pipeline_validate import shear_done
+
+paths = {
+    "input_local": shear_dir / f"LF_DPHI_{basename}",
+    "input_local_gz": shear_dir / f"LF_DPHI_{basename}.gz",
+    "g_data": shear_dir / f"G_data_LF_DPHI_{basename}",
+    "traj": shear_dir / f"SHEAR_TRAJ_LF_DPHI_{basename}",
+    "traj_gz": shear_dir / f"SHEAR_TRAJ_LF_DPHI_{basename}.gz",
+    "log": log_dir / f"stdout_{basename[:-4]}.log",
+}
+
+raise SystemExit(0 if shear_done(paths) else 1)
+PY
+}
+
 usage() {
     cat <<'EOF'
 Usage: run_shear.sh [options]
@@ -47,7 +75,7 @@ Options:
   --version VALUE       Output version. Default: 1.0
   --strain-step VALUE   Shear strain increment passed to the Fortran code. Default: 1e-6
   --shear-steps VALUE   Number of shear steps. Default: 5000
-  --force               Overwrite existing outputs.
+  --force               Rerun even if outputs already validate.
   --save-all-data       Retain the shear trajectory.
   -h, --help            Show this help.
 EOF
@@ -110,7 +138,7 @@ if [[ ! -f "${input_file}" && ! -f "${input_file}.gz" ]]; then
     exit 1
 fi
 
-if [[ ${force} -eq 0 && -s "${g_data_file}" && -s "${stdout_log}" && ( ${save_all_data} -eq 0 || -s "${shear_traj_file}" || -s "${shear_traj_file}.gz" ) ]]; then
+if [[ ${force} -eq 0 ]] && shear_outputs_valid && [[ ${save_all_data} -eq 0 || -s "${shear_traj_file}" || -s "${shear_traj_file}.gz" ]]; then
     echo "Skipping existing shear run: ${g_data_file}"
     exit 0
 fi

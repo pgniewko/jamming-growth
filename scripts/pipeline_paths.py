@@ -18,6 +18,8 @@ def growth_paths(name):
         "divlog": GROWTH_DIR / f"DIVLOG_{name}",
         "transitions": GROWTH_DIR / f"TRANSITIONS_{name}",
         "postjamm_summary": GROWTH_DIR / f"POSTJAMM_SUMMARY_{name}",
+        "cohort": GROWTH_DIR / f"COHORT_INITIAL_FREE_{name}",
+        "cohort_gz": GROWTH_DIR / f"COHORT_INITIAL_FREE_{name}.gz",
         "nc": GROWTH_DIR / f"NC_{name}",
         "steplog": GROWTH_DIR / f"STEPLOG_{name}",
         "traj": GROWTH_DIR / name,

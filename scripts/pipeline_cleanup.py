@@ -31,6 +31,8 @@ def clean_growth(paths):
         "divlog",
         "transitions",
         "postjamm_summary",
+        "cohort",
+        "cohort_gz",
         "nc",
         "steplog",
         "traj",
@@ -51,7 +53,7 @@ def clean_bext(paths):
 
 
 def normalize_growth_success(paths, save_all_data):
-    for key in ("frame", "jamm", "lineage_frame", "lineage_jamm"):
+    for key in ("frame", "jamm", "lineage_frame", "lineage_jamm", "cohort"):
         gzip_output(paths[key])
     if save_all_data:
         gzip_output(paths["traj"])

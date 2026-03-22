@@ -30,6 +30,48 @@ compress_if_present() {
     fi
 }
 
+growth_outputs_valid() {
+    PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/jg-pycache" python3 - \
+        "${growth_dir}" "${log_dir}" "${basename}" "${ROOT_DIR}/scripts" <<'PY'
+from pathlib import Path
+import sys
+
+growth_dir = Path(sys.argv[1])
+log_dir = Path(sys.argv[2])
+basename = sys.argv[3]
+scripts_dir = Path(sys.argv[4])
+
+sys.path.insert(0, str(scripts_dir))
+
+from pipeline_validate import growth_done
+
+paths = {
+    "frame": growth_dir / f"LF_DPHI_{basename}",
+    "frame_gz": growth_dir / f"LF_DPHI_{basename}.gz",
+    "jamm": growth_dir / f"LF_JAMM_{basename}",
+    "jamm_gz": growth_dir / f"LF_JAMM_{basename}.gz",
+    "lineage_frame": growth_dir / f"LINEAGE_LF_DPHI_{basename}",
+    "lineage_frame_gz": growth_dir / f"LINEAGE_LF_DPHI_{basename}.gz",
+    "lineage_jamm": growth_dir / f"LINEAGE_LF_JAMM_{basename}",
+    "lineage_jamm_gz": growth_dir / f"LINEAGE_LF_JAMM_{basename}.gz",
+    "stats_frame": growth_dir / f"STATS_LF_DPHI_{basename}",
+    "stats_jamm": growth_dir / f"STATS_LF_JAMM_{basename}",
+    "divlog": growth_dir / f"DIVLOG_{basename}",
+    "transitions": growth_dir / f"TRANSITIONS_{basename}",
+    "postjamm_summary": growth_dir / f"POSTJAMM_SUMMARY_{basename}",
+    "cohort": growth_dir / f"COHORT_INITIAL_FREE_{basename}",
+    "cohort_gz": growth_dir / f"COHORT_INITIAL_FREE_{basename}.gz",
+    "nc": growth_dir / f"NC_{basename}",
+    "steplog": growth_dir / f"STEPLOG_{basename}",
+    "traj": growth_dir / basename,
+    "traj_gz": growth_dir / f"{basename}.gz",
+    "log": log_dir / f"stdout_{basename[:-4]}.log",
+}
+
+raise SystemExit(0 if growth_done(paths) else 1)
+PY
+}
+
 usage() {
     cat <<'EOF'
 Usage: run_jamming.sh [options]
@@ -51,7 +93,7 @@ Options:
   --ar VALUE            Initial bud aspect ratio. Default: 1.01
   --divtype VALUE       Division type. Default: 4
   --version VALUE       Output version. Default: 1.0
-  --force               Overwrite existing outputs.
+  --force               Rerun even if outputs already validate.
   --save-all-data       Retain the raw growth trajectory.
   -h, --help            Show this help.
 EOF
@@ -76,6 +118,8 @@ cleanup_outputs() {
         "${divlog_file}" \
         "${transitions_file}" \
         "${postjamm_file}" \
+        "${cohort_file}" \
+        "${cohort_file}.gz" \
         "${stdout_log}"
 }
 
@@ -146,8 +190,9 @@ steplog_file="${growth_dir}/STEPLOG_${basename}"
 divlog_file="${growth_dir}/DIVLOG_${basename}"
 transitions_file="${growth_dir}/TRANSITIONS_${basename}"
 postjamm_file="${growth_dir}/POSTJAMM_SUMMARY_${basename}"
+cohort_file="${growth_dir}/COHORT_INITIAL_FREE_${basename}"
 
-if [[ ${force} -eq 0 && -s "${final_frame}" && -s "${jam_frame}" && -s "${lineage_frame}" && -s "${lineage_jamm}" && -s "${stats_frame}" && -s "${stats_jamm}" && -s "${nc_file}" && -s "${steplog_file}" && -s "${divlog_file}" && -s "${transitions_file}" && -s "${postjamm_file}" && -s "${stdout_log}" ]]; then
+if [[ ${force} -eq 0 ]] && growth_outputs_valid; then
     echo "Skipping existing growth run: ${final_frame}"
     exit 0
 fi
@@ -177,6 +222,7 @@ compress_if_present "${growth_dir}/LF_JAMM_${basename}"
 compress_if_present "${growth_dir}/LF_DPHI_${basename}"
 compress_if_present "${growth_dir}/LINEAGE_LF_JAMM_${basename}"
 compress_if_present "${growth_dir}/LINEAGE_LF_DPHI_${basename}"
+compress_if_present "${cohort_file}"
 
 if [[ ${save_all_data} -eq 0 ]]; then
     rm -f "${growth_dir}/${basename}" "${growth_dir}/${basename}.gz"

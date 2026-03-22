@@ -263,6 +263,98 @@ def parse_postjamm_summary(path):
         raise ValueError("POSTJAMM_SUMMARY contains no rows")
 
 
+def parse_initial_free_cohort(path):
+    with open_text(path) as handle:
+        header = handle.readline()
+        if not header.startswith("# jam_cell_id jam_parent_id initial_bud_diameter"):
+            raise ValueError("unexpected COHORT_INITIAL_FREE header")
+        seen_cell_ids = set()
+        for line in handle:
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            fields = line.split()
+            if len(fields) != 21:
+                raise ValueError(f"expected 21 columns per cohort row, found {len(fields)}")
+            jam_cell_id = int(fields[0])
+            if jam_cell_id in seen_cell_ids:
+                raise ValueError("duplicate jam_cell_id in cohort file")
+            seen_cell_ids.add(jam_cell_id)
+            int(fields[1])
+            initial_bud_diameter = float(fields[2])
+            if initial_bud_diameter <= 0.0:
+                raise ValueError("invalid initial_bud_diameter in cohort file")
+            status_code = int(fields[3])
+            if status_code not in (0, 1, 2):
+                raise ValueError("invalid cohort status code")
+            had_first_contact = int(fields[4])
+            if had_first_contact not in (0, 1):
+                raise ValueError("invalid had_first_contact flag in cohort file")
+            first_contact_step = int(fields[5])
+            first_contact_phi = float(fields[6])
+            first_contact_delta = float(fields[7])
+            completion_step = int(fields[8])
+            completion_phi = float(fields[9])
+            completion_delta = float(fields[10])
+            division_step = int(fields[11])
+            division_phi = float(fields[12])
+            division_delta = float(fields[13])
+            final_step = int(fields[14])
+            final_phi = float(fields[15])
+            final_bud_diameter = float(fields[16])
+            final_delta = float(fields[17])
+            final_bud_contacts = int(fields[18])
+            final_bud_unconstrained = int(fields[19])
+            final_bud_compressed = int(fields[20])
+
+            if first_contact_delta < 0.0 or completion_delta < 0.0 or division_delta < 0.0:
+                raise ValueError("negative cohort delta_bud_area")
+            if final_delta < 0.0:
+                raise ValueError("negative final_delta_bud_area")
+            if final_bud_contacts < 0:
+                raise ValueError("negative final_bud_contacts")
+            if final_bud_unconstrained not in (0, 1):
+                raise ValueError("invalid final_bud_unconstrained flag")
+            if final_bud_compressed not in (0, 1):
+                raise ValueError("invalid final_bud_compressed flag")
+
+            if had_first_contact == 0 and (
+                first_contact_step != 0 or first_contact_phi != 0.0 or first_contact_delta != 0.0
+            ):
+                raise ValueError("missing first-contact flag for populated first-contact fields")
+            if had_first_contact == 1 and first_contact_step <= 0:
+                raise ValueError("invalid first-contact step in cohort file")
+
+            if status_code == 0:
+                if completion_step != 0 or completion_phi != 0.0 or completion_delta != 0.0:
+                    raise ValueError("active cohort row has populated completion fields")
+                if division_step != 0 or division_phi != 0.0 or division_delta != 0.0:
+                    raise ValueError("active cohort row has populated division fields")
+                if final_step <= 0 or final_phi <= 0.0:
+                    raise ValueError("active cohort row is missing final censoring state")
+                if final_bud_diameter <= 0.0:
+                    raise ValueError("active cohort row has invalid final_bud_diameter")
+                if final_bud_unconstrained != 1:
+                    raise ValueError("active cohort row must remain bud_unconstrained at final dphi")
+            elif status_code == 1:
+                if completion_step <= 0:
+                    raise ValueError("completed cohort row is missing completion_step")
+                if division_step != 0 or division_phi != 0.0 or division_delta != 0.0:
+                    raise ValueError("completed cohort row has populated division fields")
+                if any(value != 0 for value in (final_step, final_bud_contacts, final_bud_unconstrained, final_bud_compressed)):
+                    raise ValueError("completed cohort row has populated final-state integer fields")
+                if final_phi != 0.0 or final_bud_diameter != 0.0 or final_delta != 0.0:
+                    raise ValueError("completed cohort row has populated final-state float fields")
+            else:
+                if division_step <= 0:
+                    raise ValueError("divided cohort row is missing division_step")
+                if completion_step != 0 or completion_phi != 0.0 or completion_delta != 0.0:
+                    raise ValueError("divided cohort row has populated completion fields")
+                if any(value != 0 for value in (final_step, final_bud_contacts, final_bud_unconstrained, final_bud_compressed)):
+                    raise ValueError("divided cohort row has populated final-state integer fields")
+                if final_phi != 0.0 or final_bud_diameter != 0.0 or final_delta != 0.0:
+                    raise ValueError("divided cohort row has populated final-state float fields")
+
+
 def parse_stdout_log(path):
     if not path.is_file() or path.stat().st_size == 0:
         raise ValueError(f"missing or empty log file: {path.name}")
@@ -349,6 +441,7 @@ def growth_done(paths):
         parse_divlog(paths["divlog"])
         parse_transitions(paths["transitions"])
         parse_postjamm_summary(paths["postjamm_summary"])
+        parse_initial_free_cohort(prefer_compressed(paths["cohort_gz"], paths["cohort"]))
         parse_stdout_log(paths["log"])
         if paths["traj_gz"].is_file():
             parse_lobe_packing(paths["traj_gz"])

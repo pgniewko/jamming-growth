@@ -18,7 +18,11 @@ def add_common_job_arguments(parser, include_timeout=False, include_probe=False)
         default=cpus,
         help=f"Number of concurrent jobs. Default: {cpus}",
     )
-    parser.add_argument("--force", action="store_true", help="Rerun completed jobs.")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Rerun jobs even if their current outputs already validate.",
+    )
     add_save_all_output_arguments(parser)
     if include_timeout:
         parser.add_argument(
