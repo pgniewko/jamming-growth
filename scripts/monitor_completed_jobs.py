@@ -4,7 +4,7 @@ import argparse
 from collections import Counter
 from datetime import datetime
 
-from pipeline_config import all_job_params, basename, dphi_allowed, job_params
+from pipeline_config import DEFAULT_DPHI_PROBE, all_job_params, basename, dphi_allowed, job_params
 from pipeline_paths import bext_paths, growth_paths, shear_paths
 from pipeline_validate import bext_done, growth_done, shear_done
 
@@ -27,8 +27,8 @@ def parse_args():
     parser.add_argument(
         "--dphi-probe",
         type=float,
-        default=1e-6,
-        help="Probe compression used to locate B_ext outputs. Default: 1e-6",
+        default=DEFAULT_DPHI_PROBE,
+        help=f"Probe compression used to locate B_ext outputs. Default: {DEFAULT_DPHI_PROBE:g}",
     )
     args = parser.parse_args()
     if args.dphi_probe <= 0.0:

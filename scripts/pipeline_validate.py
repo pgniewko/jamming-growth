@@ -1,5 +1,4 @@
 import gzip
-from pathlib import Path
 
 from pipeline_config import BEXT_HEADER, GROWTH_STEPLOG_HEADER, SHEAR_G_DATA_HEADER
 

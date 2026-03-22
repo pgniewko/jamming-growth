@@ -4,9 +4,10 @@ import shutil
 import signal
 import subprocess
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from threading import Lock
 
 from pipeline_cleanup import clean_bext, clean_growth, clean_shear, normalize_bext_success, normalize_growth_success, normalize_shear_success
-from pipeline_config import BEXT_DIR, BEXT_EXE, DEFAULT_JOB_TIMEOUT_SECONDS, EXIT_MAX_POSTJAM_STEPS, EXIT_MIN_DT, FIXED, GROWTH_SCRIPT, OUTPUT_ROOT, REPO_ROOT, SHEAR_SCRIPT
+from pipeline_config import BEXT_DIR, BEXT_EXE, DEFAULT_DPHI_PROBE, DEFAULT_JOB_TIMEOUT_SECONDS, EXIT_MAX_POSTJAM_STEPS, EXIT_MIN_DT, FIXED, GROWTH_SCRIPT, OUTPUT_ROOT, REPO_ROOT, SHEAR_SCRIPT
 from pipeline_paths import bext_paths, ensure_stage_dirs, growth_paths, shear_paths
 from pipeline_validate import bext_done, growth_done, shear_done
 from pipeline_config import basename
@@ -22,30 +23,62 @@ class OutputValidationError(Exception):
         self.stage = stage
 
 
-def run_command(cmd, timeout_seconds=None, cwd=None, stdout_handle=None):
+ACTIVE_PGIDS = set()
+ACTIVE_PGIDS_LOCK = Lock()
+
+
+def register_process(process):
+    with ACTIVE_PGIDS_LOCK:
+        ACTIVE_PGIDS.add(process.pid)
+
+
+def unregister_process(process):
+    with ACTIVE_PGIDS_LOCK:
+        ACTIVE_PGIDS.discard(process.pid)
+
+
+def terminate_process_group(pid, sig):
+    try:
+        os.killpg(pid, sig)
+    except (PermissionError, ProcessLookupError):
+        pass
+
+
+def terminate_active_processes():
+    with ACTIVE_PGIDS_LOCK:
+        pids = tuple(ACTIVE_PGIDS)
+    for pid in pids:
+        terminate_process_group(pid, signal.SIGTERM)
+    for pid in pids:
+        terminate_process_group(pid, signal.SIGKILL)
+
+
+def run_command(cmd, timeout_seconds=None, cwd=None, stdout_handle=None, input_bytes=None):
     process = subprocess.Popen(
         cmd,
         cwd=cwd or REPO_ROOT,
         start_new_session=True,
+        stdin=subprocess.PIPE if input_bytes is not None else None,
         stdout=stdout_handle,
         stderr=subprocess.STDOUT if stdout_handle is not None else None,
     )
+    register_process(process)
     try:
-        returncode = process.wait(timeout=timeout_seconds)
+        if input_bytes is None:
+            returncode = process.wait(timeout=timeout_seconds)
+        else:
+            process.communicate(input=input_bytes, timeout=timeout_seconds)
+            returncode = process.returncode
     except subprocess.TimeoutExpired as exc:
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
+        terminate_process_group(process.pid, signal.SIGTERM)
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            terminate_process_group(process.pid, signal.SIGKILL)
             process.wait()
         raise JobTimeoutError(f"timed out after {timeout_seconds} seconds") from exc
+    finally:
+        unregister_process(process)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, cmd)
 
@@ -215,30 +248,18 @@ def run_bext_stage(params, dphi_probe, force=False, save_all_data=False, timeout
     stage_bext_input(source, paths["input_local"])
     try:
         with paths["log"].open("wb") as log_handle:
-            subprocess.run(
+            run_command(
                 [str(BEXT_EXE)],
                 cwd=BEXT_DIR,
-                check=True,
-                input="\n".join(
-                    [
-                        params["lx"],
-                        params["lx"],
-                        FIXED["att"],
-                        paths["input_local"].name,
-                        f"{dphi_probe:.16g}",
-                        "",
-                    ]
+                timeout_seconds=timeout_seconds or None,
+                stdout_handle=log_handle,
+                input_bytes="\n".join(
+                    [params["lx"], params["lx"], FIXED["att"], paths["input_local"].name, f"{dphi_probe:.16g}", ""]
                 ).encode(),
-                stdout=log_handle,
-                stderr=subprocess.STDOUT,
-                timeout=timeout_seconds or None,
             )
         normalize_bext_success(paths, save_all_data)
         if not bext_done(paths):
             raise OutputValidationError("bext", f"incomplete B_ext outputs for {name}")
-    except subprocess.TimeoutExpired as exc:
-        clean_bext(paths)
-        return {"status": "failed", "stage": "bext", "reason": "TIMEOUT", "name": name, "paths": paths}
     except Exception as exc:
         reason = classify_derived_failure(exc, "bext")
         clean_bext(paths)
@@ -248,8 +269,12 @@ def run_bext_stage(params, dphi_probe, force=False, save_all_data=False, timeout
     return {"status": "completed", "name": name, "paths": paths}
 
 
-def run_pipeline_job(params, force=False, save_all_data=False, timeout_seconds=DEFAULT_JOB_TIMEOUT_SECONDS, dphi_probe=1e-6):
+def run_pipeline_job(params, force=False, save_all_data=False, timeout_seconds=DEFAULT_JOB_TIMEOUT_SECONDS, dphi_probe=DEFAULT_DPHI_PROBE):
     ensure_stage_dirs()
+    name = basename(params)
+    if not force and not growth_done(growth_paths(name)):
+        clean_shear(shear_paths(name))
+        clean_bext(bext_paths(name, dphi_probe))
     growth_result = run_growth_stage(
         params,
         force=force,
@@ -284,7 +309,8 @@ def execute_param_jobs(job_iterable, runner, max_workers, failure_formatter):
     completed_jobs = 0
     skipped_jobs = 0
     failed_jobs = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    try:
         for params in jobs:
             future = executor.submit(runner, params)
             futures[future] = params
@@ -308,4 +334,12 @@ def execute_param_jobs(job_iterable, runner, max_workers, failure_formatter):
                         "Failed job: "
                         f"lx={params['lx']} p0={params['p0']} dphi={params['dphi']} seed={params['seed']}\n{exc}"
                     ) from exc
+    except KeyboardInterrupt as exc:
+        for pending in futures:
+            pending.cancel()
+        terminate_active_processes()
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise SystemExit("Interrupted; terminated active pipeline jobs.") from exc
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
     return completed_jobs, skipped_jobs, failed_jobs

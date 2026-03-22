@@ -138,7 +138,7 @@ already validate successfully.
 `run_bext.py` accepts a probe compression override:
 
 ```bash
-python3 scripts/run_bext.py --dphi-probe 1e-6
+python3 scripts/run_bext.py --dphi-probe 1e-8
 ```
 
 ## Monitoring

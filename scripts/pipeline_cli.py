@@ -1,7 +1,7 @@
 import argparse
 import os
 
-from pipeline_config import DEFAULT_JOB_TIMEOUT_SECONDS, add_save_all_output_arguments, basename, job_params, resolve_save_all_data
+from pipeline_config import DEFAULT_DPHI_PROBE, DEFAULT_JOB_TIMEOUT_SECONDS, add_save_all_output_arguments, basename, job_params, resolve_save_all_data
 from pipeline_paths import growth_paths
 from pipeline_validate import growth_done
 
@@ -34,8 +34,8 @@ def add_common_job_arguments(parser, include_timeout=False, include_probe=False)
         parser.add_argument(
             "--dphi-probe",
             type=float,
-            default=1e-6,
-            help="Fixed probe compression used for all B_ext jobs. Default: 1e-6",
+            default=DEFAULT_DPHI_PROBE,
+            help=f"Fixed probe compression used for all B_ext jobs. Default: {DEFAULT_DPHI_PROBE:g}",
         )
 
 

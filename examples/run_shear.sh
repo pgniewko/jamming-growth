@@ -53,6 +53,10 @@ Options:
 EOF
 }
 
+cleanup_outputs() {
+    rm -f "${local_input}" "${local_input}.gz" "${g_data_file}" "${shear_traj_file}" "${shear_traj_file}.gz" "${stdout_log}"
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --results-root) results_root="$2"; shift 2 ;;
@@ -112,6 +116,8 @@ if [[ ${force} -eq 0 && -s "${g_data_file}" && -s "${stdout_log}" ]]; then
     exit 0
     fi
 fi
+
+cleanup_outputs
 
 if [[ -f "${input_file}" ]]; then
     cp -f "${input_file}" "${local_input}"
