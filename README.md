@@ -158,6 +158,21 @@ The monitor validates content, not just filenames. A tuple is reported as:
 - `B_ext`-complete only if the `B_ext` data file exists and parses successfully
 - pipeline-complete only if all three stages validate
 
+## Restart Behavior
+
+Without `--force`, valid completed work is skipped.
+
+If a tuple is incomplete, empty, truncated, or otherwise invalid, only that
+tuple is cleaned and rerun:
+
+- invalid growth: rerun growth and clear that tuple's derived shear and `B_ext`
+  outputs first
+- invalid shear only: rerun only shear for that tuple
+- invalid `B_ext` only: rerun only `B_ext` for that tuple
+
+With `--force`, the requested stage scope is rerun even if outputs already
+validate.
+
 ## Output Layout
 
 The standard output tree is:

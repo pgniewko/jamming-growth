@@ -110,11 +110,9 @@ if [[ ! -f "${input_file}" && ! -f "${input_file}.gz" ]]; then
     exit 1
 fi
 
-if [[ ${force} -eq 0 && -s "${g_data_file}" && -s "${stdout_log}" ]]; then
-    if [[ ${save_all_data} -eq 0 || -s "${shear_traj_file}" || -s "${shear_traj_file}.gz" ]]; then
+if [[ ${force} -eq 0 && -s "${g_data_file}" && -s "${stdout_log}" && ( ${save_all_data} -eq 0 || -s "${shear_traj_file}" || -s "${shear_traj_file}.gz" ) ]]; then
     echo "Skipping existing shear run: ${g_data_file}"
     exit 0
-    fi
 fi
 
 cleanup_outputs
