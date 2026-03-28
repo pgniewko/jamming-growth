@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
-from pipeline_config import DEFAULT_DPHI_PROBE, REPO_ROOT, basename, job_params
+from pipeline_config import DEFAULT_DPHI_PROBE, REPO_ROOT, basename, iter_job_params, seed_range
 from pipeline_paths import bext_paths, growth_paths, shear_paths
 from pipeline_validate import bext_done, growth_done, shear_done
 
@@ -51,7 +51,6 @@ DPHI_RANGE_STYLES = [
     ("3e-2 to 1.2e-1", 3e-2, 1.21e-1, "^"),
 ]
 P_MAX = 0.1
-G2_OUTLIER_TRIM = {"1e-1": 2}
 GROWTH_CROSSOVER_DPHI = 3e-3
 GROWTH_HISTOGRAM_P0_ORDER = ["1e-1", "1e-2", "1e-3", "1e-4"]
 GROWTH_HISTOGRAM_TEXT = {
@@ -103,6 +102,8 @@ class PostRow:
 class CohortRow:
     status_code: int
     completion_delta_area: float
+    division_delta_area: float
+    final_delta_area: float
 
 
 @dataclass
@@ -112,6 +113,7 @@ class BextRow:
 
 @dataclass
 class JobRecord:
+    lx: int
     p0: str
     dphi: float
     dphi_label: str
@@ -150,7 +152,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dphi-probe", type=float, default=DEFAULT_DPHI_PROBE)
     parser.add_argument("--max-postjam-divisions", type=int, default=10)
     parser.add_argument("--dpi", type=int, default=300)
-    return parser.parse_args()
+    parser.add_argument("--seed-start", type=int, help="Optional inclusive seed start.")
+    parser.add_argument("--seed-stop", type=int, help="Optional inclusive seed stop.")
+    args = parser.parse_args()
+    if (args.seed_start is None) ^ (args.seed_stop is None):
+        raise SystemExit("--seed-start and --seed-stop must be given together")
+    if args.seed_start is not None and args.seed_stop < args.seed_start:
+        raise SystemExit("--seed-stop must be greater than or equal to --seed-start")
+    return args
 
 
 def configure_style() -> None:
@@ -194,6 +203,18 @@ def stderr(values: list[float]) -> float:
     return float(np.std(values, ddof=1) / math.sqrt(len(values)))
 
 
+def bootstrap_median_stderr(values: list[float], n_boot: int = 2000, seed: int = 12345) -> float:
+    if len(values) <= 1:
+        return 0.0
+    array = np.asarray(values, dtype=float)
+    rng = np.random.default_rng(seed)
+    medians = np.empty(n_boot, dtype=float)
+    for index in range(n_boot):
+        sample = rng.choice(array, size=len(array), replace=True)
+        medians[index] = float(np.median(sample))
+    return float(np.std(medians, ddof=1))
+
+
 def parse_post_rows(path: Path) -> list[PostRow]:
     rows: list[PostRow] = []
     with path.open("r", encoding="utf-8") as handle:
@@ -227,7 +248,14 @@ def parse_cohort_rows(path: Path) -> list[CohortRow]:
             if not line.strip() or line.startswith("#"):
                 continue
             ff = line.split()
-            rows.append(CohortRow(status_code=int(ff[3]), completion_delta_area=float(ff[10])))
+            rows.append(
+                CohortRow(
+                    status_code=int(ff[3]),
+                    completion_delta_area=float(ff[10]),
+                    division_delta_area=float(ff[13]),
+                    final_delta_area=float(ff[17]),
+                )
+            )
     return rows
 
 
@@ -251,12 +279,26 @@ def estimate_growth_bulk(post_rows: list[PostRow], n_tail: int = 5) -> float:
 def estimate_shear_modulus(path: Path, n_head: int = 20) -> float:
     strain = []
     stress = []
+    topology_ref = None
     with path.open("r", encoding="utf-8") as handle:
         next(handle)
         for line in handle:
             if not line.strip():
                 continue
             ff = line.split()
+            topology = (
+                int(ff[4]),
+                int(ff[5]),
+                int(ff[6]),
+                int(ff[7]),
+                int(ff[9]),
+                int(ff[10]),
+                int(ff[11]),
+            )
+            if topology_ref is None:
+                topology_ref = topology
+            elif topology != topology_ref:
+                break
             strain.append(float(ff[0]))
             stress.append(float(ff[2]))
             if len(strain) >= n_head:
@@ -283,11 +325,9 @@ def parse_growth_rates(path: Path) -> list[float]:
     return growth_rates
 
 
-def load_records(size: str, dphi_probe: float) -> list[JobRecord]:
+def load_records(size: str, dphi_probe: float, seeds: list[str] | None = None) -> list[JobRecord]:
     records: list[JobRecord] = []
-    for params in job_params():
-        if params["lx"] != size:
-            continue
+    for params in iter_job_params(sizes=[size], seeds=seeds):
         name = basename(params)
         growth = growth_paths(name)
         if not growth_done(growth):
@@ -297,6 +337,7 @@ def load_records(size: str, dphi_probe: float) -> list[JobRecord]:
         cohort_path = growth["cohort_gz"] if growth["cohort_gz"].is_file() else growth["cohort"]
         records.append(
             JobRecord(
+                lx=int(params["lx"]),
                 p0=params["p0"],
                 dphi=float(params["dphi"]),
                 dphi_label=params["dphi"],
@@ -323,41 +364,6 @@ def dphi_range_marker(value: float) -> str:
         if lo <= value < hi:
             return marker
     return "D"
-
-
-def build_structural_points(records: list[JobRecord]) -> list[dict]:
-    grouped: dict[tuple[str, float], list[JobRecord]] = defaultdict(list)
-    for record in records:
-        grouped[(record.p0, record.dphi)].append(record)
-
-    baseline = {}
-    for (p0, dphi), group in grouped.items():
-        if p0 == "-1":
-            baseline[dphi] = mean([record.endpoint.delta_z for record in group])
-
-    points = []
-    for (p0, dphi), group in grouped.items():
-        if p0 == "-1" or dphi not in baseline:
-            continue
-        observed = [record.endpoint.delta_z for record in group]
-        u_j = [record.endpoint.u_j for record in group]
-        u = [record.endpoint.u_total for record in group]
-        predicted = [baseline[dphi] + 2.0 * (uj - ui) for uj, ui in zip(u_j, u)]
-        points.append(
-            {
-                "p0": p0,
-                "dphi": dphi,
-                "range_label": dphi_range_label(dphi),
-                "marker": dphi_range_marker(dphi),
-                "pred_mean": mean(predicted),
-                "pred_err": stderr(predicted),
-                "obs_mean": mean(observed),
-                "obs_err": stderr(observed),
-                "count": len(group),
-            }
-        )
-    points.sort(key=lambda row: (float(row["p0"]), row["dphi"]))
-    return points
 
 
 def build_depletion_curves(records: list[JobRecord], max_postjam_divisions: int) -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -394,48 +400,164 @@ def build_depletion_curves(records: list[JobRecord], max_postjam_divisions: int)
     return curves
 
 
-def choose_phi2_record(group: list[JobRecord], max_postjam_divisions: int) -> JobRecord | None:
+def first_active_cutoff_row(record: JobRecord, active_cutoff: int) -> PostRow | None:
+    return next((row for row in record.post_rows if row.initial_free_active <= active_cutoff), None)
+
+
+def choose_phi2_record(group: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> JobRecord | None:
     eligible = [
         record
         for record in group
-        if record.final_divisions <= max_postjam_divisions and record.final_active == 0
+        if record.final_divisions <= max_postjam_divisions and first_active_cutoff_row(record, active_cutoff) is not None
     ]
     if not eligible:
         return None
     return min(eligible, key=lambda record: record.delta_phi)
 
 
-def predicted_phi2(record: JobRecord) -> float | None:
-    completed = [row.completion_delta_area for row in record.cohort_rows if row.status_code == 1]
-    if not completed or len(completed) != len(record.cohort_rows):
+def baseline_delta_z_by_pressure(records: list[JobRecord]) -> tuple[np.ndarray, np.ndarray]:
+    grouped: dict[float, list[JobRecord]] = defaultdict(list)
+    for record in records:
+        if record.p0 != "-1":
+            continue
+        grouped[record.dphi].append(record)
+
+    pressure_points = []
+    delta_z_points = []
+    for dphi in sorted(grouped):
+        group = grouped[dphi]
+        pressure_points.append(mean([record.endpoint.pressure for record in group]))
+        delta_z_points.append(mean([record.endpoint.delta_z for record in group]))
+
+    if not pressure_points:
+        return np.asarray([], dtype=float), np.asarray([], dtype=float)
+
+    order = np.argsort(np.asarray(pressure_points, dtype=float))
+    return (
+        np.asarray(pressure_points, dtype=float)[order],
+        np.asarray(delta_z_points, dtype=float)[order],
+    )
+
+
+def build_structural_points(records: list[JobRecord]) -> list[dict]:
+    baseline_pressure, baseline_delta_z = baseline_delta_z_by_pressure(records)
+    if len(baseline_pressure) == 0:
+        return []
+
+    grouped: dict[tuple[str, float], list[JobRecord]] = defaultdict(list)
+    for record in records:
+        if record.p0 == "-1":
+            continue
+        grouped[(record.p0, record.dphi)].append(record)
+
+    points = []
+    for (p0, dphi), group in grouped.items():
+        predicted = []
+        observed = []
+        for record in group:
+            dz0 = float(np.interp(record.endpoint.pressure, baseline_pressure, baseline_delta_z))
+            predicted.append(dz0 + 2.0 * (record.endpoint.u_j - record.endpoint.u_total))
+            observed.append(record.endpoint.delta_z)
+        points.append(
+            {
+                "p0": p0,
+                "dphi": dphi,
+                "range_label": dphi_range_label(dphi),
+                "marker": dphi_range_marker(dphi),
+                "pred_mean": mean(predicted),
+                "pred_err": stderr(predicted),
+                "obs_mean": mean(observed),
+                "obs_err": stderr(observed),
+                "count": len(group),
+            }
+        )
+    points.sort(key=lambda row: (float(row["p0"]), row["dphi"]))
+    return points
+
+
+def cohort_time_and_event(row: CohortRow) -> tuple[float, bool] | None:
+    if row.status_code == 1 and row.completion_delta_area > 0.0:
+        return row.completion_delta_area, True
+    if row.status_code == 2 and row.division_delta_area > 0.0:
+        return row.division_delta_area, False
+    if row.status_code == 0 and row.final_delta_area > 0.0:
+        return row.final_delta_area, False
+    return None
+
+
+def kaplan_meier_a_epsilon_and_integral(record: JobRecord, active_cutoff: int) -> tuple[float, float] | None:
+    observations = []
+    for row in record.cohort_rows:
+        parsed = cohort_time_and_event(row)
+        if parsed is not None:
+            observations.append(parsed)
+    if not observations:
         return None
-    row_zero = next((row for row in record.post_rows if row.initial_free_active == 0), None)
-    if row_zero is None:
+
+    initial_free_total = record.post_rows[0].initial_free_total
+    if initial_free_total <= 0:
         return None
+    if initial_free_total <= active_cutoff:
+        return 0.0, 0.0
+
+    target_survival = active_cutoff / initial_free_total
+    times = sorted({time for time, _event in observations})
+    survival = 1.0
+    prev_time = 0.0
+    integral = 0.0
+    at_risk = len(observations)
+
+    for time in times:
+        integral += survival * (time - prev_time)
+        events = sum(1 for obs_time, event in observations if obs_time == time and event)
+        censored = sum(1 for obs_time, event in observations if obs_time == time and not event)
+        if at_risk <= 0:
+            break
+        if events > 0:
+            survival_after = survival * (1.0 - events / at_risk)
+            if survival_after <= target_survival:
+                return time, integral
+            survival = survival_after
+        at_risk -= events + censored
+        prev_time = time
+    return None
+
+
+def predicted_phi2(record: JobRecord, row_cutoff: PostRow, active_cutoff: int = 1) -> float | None:
+    km = kaplan_meier_a_epsilon_and_integral(record, active_cutoff)
+    if km is None:
+        return None
+    a_eps, integral_s = km
     nonfloating = record.post_rows[0].nonfloating
-    n_j = nonfloating / (15.0 * 15.0)
+    n_j = nonfloating / float(record.lx * record.lx)
     u_j = record.post_rows[0].u_j
-    chi_bar = mean([row.chi_c for row in record.post_rows if row.phi <= row_zero.phi])
-    a_eps = max(completed)
-    int_s = mean(completed)
-    return record.phi_j + n_j * (chi_bar * a_eps + (1.0 - chi_bar) * u_j * int_s)
-
-
-def build_phi2_summary(records: list[JobRecord], max_postjam_divisions: int) -> list[dict]:
+    chi_bar = mean([row.chi_c for row in record.post_rows if row.phi <= row_cutoff.phi])
+    return record.phi_j + n_j * (chi_bar * a_eps + (1.0 - chi_bar) * u_j * integral_s)
+def build_phi2_summary(records: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> list[dict]:
     per_seed: dict[tuple[str, str], list[JobRecord]] = defaultdict(list)
     for record in records:
         per_seed[(record.p0, record.seed)].append(record)
 
     raw = []
     for (p0, seed), group in per_seed.items():
-        chosen = choose_phi2_record(group, max_postjam_divisions)
+        chosen = choose_phi2_record(group, max_postjam_divisions, active_cutoff=active_cutoff)
         if chosen is None:
             continue
-        row_zero = next((row for row in chosen.post_rows if row.initial_free_active == 0), None)
-        pred = predicted_phi2(chosen)
-        if row_zero is None or pred is None:
+        row_cutoff = first_active_cutoff_row(chosen, active_cutoff)
+        if row_cutoff is None:
             continue
-        raw.append({"p0": p0, "seed": seed, "phi2_meas": row_zero.phi, "p2_meas": row_zero.pressure, "phi2_pred": pred})
+        pred = predicted_phi2(chosen, row_cutoff, active_cutoff=active_cutoff)
+        if pred is None:
+            continue
+        raw.append(
+            {
+                "p0": p0,
+                "seed": seed,
+                "phi2_meas": row_cutoff.phi,
+                "p2_meas": row_cutoff.pressure,
+                "phi2_pred": pred,
+            }
+        )
 
     grouped: dict[str, list[dict]] = defaultdict(list)
     for row in raw:
@@ -503,21 +625,26 @@ def build_mechanics_points(records: list[JobRecord]) -> list[dict]:
     return rows
 
 
-def build_g2_summary(records: list[JobRecord], phi2_summary: list[dict]) -> list[dict]:
+def build_g2_summary(records: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> list[dict]:
     per_seed: dict[tuple[str, str], list[JobRecord]] = defaultdict(list)
     for record in records:
         if record.shear_data_path is None:
             continue
         per_seed[(record.p0, record.seed)].append(record)
 
-    phi2_by_p0 = {row["p0"]: row["phi2_meas"] for row in phi2_summary}
     raw: dict[str, list[tuple[str, float]]] = defaultdict(list)
     for (p0, seed), group in per_seed.items():
-        if p0 not in phi2_by_p0:
+        chosen = choose_phi2_record(group, max_postjam_divisions, active_cutoff=active_cutoff)
+        if chosen is None:
             continue
-        target = phi2_by_p0[p0]
-        chosen = min(group, key=lambda record: abs(record.endpoint.phi - target))
-        value = estimate_shear_modulus(chosen.shear_data_path)
+        row_cutoff = first_active_cutoff_row(chosen, active_cutoff)
+        if row_cutoff is None:
+            continue
+        shear_candidates = [record for record in group if record.shear_data_path is not None]
+        if not shear_candidates:
+            continue
+        nearest = min(shear_candidates, key=lambda record: abs(record.endpoint.phi - row_cutoff.phi))
+        value = estimate_shear_modulus(nearest.shear_data_path)
         if math.isfinite(value):
             raw[p0].append((seed, value))
 
@@ -526,31 +653,34 @@ def build_g2_summary(records: list[JobRecord], phi2_summary: list[dict]) -> list
         entries = raw.get(p0, [])
         if not entries:
             continue
-        trim_count = G2_OUTLIER_TRIM.get(p0, 0)
-        if trim_count > 0 and len(entries) > trim_count:
-            center = float(np.median([value for _seed, value in entries]))
-            entries = sorted(entries, key=lambda item: abs(item[1] - center))[:-trim_count]
         values = [value for _seed, value in entries]
-        summary.append({"p0": p0, "g2": mean(values), "g2_err": stderr(values), "count": len(values)})
+        summary.append(
+            {
+                "p0": p0,
+                "g2": float(np.median(np.asarray(values, dtype=float))),
+                "g2_err": bootstrap_median_stderr(values),
+                "count": len(values),
+            }
+        )
     return summary
 
 
-def build_lambda_c_summary(records: list[JobRecord], max_postjam_divisions: int) -> list[dict]:
+def build_lambda_c_summary(records: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> list[dict]:
     per_seed: dict[tuple[str, str], list[JobRecord]] = defaultdict(list)
     for record in records:
         per_seed[(record.p0, record.seed)].append(record)
 
     raw: dict[str, list[float]] = defaultdict(list)
     for (p0, _seed), group in per_seed.items():
-        chosen = choose_phi2_record(group, max_postjam_divisions)
+        chosen = choose_phi2_record(group, max_postjam_divisions, active_cutoff=active_cutoff)
         if chosen is None:
             continue
-        row_zero = next((row for row in chosen.post_rows if row.initial_free_active == 0), None)
-        if row_zero is None:
+        row_cutoff = first_active_cutoff_row(chosen, active_cutoff)
+        if row_cutoff is None:
             continue
         lambda_values = []
         for row in chosen.post_rows:
-            if row.phi > row_zero.phi:
+            if row.phi > row_cutoff.phi:
                 break
             denominator = row.u_total + (1.0 - row.u_total) * row.chi_c
             if denominator <= 0.0:
@@ -658,7 +788,14 @@ def write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
-def make_figure1(output_dir: Path, structural_points: list[dict], depletion_curves: dict[str, tuple[np.ndarray, np.ndarray]], phi2_summary: list[dict], dpi: int) -> None:
+def make_figure1(
+    output_dir: Path,
+    structural_points: list[dict],
+    depletion_curves: dict[str, tuple[np.ndarray, np.ndarray]],
+    phi2_summary: list[dict],
+    dpi: int,
+    stem: str = "figure2_structure_l15",
+) -> None:
     fig = plt.figure(figsize=(7.1, 4.6))
     gs = fig.add_gridspec(2, 2, width_ratios=[1.15, 1.0], height_ratios=[1.0, 0.95], wspace=0.42, hspace=0.45)
     ax_struct = fig.add_subplot(gs[:, 0])
@@ -731,7 +868,7 @@ def make_figure1(output_dir: Path, structural_points: list[dict], depletion_curv
     ax_phi2.set_title("Secondary arrest", pad=6)
     ax_phi2.legend(loc="best", fontsize=8)
 
-    save_figure(fig, output_dir, "figure1_structure_l15", dpi)
+    save_figure(fig, output_dir, stem, dpi)
 
 
 def make_figure2(
@@ -741,6 +878,7 @@ def make_figure2(
     g2_summary: list[dict],
     lambda_c_summary: list[dict],
     dpi: int,
+    stem: str = "figure3_mechanics_l15",
 ) -> None:
     fig = plt.figure(figsize=(7.1, 4.6))
     gs = fig.add_gridspec(2, 2, width_ratios=[1.15, 0.9], height_ratios=[1.0, 1.0], wspace=0.42, hspace=0.45)
@@ -854,7 +992,7 @@ def make_figure2(
     ax_g2.set_xlabel(r"$P_0$")
     ax_g2.set_title("Shear stiffness near arrest", pad=6)
 
-    save_figure(fig, output_dir, "figure2_mechanics_l15", dpi)
+    save_figure(fig, output_dir, stem, dpi)
 
 
 def make_figure3(output_dir: Path, hgamma_summary: list[dict], histograms: dict[str, dict], dpi: int) -> None:
@@ -881,8 +1019,8 @@ def make_figure3(output_dir: Path, hgamma_summary: list[dict], histograms: dict[
             zorder=3,
         )
     ax_h.set_xticks(x, [P0_LABELS[row["p0"]] for row in plot_rows])
-    ax_h.set_ylabel(r"$h_\gamma$")
-    ax_h.set_xlabel(r"$P_0$")
+    ax_h.set_ylabel(r"$h_\gamma$", fontsize=12)
+    ax_h.set_xlabel(r"$P_0$", fontsize=12)
     ax_h.set_ylim(-0.08, 6.25)
     ax_h.set_title(r"Growth-rate crossover at $\Delta\phi=3\times10^{-3}$", pad=6)
 
@@ -943,7 +1081,7 @@ def make_figure3(output_dir: Path, hgamma_summary: list[dict], histograms: dict[
 
     ax_h.text(0.52, 0.86, r"Representative pooled $\Pi(g)$", transform=ax_h.transAxes, ha="center", fontsize=9)
 
-    save_figure(fig, output_dir, "figure3_growth_crossover_l15", dpi)
+    save_figure(fig, output_dir, "figure4_growth_crossover_l15", dpi)
 
 
 def main() -> None:
@@ -952,21 +1090,29 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    records = load_records(args.size, args.dphi_probe)
+    seeds = None
+    if args.seed_start is not None:
+        seeds = seed_range(args.seed_start, args.seed_stop)
+
+    records = load_records(args.size, args.dphi_probe, seeds=seeds)
     if not records:
-        raise SystemExit(f"No completed records found for L={args.size}")
+        if seeds is None:
+            raise SystemExit(f"No completed records found for L={args.size}")
+        raise SystemExit(
+            f"No completed records found for L={args.size} and seeds {args.seed_start}-{args.seed_stop}"
+        )
 
     structural_points = build_structural_points(records)
     depletion_curves = build_depletion_curves(records, args.max_postjam_divisions)
-    phi2_summary = build_phi2_summary(records, args.max_postjam_divisions)
+    phi2_summary = build_phi2_summary(records, args.max_postjam_divisions, active_cutoff=1)
     mechanics_points = build_mechanics_points(records)
-    g2_summary = build_g2_summary(records, phi2_summary)
-    lambda_c_summary = build_lambda_c_summary(records, args.max_postjam_divisions)
+    g2_summary = build_g2_summary(records, args.max_postjam_divisions, active_cutoff=1)
+    lambda_c_summary = build_lambda_c_summary(records, args.max_postjam_divisions, active_cutoff=1)
     hgamma_summary = build_growth_hgamma_summary(records, GROWTH_CROSSOVER_DPHI)
     growth_histograms = build_growth_histograms(records, GROWTH_CROSSOVER_DPHI)
 
     write_csv(
-        output_dir / "figure1_structure_points_l15.csv",
+        output_dir / "figure2_structure_points_l15.csv",
         ["p0", "dphi", "range_label", "pred_mean", "pred_err", "obs_mean", "obs_err", "count"],
         structural_points,
     )
@@ -975,32 +1121,32 @@ def main() -> None:
         for x_value, y_value in zip(x_values.tolist(), y_values.tolist()):
             depletion_rows.append({"p0": p0, "phi_minus_phi_j": x_value, "active_fraction": y_value})
     write_csv(
-        output_dir / "figure1_depletion_curves_l15.csv",
+        output_dir / "figure2_depletion_curves_l15.csv",
         ["p0", "phi_minus_phi_j", "active_fraction"],
         depletion_rows,
     )
     write_csv(
-        output_dir / "figure1_phi2_summary_l15.csv",
+        output_dir / "figure2_phi2_summary_l15.csv",
         ["p0", "count", "phi2_meas", "phi2_meas_err", "phi2_pred", "phi2_pred_err", "p2", "p2_err", "p2_norm", "p2_norm_err"],
         phi2_summary,
     )
     write_csv(
-        output_dir / "figure2_mechanics_points_l15.csv",
+        output_dir / "figure3_mechanics_points_l15.csv",
         ["p0", "dphi", "pred_mean", "pred_err", "meas_mean", "meas_err", "count"],
         mechanics_points,
     )
     write_csv(
-        output_dir / "figure2_g2_summary_l15.csv",
+        output_dir / "figure3_g2_summary_l15.csv",
         ["p0", "g2", "g2_err", "count"],
         g2_summary,
     )
     write_csv(
-        output_dir / "figure2_lambda_c_summary_l15.csv",
+        output_dir / "figure3_lambda_c_summary_l15.csv",
         ["p0", "lambda_c_bar", "lambda_c_bar_err", "count"],
         lambda_c_summary,
     )
     write_csv(
-        output_dir / "figure3_hgamma_summary_l15.csv",
+        output_dir / "figure4_hgamma_summary_l15.csv",
         ["p0", "dphi", "h_gamma", "h_gamma_err", "spike_fraction", "spike_fraction_err", "count"],
         hgamma_summary,
     )
@@ -1037,7 +1183,7 @@ def main() -> None:
             }
         )
     write_csv(
-        output_dir / "figure3_growth_histograms_l15.csv",
+        output_dir / "figure4_growth_histograms_l15.csv",
         ["p0", "dphi", "kind", "g_left", "g_right", "density", "mass", "count"],
         histogram_rows,
     )
@@ -1046,7 +1192,10 @@ def main() -> None:
     make_figure2(output_dir, mechanics_points, phi2_summary, g2_summary, lambda_c_summary, args.dpi)
     make_figure3(output_dir, hgamma_summary, growth_histograms, args.dpi)
 
-    print(f"Loaded records: {len(records)}")
+    if seeds is None:
+        print(f"Loaded records: {len(records)}")
+    else:
+        print(f"Loaded records: {len(records)} for seeds {args.seed_start}-{args.seed_stop}")
     print(f"Wrote figures to: {output_dir}")
 
 

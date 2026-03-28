@@ -64,18 +64,36 @@ def dphi_allowed(p0, dphi):
     return True
 
 
-def all_job_params():
-    for size in SIZES:
-        for p0 in P0S:
-            for dphi in DPHIS:
-                for seed in SEEDS:
+def seed_range(start, stop):
+    if stop < start:
+        raise ValueError("seed stop must be greater than or equal to seed start")
+    return [str(seed) for seed in range(start, stop + 1)]
+
+
+def iter_all_job_params(sizes=None, p0s=None, dphis=None, seeds=None):
+    sizes = SIZES if sizes is None else [str(size) for size in sizes]
+    p0s = P0S if p0s is None else [str(p0) for p0 in p0s]
+    dphis = DPHIS if dphis is None else [str(dphi) for dphi in dphis]
+    seeds = SEEDS if seeds is None else [str(seed) for seed in seeds]
+    for size in sizes:
+        for p0 in p0s:
+            for dphi in dphis:
+                for seed in seeds:
                     yield {"lx": size, "p0": p0, "dphi": dphi, "seed": seed}
 
 
-def job_params():
-    for params in all_job_params():
+def iter_job_params(sizes=None, p0s=None, dphis=None, seeds=None):
+    for params in iter_all_job_params(sizes=sizes, p0s=p0s, dphis=dphis, seeds=seeds):
         if dphi_allowed(params["p0"], params["dphi"]):
             yield params
+
+
+def all_job_params():
+    yield from iter_all_job_params()
+
+
+def job_params():
+    yield from iter_job_params()
 
 
 def basename(params):

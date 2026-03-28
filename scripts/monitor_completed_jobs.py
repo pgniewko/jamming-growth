@@ -4,7 +4,7 @@ import argparse
 from collections import Counter
 from datetime import datetime
 
-from pipeline_config import DEFAULT_DPHI_PROBE, all_job_params, basename, dphi_allowed, job_params
+from pipeline_config import DEFAULT_DPHI_PROBE, basename, dphi_allowed, iter_all_job_params, iter_job_params, seed_range
 from pipeline_paths import bext_paths, growth_paths, shear_paths
 from pipeline_validate import bext_done, growth_done, shear_done
 
@@ -30,9 +30,18 @@ def parse_args():
         default=DEFAULT_DPHI_PROBE,
         help=f"Probe compression used to locate B_ext outputs. Default: {DEFAULT_DPHI_PROBE:g}",
     )
+    parser.add_argument("--sizes", nargs="+", help="Optional size filter, e.g. 15")
+    parser.add_argument("--p0s", nargs="+", help="Optional P0 filter.")
+    parser.add_argument("--dphis", nargs="+", help="Optional dphi filter.")
+    parser.add_argument("--seed-start", type=int, help="Optional inclusive seed start.")
+    parser.add_argument("--seed-stop", type=int, help="Optional inclusive seed stop.")
     args = parser.parse_args()
     if args.dphi_probe <= 0.0:
         raise SystemExit("--dphi-probe must be positive")
+    if (args.seed_start is None) ^ (args.seed_stop is None):
+        raise SystemExit("--seed-start and --seed-stop must be given together")
+    if args.seed_start is not None and args.seed_stop < args.seed_start:
+        raise SystemExit("--seed-stop must be greater than or equal to --seed-start")
     return args
 
 
@@ -72,9 +81,9 @@ def _sort_key(value):
         return (1, value)
 
 
-def collect_status(dphi_probe):
-    all_jobs = list(all_job_params())
-    jobs = list(job_params())
+def collect_status(dphi_probe, sizes=None, p0s=None, dphis=None, seeds=None):
+    all_jobs = list(iter_all_job_params(sizes=sizes, p0s=p0s, dphis=dphis, seeds=seeds))
+    jobs = list(iter_job_params(sizes=sizes, p0s=p0s, dphis=dphis, seeds=seeds))
     expected_single = {key: Counter() for key, _label in DIMENSIONS}
     completed_single = {key: Counter() for key, _label in DIMENSIONS}
     expected_pair = {(left, right): Counter() for left, right, _label in PAIRWISE_DIMENSIONS}
@@ -212,7 +221,16 @@ def render_report(status):
 
 def main():
     args = parse_args()
-    status = collect_status(args.dphi_probe)
+    seeds = None
+    if args.seed_start is not None:
+        seeds = seed_range(args.seed_start, args.seed_stop)
+    status = collect_status(
+        args.dphi_probe,
+        sizes=args.sizes,
+        p0s=args.p0s,
+        dphis=args.dphis,
+        seeds=seeds,
+    )
     print(render_report(status), flush=True)
 
 
