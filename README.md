@@ -128,6 +128,7 @@ Shared options:
 python3 scripts/run_pipeline.py --n-cpus 8
 python3 scripts/run_pipeline.py --force
 python3 scripts/run_pipeline.py --save-all-data
+python3 scripts/run_pipeline.py --sizes 20 25
 ```
 
 The stage-specific sweep launchers are:

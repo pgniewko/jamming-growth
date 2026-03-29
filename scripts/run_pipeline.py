@@ -3,7 +3,7 @@
 import argparse
 
 from pipeline_cli import add_common_job_arguments, finalize_common_args
-from pipeline_config import GROWTH_SCRIPT, SHEAR_SCRIPT, job_params
+from pipeline_config import GROWTH_SCRIPT, SHEAR_SCRIPT, SIZES, iter_job_params
 from pipeline_paths import ensure_stage_dirs
 from pipeline_run import execute_param_jobs, run_pipeline_job
 
@@ -11,6 +11,11 @@ from pipeline_run import execute_param_jobs, run_pipeline_job
 def parse_args():
     parser = argparse.ArgumentParser(description="Run the full growth -> shear -> B_ext pipeline.")
     add_common_job_arguments(parser, include_timeout=True, include_probe=True)
+    parser.add_argument(
+        "--sizes",
+        nargs="+",
+        help=f"Optional size subset. Default: all ({', '.join(SIZES)})",
+    )
     return finalize_common_args(parser.parse_args())
 
 
@@ -21,7 +26,7 @@ def main():
     ensure_stage_dirs()
 
     completed, skipped, failed = execute_param_jobs(
-        job_params(),
+        iter_job_params(sizes=args.sizes),
         lambda params: run_pipeline_job(
             params,
             force=args.force,
