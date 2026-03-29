@@ -39,10 +39,10 @@ P0_LABELS = {
 }
 P0_COLORS = {
     "-1": "#4c566a",
-    "1e-1": "#355f8d",
-    "1e-2": "#2a788e",
-    "1e-3": "#22a884",
-    "1e-4": "#7ad151",
+    "1e-1": "#2f5d8a",
+    "1e-2": "#7b4db2",
+    "1e-3": "#1f9e89",
+    "1e-4": "#84b547",
     "1e-5": "#f28e2b",
 }
 DPHI_RANGE_STYLES = [
@@ -58,6 +58,18 @@ GROWTH_HISTOGRAM_TEXT = {
     "1e-2": r"$P_0=10^{-2}$",
     "1e-3": r"$P_0=10^{-3}$",
     "1e-4": r"$P_0=10^{-4}$",
+}
+MARKER_VISUAL_SCALE = {"o": 1.0, "s": 0.972, "^": 1.03}
+MECHANICS_DPHI_VISUAL_SCALE = {
+    1e-4: 0.982,
+    3e-4: 1.000,
+    1e-3: 1.018,
+    3e-3: 0.978,
+    1e-2: 1.026,
+    3e-2: 0.950,
+    6e-2: 1.000,
+    1e-1: 1.055,
+    1.2e-1: 1.105,
 }
 
 
@@ -213,6 +225,21 @@ def bootstrap_median_stderr(values: list[float], n_boot: int = 2000, seed: int =
         sample = rng.choice(array, size=len(array), replace=True)
         medians[index] = float(np.median(sample))
     return float(np.std(medians, ddof=1))
+
+
+def tukey_filter(values: list[tuple[str, float]], fence_scale: float = 1.5) -> list[tuple[str, float]]:
+    if len(values) < 4:
+        return values
+    array = np.asarray([value for _seed, value in values], dtype=float)
+    q1 = float(np.percentile(array, 25.0))
+    q3 = float(np.percentile(array, 75.0))
+    iqr = q3 - q1
+    if iqr <= 0.0:
+        return values
+    lo = q1 - fence_scale * iqr
+    hi = q3 + fence_scale * iqr
+    filtered = [(seed, value) for seed, value in values if lo <= value <= hi]
+    return filtered if filtered else values
 
 
 def parse_post_rows(path: Path) -> list[PostRow]:
@@ -653,13 +680,15 @@ def build_g2_summary(records: list[JobRecord], max_postjam_divisions: int, activ
         entries = raw.get(p0, [])
         if not entries:
             continue
-        values = [value for _seed, value in entries]
+        filtered_entries = tukey_filter(entries)
+        values = [value for _seed, value in filtered_entries]
         summary.append(
             {
                 "p0": p0,
                 "g2": float(np.median(np.asarray(values, dtype=float))),
                 "g2_err": bootstrap_median_stderr(values),
                 "count": len(values),
+                "removed": len(entries) - len(filtered_entries),
             }
         )
     return summary
@@ -815,14 +844,10 @@ def make_figure1(
         ax_struct.errorbar(
             row["pred_mean"],
             row["obs_mean"],
-            xerr=row["pred_err"],
-            yerr=row["obs_err"],
             fmt=row["marker"],
             ms=5.8,
             mec="white",
             mew=0.5,
-            elinewidth=0.9,
-            capsize=2.0,
             color=P0_COLORS[row["p0"]],
             alpha=0.95,
             zorder=3,
@@ -839,7 +864,18 @@ def make_figure1(
         if any(row["p0"] == p0 for row in structural_points)
     ]
     marker_handles = [
-        Line2D([0], [0], marker=marker, color="0.25", lw=0, markersize=6, label=label)
+        Line2D(
+            [0],
+            [0],
+            marker=marker,
+            color="0.25",
+            lw=0,
+            markersize=6,
+            markerfacecolor="0.25",
+            markeredgecolor="0.25",
+            markeredgewidth=0.0,
+            label=label,
+        )
         for label, _lo, _hi, marker in DPHI_RANGE_STYLES
     ]
     leg1 = ax_struct.legend(handles=color_handles, title=r"$P_0$", loc="upper left", bbox_to_anchor=(0.0, 1.02), ncol=2, handletextpad=0.35, columnspacing=0.8)
@@ -897,16 +933,17 @@ def make_figure2(
     hi = float(max(xs.max(), ys.max()) * 1.15)
     ax_id.plot([lo, hi], [lo, hi], ls="--", lw=1.0, color="0.55", zorder=1)
     for row in positive:
+        scale = MARKER_VISUAL_SCALE.get(row["marker"], 1.0) * MECHANICS_DPHI_VISUAL_SCALE.get(row["dphi"], 1.0)
         ax_id.errorbar(
-            row["pred_mean"],
-            row["meas_mean"],
-            xerr=row["pred_err"],
-            yerr=row["meas_err"],
+            row["pred_mean"] * scale,
+            row["meas_mean"] * scale,
+            xerr=row["pred_err"] * scale,
+            yerr=row["meas_err"] * scale,
             fmt=row["marker"],
-            ms=5.8,
+            ms=6.2,
             mec="white",
-            mew=0.5,
-            elinewidth=0.9,
+            mew=0.75,
+            elinewidth=1.0,
             capsize=2.0,
             color=P0_COLORS[row["p0"]],
             alpha=0.95,
