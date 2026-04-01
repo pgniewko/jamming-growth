@@ -929,7 +929,7 @@ def make_figure2(
     positive = [row for row in mechanics_points if row["pred_mean"] > 0.0 and row["meas_mean"] > 0.0]
     xs = np.asarray([row["pred_mean"] for row in positive])
     ys = np.asarray([row["meas_mean"] for row in positive])
-    lo = float(min(xs.min(), ys.min()) * 0.75)
+    lo = 0.0
     hi = float(max(xs.max(), ys.max()) * 1.15)
     ax_id.plot([lo, hi], [lo, hi], ls="--", lw=1.0, color="0.55", zorder=1)
     for row in positive:
@@ -949,8 +949,6 @@ def make_figure2(
             alpha=0.95,
             zorder=3,
         )
-    ax_id.set_xscale("log")
-    ax_id.set_yscale("log")
     ax_id.set_xlim(lo, hi)
     ax_id.set_ylim(lo, hi)
     ax_id.set_xlabel(r"$\lambda_c B_{\mathrm{ext}}$")
