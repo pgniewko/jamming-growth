@@ -5,7 +5,7 @@ from pipeline_config import BEXT_DIR, BEXT_LOG_DIR, GROWTH_DIR, GROWTH_LOG_DIR, 
 
 def normalize_source_tag(source_tag):
     tag = str(source_tag).upper()
-    if tag not in {"DPHI", "JAMM", "PHI2"}:
+    if tag not in {"DPHI", "PHI2"}:
         raise ValueError(f"unsupported source tag: {source_tag}")
     return tag
 

@@ -21,14 +21,6 @@ def expand_shear_jobs(growth_ready):
         jobs.append(
             {
                 **params,
-                "source_tag": "JAMM",
-                "stage_name": "shear_jamm",
-                "required_input": True,
-            }
-        )
-        jobs.append(
-            {
-                **params,
                 "source_tag": "DPHI",
                 "stage_name": "shear",
                 "required_input": True,
@@ -75,7 +67,6 @@ def main():
     print(f"Queued shear jobs: {len(shear_jobs)}")
     print(
         "Queued shear jobs by source tag: "
-        f"JAMM={queued_by_tag['JAMM']} "
         f"DPHI={queued_by_tag['DPHI']} "
         f"PHI2={queued_by_tag['PHI2']}"
     )

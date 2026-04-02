@@ -79,7 +79,7 @@ Options:
   --ar VALUE            Initial bud aspect ratio. Default: 1.01
   --divtype VALUE       Division type. Default: 4
   --version VALUE       Output version. Default: 1.0
-  --input-tag VALUE     Growth snapshot tag: DPHI, JAMM, or PHI2. Default: DPHI
+  --input-tag VALUE     Growth snapshot tag: DPHI or PHI2. Default: DPHI
   --strain-step VALUE   Shear strain increment passed to the Fortran code. Default: 1e-6
   --shear-steps VALUE   Number of shear steps. Default: 5000
   --force               Rerun even if outputs already validate.
@@ -134,7 +134,7 @@ mkdir -p "${shear_dir}" "${log_dir}"
 
 Ly="${Lx}"
 input_tag=$(printf '%s' "${input_tag}" | tr '[:lower:]' '[:upper:]')
-if [[ "${input_tag}" != "DPHI" && "${input_tag}" != "JAMM" && "${input_tag}" != "PHI2" ]]; then
+if [[ "${input_tag}" != "DPHI" && "${input_tag}" != "PHI2" ]]; then
     echo "Unsupported input tag: ${input_tag}" >&2
     exit 1
 fi

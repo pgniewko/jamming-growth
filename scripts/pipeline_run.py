@@ -168,11 +168,6 @@ def growth_input_source(name, source_tag="DPHI"):
             return growth["frame_gz"]
         if growth["frame"].is_file():
             return growth["frame"]
-    elif tag == "JAMM":
-        if growth["jamm_gz"].is_file():
-            return growth["jamm_gz"]
-        if growth["jamm"].is_file():
-            return growth["jamm"]
     elif tag == "PHI2":
         if growth["phi2_frame_gz"].is_file():
             return growth["phi2_frame_gz"]
@@ -314,7 +309,6 @@ def run_pipeline_job(params, force=False, save_all_data=False, timeout_seconds=D
         return {"status": "skipped", "name": name}
     if not force and not growth_done(growth):
         clean_shear(shear_paths(name))
-        clean_shear(shear_paths(name, source_tag="JAMM"))
         clean_shear(shear_paths(name, source_tag="PHI2"))
         clean_bext(bext)
     growth_result = run_growth_stage(
@@ -325,20 +319,9 @@ def run_pipeline_job(params, force=False, save_all_data=False, timeout_seconds=D
     )
     if growth_result["status"] == "failed":
         clean_shear(shear_paths(growth_result["name"]))
-        clean_shear(shear_paths(growth_result["name"], source_tag="JAMM"))
         clean_shear(shear_paths(growth_result["name"], source_tag="PHI2"))
         clean_bext(bext_paths(growth_result["name"], dphi_probe))
         return growth_result
-
-    shear_jamm_result = run_shear_stage(
-        params,
-        force=force,
-        save_all_data=save_all_data,
-        source_tag="JAMM",
-        stage_name="shear_jamm",
-    )
-    if shear_jamm_result["status"] == "failed":
-        return shear_jamm_result
 
     shear_result = run_shear_stage(
         params,
