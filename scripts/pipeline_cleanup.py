@@ -22,6 +22,8 @@ def clean_growth(paths):
         "frame_gz",
         "jamm",
         "jamm_gz",
+        "phi2_frame",
+        "phi2_frame_gz",
         "lineage_frame",
         "lineage_frame_gz",
         "lineage_jamm",
@@ -53,7 +55,7 @@ def clean_bext(paths):
 
 
 def normalize_growth_success(paths, save_all_data):
-    for key in ("frame", "jamm", "lineage_frame", "lineage_jamm", "cohort"):
+    for key in ("frame", "jamm", "phi2_frame", "lineage_frame", "lineage_jamm", "cohort"):
         gzip_output(paths[key])
     if save_all_data:
         gzip_output(paths["traj"])

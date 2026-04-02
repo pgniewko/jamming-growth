@@ -39,6 +39,7 @@
       CHARACTER file1*80     
       CHARACTER file_LF_JAMM*120
       CHARACTER file_LF_DPHI*120
+      CHARACTER file_LF_PHI2*120
       CHARACTER STATS_file_LF_JAMM*120
       CHARACTER STATS_file_LF_DPHI*120
       CHARACTER file_LINEAGE_JAMM*120
@@ -94,6 +95,7 @@
       INTEGER n_mother_unconstrained
       INTEGER postjam_divisions_total
       INTEGER postjam_steps, failure_code
+      INTEGER phi2_saved
       INTEGER cohort_member(Ntot)
       INTEGER cohort_initial_cell_id(Ntot)
       INTEGER cohort_initial_parent_id(Ntot)
@@ -193,6 +195,7 @@
       postjam_steps = 0
       failure_code = 0
       Nc = 0
+      phi2_saved = 0
 
       ! TRAJECTORY FILE
       OPEN(unit=1,file=TRIM(file1), status='replace') ! CONFIGURATION FILE
@@ -207,6 +210,7 @@
       ! LF = LAST FRAME
       file_LF_DPHI='LF_DPHI_' // TRIM(file1)
       OPEN(unit=12,file=TRIM(file_LF_DPHI), status='replace')
+      file_LF_PHI2='LF_PHI2_' // TRIM(file1)
       STATS_file_LF_DPHI='STATS_LF_DPHI_' // TRIM(file1)
       OPEN(unit=22,file=TRIM(STATS_file_LF_DPHI), status='replace')
       file_LINEAGE_DPHI='LINEAGE_LF_DPHI_' // TRIM(file1)
@@ -499,6 +503,12 @@
      +              n_postjam_bud_unconstrained,
      +              n_mother_unconstrained,
      +              postjam_divisions_total)
+               IF(phi2_saved.EQ.0.AND.
+     +            n_initial_free_active.LE.1) THEN
+                  CALL save_cell_packing(
+     +               file_LF_PHI2,N,x,y,th,D,alpha,phi)
+                  phi2_saved = 1
+               ENDIF
                FLUSH(17)
                FLUSH(18)
             ENDIF
@@ -723,6 +733,26 @@
       IF(failure_code.NE.0) THEN
          CALL EXIT(failure_code)
       ENDIF
+      END
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE save_cell_packing(file_name,N,x,y,th,D,alpha,phi)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      CHARACTER*(*) file_name
+      INTEGER N, i
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), D(Ntot)
+      DOUBLE PRECISION alpha(Ntot), phi
+
+      OPEN(unit=19,file=TRIM(file_name), status='replace')
+      WRITE(19,*) N, phi
+      DO i=1,N
+         WRITE(19,'(5E27.18E3)') x(i),y(i),D(i),alpha(i),th(i)
+      ENDDO
+      FLUSH(19)
+      CLOSE(19)
+
       END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

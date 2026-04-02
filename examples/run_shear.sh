@@ -17,6 +17,7 @@ seed="1234"
 version="1.0"
 strain_step="1e-6"
 shear_steps="5000"
+input_tag="DPHI"
 results_root="${ROOT_DIR}/output/debug"
 force=0
 save_all_data=0
@@ -30,26 +31,31 @@ compress_if_present() {
 
 shear_outputs_valid() {
     PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/jg-pycache" python3 - \
-        "${shear_dir}" "${log_dir}" "${basename}" "${ROOT_DIR}/scripts" <<'PY'
+        "${shear_dir}" "${log_dir}" "${basename}" "${input_tag}" "${ROOT_DIR}/scripts" <<'PY'
 from pathlib import Path
 import sys
 
 shear_dir = Path(sys.argv[1])
 log_dir = Path(sys.argv[2])
 basename = sys.argv[3]
-scripts_dir = Path(sys.argv[4])
+input_tag = sys.argv[4]
+scripts_dir = Path(sys.argv[5])
 
 sys.path.insert(0, str(scripts_dir))
 
 from pipeline_validate import shear_done
 
+log_name = f"stdout_{basename[:-4]}.log"
+if input_tag != "DPHI":
+    log_name = f"stdout_{input_tag.lower()}_{basename[:-4]}.log"
+
 paths = {
-    "input_local": shear_dir / f"LF_DPHI_{basename}",
-    "input_local_gz": shear_dir / f"LF_DPHI_{basename}.gz",
-    "g_data": shear_dir / f"G_data_LF_DPHI_{basename}",
-    "traj": shear_dir / f"SHEAR_TRAJ_LF_DPHI_{basename}",
-    "traj_gz": shear_dir / f"SHEAR_TRAJ_LF_DPHI_{basename}.gz",
-    "log": log_dir / f"stdout_{basename[:-4]}.log",
+    "input_local": shear_dir / f"LF_{input_tag}_{basename}",
+    "input_local_gz": shear_dir / f"LF_{input_tag}_{basename}.gz",
+    "g_data": shear_dir / f"G_data_LF_{input_tag}_{basename}",
+    "traj": shear_dir / f"SHEAR_TRAJ_LF_{input_tag}_{basename}",
+    "traj_gz": shear_dir / f"SHEAR_TRAJ_LF_{input_tag}_{basename}.gz",
+    "log": log_dir / log_name,
 }
 
 raise SystemExit(0 if shear_done(paths) else 1)
@@ -73,6 +79,7 @@ Options:
   --ar VALUE            Initial bud aspect ratio. Default: 1.01
   --divtype VALUE       Division type. Default: 4
   --version VALUE       Output version. Default: 1.0
+  --input-tag VALUE     Growth snapshot tag: DPHI, JAMM, or PHI2. Default: DPHI
   --strain-step VALUE   Shear strain increment passed to the Fortran code. Default: 1e-6
   --shear-steps VALUE   Number of shear steps. Default: 5000
   --force               Rerun even if outputs already validate.
@@ -97,6 +104,7 @@ while [[ $# -gt 0 ]]; do
         --ar) ar="$2"; shift 2 ;;
         --divtype) divtype="$2"; shift 2 ;;
         --version) version="$2"; shift 2 ;;
+        --input-tag) input_tag="$2"; shift 2 ;;
         --strain-step|--ddelrx) strain_step="$2"; shift 2 ;;
         --shear-steps) shear_steps="$2"; shift 2 ;;
         --force) force=1; shift ;;
@@ -125,13 +133,23 @@ log_dir="${results_root}/logs/shear"
 mkdir -p "${shear_dir}" "${log_dir}"
 
 Ly="${Lx}"
+input_tag=$(printf '%s' "${input_tag}" | tr '[:lower:]' '[:upper:]')
+if [[ "${input_tag}" != "DPHI" && "${input_tag}" != "JAMM" && "${input_tag}" != "PHI2" ]]; then
+    echo "Unsupported input tag: ${input_tag}" >&2
+    exit 1
+fi
 basename="v${version}_ar${ar}_div_${divtype}_desync${desync}_seed_${seed}"
 basename="${basename}_Lx${Lx}_Ly${Ly}_att${att}_dphi${dphi}_P${P0}.dat"
-input_file="${growth_dir}/LF_DPHI_${basename}"
-local_input="${shear_dir}/LF_DPHI_${basename}"
-stdout_log="${log_dir}/stdout_${basename%.dat}.log"
-g_data_file="${shear_dir}/G_data_LF_DPHI_${basename}"
-shear_traj_file="${shear_dir}/SHEAR_TRAJ_LF_DPHI_${basename}"
+input_file="${growth_dir}/LF_${input_tag}_${basename}"
+local_input="${shear_dir}/LF_${input_tag}_${basename}"
+if [[ "${input_tag}" == "DPHI" ]]; then
+    stdout_log="${log_dir}/stdout_${basename%.dat}.log"
+else
+    input_tag_lower=$(printf '%s' "${input_tag}" | tr '[:upper:]' '[:lower:]')
+    stdout_log="${log_dir}/stdout_${input_tag_lower}_${basename%.dat}.log"
+fi
+g_data_file="${shear_dir}/G_data_LF_${input_tag}_${basename}"
+shear_traj_file="${shear_dir}/SHEAR_TRAJ_LF_${input_tag}_${basename}"
 
 if [[ ! -f "${input_file}" && ! -f "${input_file}.gz" ]]; then
     echo "Missing growth configuration: ${input_file}" >&2
@@ -162,7 +180,7 @@ fi
 ${Lx}
 ${Ly}
 ${att}
-LF_DPHI_${basename}
+LF_${input_tag}_${basename}
 ${strain_step}
 ${shear_steps}
 EOF

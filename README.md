@@ -8,7 +8,8 @@ calculations, and `B_ext` probes.
 The repository now uses a single growth code:
 
 - `src/jamming_by_growth.f` generates the jammed packing at `phi_j`, the final
-  packing at `phi_j + dphi`, and the lineage sidecar files for both endpoints
+  packing at `phi_j + dphi`, and an optional packing at the first saved post-jam
+  state with `n_initial_free_active <= 1`
 - `src/shear_yeast_linearshear.f` computes the shear-response data
 - `src/box_compress_bext.f` computes the `B_ext` probe data
 
@@ -73,6 +74,7 @@ By default that keeps the compressed endpoint packings and analysis files:
 
 - `LF_JAMM_<base>.gz`
 - `LF_DPHI_<base>.gz`
+- `LF_PHI2_<base>.gz` if the run reaches the saved `phi2` cutoff
 - `LINEAGE_LF_JAMM_<base>.gz`
 - `LINEAGE_LF_DPHI_<base>.gz`
 - `STATS_LF_JAMM_<base>`
@@ -101,8 +103,16 @@ Run one shear job from an existing growth endpoint:
 bash examples/run_shear.sh --results-root output/example
 ```
 
-By default this keeps only `G_data_LF_DPHI_<base>` and the stdout log. Keep the
-shear trajectory with:
+That defaults to shearing `LF_DPHI_<base>`. You can also shear the jammed
+packing or the optional exact-`phi2` packing:
+
+```bash
+bash examples/run_shear.sh --results-root output/example --input-tag JAMM
+bash examples/run_shear.sh --results-root output/example --input-tag PHI2
+```
+
+By default this keeps only `G_data_LF_<tag>_<base>` and the stdout log. Keep
+the shear trajectory with:
 
 ```bash
 bash examples/run_shear.sh --results-root output/example --save-all-data
@@ -119,8 +129,14 @@ python3 scripts/run_pipeline.py
 That pipeline runs, for each parameter tuple:
 
 1. growth
-2. shear
-3. `B_ext`
+2. shear at `phi_j` from `LF_JAMM`
+3. shear at `phi_j + dphi` from `LF_DPHI`
+4. shear at `phi2` from `LF_PHI2` if that file exists
+5. `B_ext`
+
+The optional `LF_PHI2` packing is saved only when growth reaches the first saved
+post-jam state with `n_initial_free_active <= 1`. Its absence does not make the
+growth job incomplete.
 
 Shared options:
 
@@ -161,9 +177,18 @@ The monitor validates content, not just filenames. A tuple is reported as:
 - growth-complete only if the compressed packings at `phi_j` and `phi_j + dphi`
   both exist and parse successfully, together with the required stats and
   lineage files
-- shear-complete only if `G_data` exists and parses successfully
+- `phi2`-packing-saved if `LF_PHI2` exists
+- shear-at-`phi_j` complete only if `G_data_LF_JAMM` exists and parses
+  successfully
+- shear-complete only if `G_data_LF_DPHI` exists and parses successfully
+- shear-at-`phi2` complete only if `G_data_LF_PHI2` exists and parses
+  successfully
 - `B_ext`-complete only if the `B_ext` data file exists and parses successfully
-- pipeline-complete only if all three stages validate
+- pipeline-complete only if growth, shear-at-`phi_j + dphi`, and `B_ext`
+  validate
+
+Missing `LF_PHI2`, missing `G_data_LF_PHI2`, or missing `G_data_LF_JAMM` does
+not block pipeline completion.
 
 ## Restart Behavior
 
@@ -173,9 +198,9 @@ that validate successfully.
 If a tuple is incomplete, empty, truncated, or otherwise invalid, only that
 tuple is cleaned and rerun:
 
-- invalid growth: rerun growth and clear that tuple's derived shear and `B_ext`
-  outputs first
-- invalid shear only: rerun only shear for that tuple
+- invalid growth: rerun growth and clear that tuple's derived shear, optional
+  `phi2` packing, optional `phi2` shear, and `B_ext` outputs first
+- invalid shear only: rerun only the requested shear stage for that tuple
 - invalid `B_ext` only: rerun only `B_ext` for that tuple
 
 With `--force`, the requested stage scope is rerun even if outputs already
@@ -194,6 +219,18 @@ The standard output tree is:
 
 Completed packings are stored compressed. Optional large outputs retained with
 `--save-all-data` are also stored compressed.
+
+Standard growth-side packing outputs are:
+
+- `LF_JAMM_<base>.gz`
+- `LF_DPHI_<base>.gz`
+- `LF_PHI2_<base>.gz` when available
+
+Standard shear-side outputs are:
+
+- `G_data_LF_JAMM_<base>`
+- `G_data_LF_DPHI_<base>`
+- `G_data_LF_PHI2_<base>` when available
 
 ## Repo Layout
 

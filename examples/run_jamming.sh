@@ -50,6 +50,8 @@ paths = {
     "frame_gz": growth_dir / f"LF_DPHI_{basename}.gz",
     "jamm": growth_dir / f"LF_JAMM_{basename}",
     "jamm_gz": growth_dir / f"LF_JAMM_{basename}.gz",
+    "phi2_frame": growth_dir / f"LF_PHI2_{basename}",
+    "phi2_frame_gz": growth_dir / f"LF_PHI2_{basename}.gz",
     "lineage_frame": growth_dir / f"LINEAGE_LF_DPHI_{basename}",
     "lineage_frame_gz": growth_dir / f"LINEAGE_LF_DPHI_{basename}.gz",
     "lineage_jamm": growth_dir / f"LINEAGE_LF_JAMM_{basename}",
@@ -107,6 +109,8 @@ cleanup_outputs() {
         "${growth_dir}/LF_JAMM_${basename}.gz" \
         "${growth_dir}/LF_DPHI_${basename}" \
         "${growth_dir}/LF_DPHI_${basename}.gz" \
+        "${growth_dir}/LF_PHI2_${basename}" \
+        "${growth_dir}/LF_PHI2_${basename}.gz" \
         "${growth_dir}/LINEAGE_LF_JAMM_${basename}" \
         "${growth_dir}/LINEAGE_LF_JAMM_${basename}.gz" \
         "${growth_dir}/LINEAGE_LF_DPHI_${basename}" \
@@ -220,6 +224,7 @@ EOF
 compress_if_present "${growth_dir}/${basename}"
 compress_if_present "${growth_dir}/LF_JAMM_${basename}"
 compress_if_present "${growth_dir}/LF_DPHI_${basename}"
+compress_if_present "${growth_dir}/LF_PHI2_${basename}"
 compress_if_present "${growth_dir}/LINEAGE_LF_JAMM_${basename}"
 compress_if_present "${growth_dir}/LINEAGE_LF_DPHI_${basename}"
 compress_if_present "${cohort_file}"

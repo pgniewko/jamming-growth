@@ -8,7 +8,7 @@ from threading import Lock
 
 from pipeline_cleanup import clean_bext, clean_growth, clean_shear, normalize_bext_success, normalize_growth_success, normalize_shear_success
 from pipeline_config import BEXT_DIR, BEXT_EXE, DEFAULT_DPHI_PROBE, DEFAULT_JOB_TIMEOUT_SECONDS, EXIT_MAX_POSTJAM_STEPS, EXIT_MIN_DT, FIXED, GROWTH_SCRIPT, OUTPUT_ROOT, REPO_ROOT, SHEAR_SCRIPT
-from pipeline_paths import bext_paths, ensure_stage_dirs, growth_paths, shear_paths
+from pipeline_paths import bext_paths, ensure_stage_dirs, growth_paths, normalize_source_tag, shear_paths
 from pipeline_validate import bext_done, growth_done, shear_done
 from pipeline_config import basename
 
@@ -160,9 +160,39 @@ def run_growth_stage(params, force=False, save_all_data=False, timeout_seconds=D
     return {"status": "completed", "name": name, "paths": paths}
 
 
-def run_shear_stage(params, force=False, save_all_data=False, timeout_seconds=None):
+def growth_input_source(name, source_tag="DPHI"):
+    growth = growth_paths(name)
+    tag = normalize_source_tag(source_tag)
+    if tag == "DPHI":
+        if growth["frame_gz"].is_file():
+            return growth["frame_gz"]
+        if growth["frame"].is_file():
+            return growth["frame"]
+    elif tag == "JAMM":
+        if growth["jamm_gz"].is_file():
+            return growth["jamm_gz"]
+        if growth["jamm"].is_file():
+            return growth["jamm"]
+    elif tag == "PHI2":
+        if growth["phi2_frame_gz"].is_file():
+            return growth["phi2_frame_gz"]
+        if growth["phi2_frame"].is_file():
+            return growth["phi2_frame"]
+    raise FileNotFoundError(f"missing {tag} growth input for {name}")
+
+
+def run_shear_stage(
+    params,
+    force=False,
+    save_all_data=False,
+    timeout_seconds=None,
+    source_tag="DPHI",
+    stage_name="shear",
+    required_input=True,
+):
     name = basename(params)
-    paths = shear_paths(name)
+    tag = normalize_source_tag(source_tag)
+    paths = shear_paths(name, source_tag=tag)
     if force:
         clean_shear(paths)
     elif shear_done(paths):
@@ -170,6 +200,14 @@ def run_shear_stage(params, force=False, save_all_data=False, timeout_seconds=No
         return {"status": "skipped", "name": name, "paths": paths}
     else:
         clean_shear(paths)
+
+    try:
+        growth_input_source(name, source_tag=tag)
+    except FileNotFoundError:
+        if required_input:
+            return {"status": "failed", "stage": stage_name, "reason": "MISSING_INPUT", "name": name, "paths": paths}
+        clean_shear(paths)
+        return {"status": "skipped", "name": name, "paths": paths}
 
     cmd = [
         "bash",
@@ -194,6 +232,8 @@ def run_shear_stage(params, force=False, save_all_data=False, timeout_seconds=No
         FIXED["divtype"],
         "--version",
         FIXED["version"],
+        "--input-tag",
+        tag,
         "--strain-step",
         FIXED["strain_step"],
         "--shear-steps",
@@ -205,12 +245,12 @@ def run_shear_stage(params, force=False, save_all_data=False, timeout_seconds=No
         run_command(cmd, timeout_seconds=timeout_seconds or None)
         normalize_shear_success(paths, save_all_data)
         if not shear_done(paths):
-            raise OutputValidationError("shear", f"incomplete shear outputs for {name}")
+            raise OutputValidationError(stage_name, f"incomplete {stage_name} outputs for {name}")
     except Exception as exc:
-        reason = classify_derived_failure(exc, "shear")
+        reason = classify_derived_failure(exc, stage_name)
         if reason is not None:
             clean_shear(paths)
-            return {"status": "failed", "stage": "shear", "reason": reason, "name": name, "paths": paths}
+            return {"status": "failed", "stage": stage_name, "reason": reason, "name": name, "paths": paths}
         clean_shear(paths)
         raise
     return {"status": "completed", "name": name, "paths": paths}
@@ -222,15 +262,6 @@ def stage_bext_input(source, destination):
             shutil.copyfileobj(src, dst)
     else:
         shutil.copyfile(source, destination)
-
-
-def growth_input_source(name):
-    growth = growth_paths(name)
-    if growth["frame_gz"].is_file():
-        return growth["frame_gz"]
-    if growth["frame"].is_file():
-        return growth["frame"]
-    raise FileNotFoundError(f"missing growth input for {name}")
 
 
 def run_bext_stage(params, dphi_probe, force=False, save_all_data=False, timeout_seconds=None):
@@ -272,9 +303,20 @@ def run_bext_stage(params, dphi_probe, force=False, save_all_data=False, timeout
 def run_pipeline_job(params, force=False, save_all_data=False, timeout_seconds=DEFAULT_JOB_TIMEOUT_SECONDS, dphi_probe=DEFAULT_DPHI_PROBE):
     ensure_stage_dirs()
     name = basename(params)
-    if not force and not growth_done(growth_paths(name)):
+    growth = growth_paths(name)
+    shear = shear_paths(name)
+    bext = bext_paths(name, dphi_probe)
+    required_complete = growth_done(growth) and shear_done(shear) and bext_done(bext)
+    if not force and required_complete:
+        normalize_growth_success(growth, save_all_data)
+        normalize_shear_success(shear, save_all_data)
+        normalize_bext_success(bext, save_all_data)
+        return {"status": "skipped", "name": name}
+    if not force and not growth_done(growth):
         clean_shear(shear_paths(name))
-        clean_bext(bext_paths(name, dphi_probe))
+        clean_shear(shear_paths(name, source_tag="JAMM"))
+        clean_shear(shear_paths(name, source_tag="PHI2"))
+        clean_bext(bext)
     growth_result = run_growth_stage(
         params,
         force=force,
@@ -283,23 +325,45 @@ def run_pipeline_job(params, force=False, save_all_data=False, timeout_seconds=D
     )
     if growth_result["status"] == "failed":
         clean_shear(shear_paths(growth_result["name"]))
+        clean_shear(shear_paths(growth_result["name"], source_tag="JAMM"))
+        clean_shear(shear_paths(growth_result["name"], source_tag="PHI2"))
         clean_bext(bext_paths(growth_result["name"], dphi_probe))
         return growth_result
 
-    shear_result = run_shear_stage(params, force=force, save_all_data=save_all_data)
+    shear_jamm_result = run_shear_stage(
+        params,
+        force=force,
+        save_all_data=save_all_data,
+        source_tag="JAMM",
+        stage_name="shear_jamm",
+    )
+    if shear_jamm_result["status"] == "failed":
+        return shear_jamm_result
+
+    shear_result = run_shear_stage(
+        params,
+        force=force,
+        save_all_data=save_all_data,
+        source_tag="DPHI",
+        stage_name="shear",
+    )
     if shear_result["status"] == "failed":
         return shear_result
+
+    shear_phi2_result = run_shear_stage(
+        params,
+        force=force,
+        save_all_data=save_all_data,
+        source_tag="PHI2",
+        stage_name="shear_phi2",
+        required_input=False,
+    )
+    if shear_phi2_result["status"] == "failed":
+        return shear_phi2_result
 
     bext_result = run_bext_stage(params, dphi_probe=dphi_probe, force=force, save_all_data=save_all_data)
     if bext_result["status"] == "failed":
         return bext_result
-
-    if (
-        growth_result["status"] == "skipped"
-        and shear_result["status"] == "skipped"
-        and bext_result["status"] == "skipped"
-    ):
-        return {"status": "skipped", "name": growth_result["name"]}
     return {"status": "completed", "name": growth_result["name"]}
 
 

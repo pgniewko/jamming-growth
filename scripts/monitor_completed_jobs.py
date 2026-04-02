@@ -90,7 +90,10 @@ def collect_status(dphi_probe, sizes=None, p0s=None, dphis=None, seeds=None):
     completed_pair = {(left, right): Counter() for left, right, _label in PAIRWISE_DIMENSIONS}
 
     growth_completed = 0
+    phi2_growth_available = 0
+    shear_jamm_completed = 0
     shear_completed = 0
+    shear_phi2_completed = 0
     bext_completed = 0
     pipeline_completed = 0
 
@@ -101,13 +104,23 @@ def collect_status(dphi_probe, sizes=None, p0s=None, dphis=None, seeds=None):
             expected_pair[(left, right)][(params[left], params[right])] += 1
 
         name = basename(params)
-        growth_ok = growth_done(growth_paths(name))
+        growth = growth_paths(name)
+        growth_ok = growth_done(growth)
+        phi2_growth_ok = growth["phi2_frame_gz"].is_file() or growth["phi2_frame"].is_file()
+        shear_jamm_ok = shear_done(shear_paths(name, source_tag="JAMM"))
         shear_ok = shear_done(shear_paths(name))
+        shear_phi2_ok = shear_done(shear_paths(name, source_tag="PHI2"))
         bext_ok = bext_done(bext_paths(name, dphi_probe))
         if growth_ok:
             growth_completed += 1
+        if phi2_growth_ok:
+            phi2_growth_available += 1
+        if shear_jamm_ok:
+            shear_jamm_completed += 1
         if shear_ok:
             shear_completed += 1
+        if shear_phi2_ok:
+            shear_phi2_completed += 1
         if bext_ok:
             bext_completed += 1
         if growth_ok and shear_ok and bext_ok:
@@ -121,7 +134,10 @@ def collect_status(dphi_probe, sizes=None, p0s=None, dphis=None, seeds=None):
         "all_jobs": all_jobs,
         "jobs": jobs,
         "growth_completed": growth_completed,
+        "phi2_growth_available": phi2_growth_available,
+        "shear_jamm_completed": shear_jamm_completed,
         "shear_completed": shear_completed,
+        "shear_phi2_completed": shear_phi2_completed,
         "bext_completed": bext_completed,
         "pipeline_completed": pipeline_completed,
         "expected_single": expected_single,
@@ -199,7 +215,10 @@ def render_report(status):
 
     summary_rows = [
         ("Growth complete", status["growth_completed"], total_jobs, format_percent(status["growth_completed"], total_jobs)),
+        ("Phi2 packing saved", status["phi2_growth_available"], total_jobs, format_percent(status["phi2_growth_available"], total_jobs)),
+        ("Shear at phi_J complete", status["shear_jamm_completed"], total_jobs, format_percent(status["shear_jamm_completed"], total_jobs)),
         ("Shear complete", status["shear_completed"], total_jobs, format_percent(status["shear_completed"], total_jobs)),
+        ("Shear at phi2 complete", status["shear_phi2_completed"], total_jobs, format_percent(status["shear_phi2_completed"], total_jobs)),
         ("B_ext complete", status["bext_completed"], total_jobs, format_percent(status["bext_completed"], total_jobs)),
         ("Pipeline complete", status["pipeline_completed"], total_jobs, format_percent(status["pipeline_completed"], total_jobs)),
     ]

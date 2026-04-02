@@ -3,12 +3,21 @@ from pathlib import Path
 from pipeline_config import BEXT_DIR, BEXT_LOG_DIR, GROWTH_DIR, GROWTH_LOG_DIR, SHEAR_DIR, SHEAR_LOG_DIR, probe_tag
 
 
+def normalize_source_tag(source_tag):
+    tag = str(source_tag).upper()
+    if tag not in {"DPHI", "JAMM", "PHI2"}:
+        raise ValueError(f"unsupported source tag: {source_tag}")
+    return tag
+
+
 def growth_paths(name):
     return {
         "frame": GROWTH_DIR / f"LF_DPHI_{name}",
         "frame_gz": GROWTH_DIR / f"LF_DPHI_{name}.gz",
         "jamm": GROWTH_DIR / f"LF_JAMM_{name}",
         "jamm_gz": GROWTH_DIR / f"LF_JAMM_{name}.gz",
+        "phi2_frame": GROWTH_DIR / f"LF_PHI2_{name}",
+        "phi2_frame_gz": GROWTH_DIR / f"LF_PHI2_{name}.gz",
         "lineage_frame": GROWTH_DIR / f"LINEAGE_LF_DPHI_{name}",
         "lineage_frame_gz": GROWTH_DIR / f"LINEAGE_LF_DPHI_{name}.gz",
         "lineage_jamm": GROWTH_DIR / f"LINEAGE_LF_JAMM_{name}",
@@ -28,14 +37,20 @@ def growth_paths(name):
     }
 
 
-def shear_paths(name):
+def shear_paths(name, source_tag="DPHI"):
+    tag = normalize_source_tag(source_tag)
+    stem = name[:-4]
+    if tag == "DPHI":
+        log_name = f"stdout_{stem}.log"
+    else:
+        log_name = f"stdout_{tag.lower()}_{stem}.log"
     return {
-        "input_local": SHEAR_DIR / f"LF_DPHI_{name}",
-        "input_local_gz": SHEAR_DIR / f"LF_DPHI_{name}.gz",
-        "g_data": SHEAR_DIR / f"G_data_LF_DPHI_{name}",
-        "traj": SHEAR_DIR / f"SHEAR_TRAJ_LF_DPHI_{name}",
-        "traj_gz": SHEAR_DIR / f"SHEAR_TRAJ_LF_DPHI_{name}.gz",
-        "log": SHEAR_LOG_DIR / f"stdout_{name[:-4]}.log",
+        "input_local": SHEAR_DIR / f"LF_{tag}_{name}",
+        "input_local_gz": SHEAR_DIR / f"LF_{tag}_{name}.gz",
+        "g_data": SHEAR_DIR / f"G_data_LF_{tag}_{name}",
+        "traj": SHEAR_DIR / f"SHEAR_TRAJ_LF_{tag}_{name}",
+        "traj_gz": SHEAR_DIR / f"SHEAR_TRAJ_LF_{tag}_{name}.gz",
+        "log": SHEAR_LOG_DIR / log_name,
     }
 
 
