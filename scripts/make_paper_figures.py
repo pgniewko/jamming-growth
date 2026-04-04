@@ -128,7 +128,6 @@ class JobRecord:
     lx: int
     p0: str
     dphi: float
-    dphi_label: str
     seed: str
     post_rows: list[PostRow]
     cohort_rows: list[CohortRow]
@@ -153,9 +152,16 @@ class JobRecord:
     def final_divisions(self) -> int:
         return self.endpoint.postjam_divisions_total
 
-    @property
-    def final_active(self) -> int:
-        return self.endpoint.initial_free_active
+
+@dataclass
+class ArrestPair:
+    p0: str
+    seed: str
+    dphi: float
+    phi2: float
+    p2: float
+    g2: float
+    kept: bool = True
 
 
 def parse_args() -> argparse.Namespace:
@@ -369,7 +375,6 @@ def load_records(size: str, dphi_probe: float, seeds: list[str] | None = None) -
                 lx=int(params["lx"]),
                 p0=params["p0"],
                 dphi=float(params["dphi"]),
-                dphi_label=params["dphi"],
                 seed=params["seed"],
                 post_rows=parse_post_rows(growth["postjamm_summary"]),
                 cohort_rows=parse_cohort_rows(cohort_path),
@@ -443,6 +448,19 @@ def choose_phi2_record(group: list[JobRecord], max_postjam_divisions: int, activ
     if not eligible:
         return None
     return min(eligible, key=lambda record: record.delta_phi)
+
+
+def choose_phi2_shear_record(group: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> JobRecord | None:
+    eligible = [
+        record
+        for record in group
+        if record.shear_phi2_data_path is not None
+        and record.final_divisions <= max_postjam_divisions
+        and first_active_cutoff_row(record, active_cutoff) is not None
+    ]
+    if not eligible:
+        return None
+    return min(eligible, key=lambda record: record.dphi)
 
 
 def baseline_delta_z_by_pressure(records: list[JobRecord]) -> tuple[np.ndarray, np.ndarray]:
@@ -655,34 +673,124 @@ def build_mechanics_points(records: list[JobRecord]) -> list[dict]:
     return rows
 
 
-def build_g2_summary(records: list[JobRecord]) -> list[dict]:
+def build_paired_arrest_points(
+    records: list[JobRecord],
+    max_postjam_divisions: int,
+    active_cutoff: int = 1,
+) -> list[ArrestPair]:
     per_seed: dict[tuple[str, str], list[JobRecord]] = defaultdict(list)
     for record in records:
-        if record.shear_phi2_data_path is None:
-            continue
         per_seed[(record.p0, record.seed)].append(record)
 
-    raw: dict[str, list[tuple[str, float]]] = defaultdict(list)
+    pairs: list[ArrestPair] = []
     for (p0, seed), group in per_seed.items():
-        chosen = min(group, key=lambda record: record.dphi)
+        chosen = choose_phi2_shear_record(group, max_postjam_divisions, active_cutoff=active_cutoff)
+        if chosen is None:
+            continue
+        row_cutoff = first_active_cutoff_row(chosen, active_cutoff)
+        if row_cutoff is None:
+            continue
         value = estimate_shear_modulus(chosen.shear_phi2_data_path)
-        if math.isfinite(value):
-            raw[p0].append((seed, value))
+        if not math.isfinite(value):
+            continue
+        pairs.append(
+            ArrestPair(
+                p0=p0,
+                seed=seed,
+                dphi=chosen.dphi,
+                phi2=row_cutoff.phi,
+                p2=row_cutoff.pressure,
+                g2=value,
+            )
+        )
+
+    pairs.sort(key=lambda pair: (float(pair.p0), pair.seed))
+    return pairs
+
+
+def apply_g2_tukey_filter(pairs: list[ArrestPair]) -> None:
+    grouped: dict[str, list[ArrestPair]] = defaultdict(list)
+    for pair in pairs:
+        pair.kept = pair.g2 > 0.0 and math.isfinite(pair.g2)
+        if pair.kept:
+            grouped[pair.p0].append(pair)
+
+    for group in grouped.values():
+        filtered = tukey_filter([(pair.seed, pair.g2) for pair in group])
+        keep = {seed for seed, _value in filtered}
+        for pair in group:
+            pair.kept = pair.seed in keep
+
+
+def build_g2_summary(pairs: list[ArrestPair]) -> list[dict]:
+    raw: dict[str, list[float]] = defaultdict(list)
+    for pair in pairs:
+        if pair.kept:
+            raw[pair.p0].append(pair.g2)
 
     summary = []
     for p0 in P0_ORDER:
-        entries = raw.get(p0, [])
-        if not entries:
+        values = raw.get(p0, [])
+        if not values:
             continue
-        filtered_entries = tukey_filter(entries)
-        values = [value for _seed, value in filtered_entries]
         summary.append(
             {
                 "p0": p0,
                 "g2": float(np.median(np.asarray(values, dtype=float))),
                 "g2_err": bootstrap_median_stderr(values),
                 "count": len(values),
-                "removed": len(entries) - len(filtered_entries),
+            }
+        )
+    return summary
+
+
+def build_paired_g2_over_p2_summary(pairs: list[ArrestPair]) -> list[dict]:
+    grouped: dict[str, list[float]] = defaultdict(list)
+    for pair in pairs:
+        if not pair.kept or pair.p2 <= 0.0:
+            continue
+        value = pair.g2 / pair.p2
+        if not math.isfinite(value) or value <= 0.0:
+            continue
+        grouped[pair.p0].append(value)
+
+    summary = []
+    for p0 in P0_ORDER:
+        values = grouped.get(p0, [])
+        if not values:
+            continue
+        summary.append(
+            {
+                "p0": p0,
+                "ratio": float(np.median(np.asarray(values, dtype=float))),
+                "ratio_err": bootstrap_median_stderr(values),
+                "count": len(values),
+            }
+        )
+    return summary
+
+
+def build_paired_g2_vs_p2_summary(pairs: list[ArrestPair]) -> list[dict]:
+    grouped: dict[str, list[ArrestPair]] = defaultdict(list)
+    for pair in pairs:
+        if pair.kept and pair.p2 > 0.0 and pair.g2 > 0.0:
+            grouped[pair.p0].append(pair)
+
+    summary = []
+    for p0 in P0_ORDER:
+        values = grouped.get(p0, [])
+        if not values:
+            continue
+        p2_values = [pair.p2 for pair in values]
+        g2_values = [pair.g2 for pair in values]
+        summary.append(
+            {
+                "p0": p0,
+                "count": len(values),
+                "p2": float(np.median(np.asarray(p2_values, dtype=float))),
+                "p2_err": bootstrap_median_stderr(p2_values),
+                "g2": float(np.median(np.asarray(g2_values, dtype=float))),
+                "g2_err": bootstrap_median_stderr(g2_values),
             }
         )
     return summary
@@ -906,6 +1014,7 @@ def make_figure2(
     mechanics_points: list[dict],
     phi2_summary: list[dict],
     g2_summary: list[dict],
+    paired_arrest_points: list[ArrestPair],
     lambda_c_summary: list[dict],
     dpi: int,
     stem: str = "figure3_mechanics_l15",
@@ -1006,6 +1115,22 @@ def make_figure2(
     inset.spines["right"].set_visible(False)
 
     xg = np.arange(len(g2_summary))
+    xg_by_p0 = {row["p0"]: index for index, row in enumerate(g2_summary)}
+    jitter_rng = np.random.default_rng(12345)
+    for pair in paired_arrest_points:
+        if not pair.kept or pair.p0 not in xg_by_p0:
+            continue
+        x_value = xg_by_p0[pair.p0] + float(jitter_rng.uniform(-0.085, 0.085))
+        ax_g2.plot(
+            x_value,
+            pair.g2,
+            "o",
+            ms=3.5,
+            color="#9aa1a8",
+            alpha=0.5,
+            mec="none",
+            zorder=1,
+        )
     ax_g2.errorbar(
         xg,
         [row["g2"] for row in g2_summary],
@@ -1024,7 +1149,7 @@ def make_figure2(
     save_figure(fig, output_dir, stem, dpi)
 
 
-def make_figure3(output_dir: Path, hgamma_summary: list[dict], histograms: dict[str, dict], dpi: int) -> None:
+def make_figure_s2(output_dir: Path, hgamma_summary: list[dict], histograms: dict[str, dict], dpi: int) -> None:
     fig = plt.figure(figsize=(7.1, 3.2))
     ax_h = fig.add_subplot(1, 1, 1)
 
@@ -1110,7 +1235,100 @@ def make_figure3(output_dir: Path, hgamma_summary: list[dict], histograms: dict[
 
     ax_h.text(0.52, 0.86, r"Representative pooled $\Pi(g)$", transform=ax_h.transAxes, ha="center", fontsize=9)
 
-    save_figure(fig, output_dir, "figure4_growth_crossover_l15", dpi)
+    save_figure(fig, output_dir, "figureS2_growth_crossover_l15", dpi)
+
+
+def make_figure_s1(
+    output_dir: Path,
+    paired_arrest_points: list[ArrestPair],
+    g2_vs_p2_summary: list[dict],
+    g2_over_p2_summary: list[dict],
+    dpi: int,
+    stem: str = "figureS1_paired_arrest_l15",
+) -> None:
+    fig = plt.figure(figsize=(3.45, 4.75))
+    gs = fig.add_gridspec(2, 1, height_ratios=[1.06, 0.74], hspace=0.34)
+    ax_scatter = fig.add_subplot(gs[0, 0])
+    ax_ratio = fig.add_subplot(gs[1, 0])
+
+    add_panel_label(ax_scatter, "A")
+    add_panel_label(ax_ratio, "B")
+
+    for pair in paired_arrest_points:
+        if not pair.kept or pair.p2 <= 0.0 or pair.g2 <= 0.0:
+            continue
+        ax_scatter.scatter(
+            pair.p2,
+            pair.g2,
+            s=28,
+            color=P0_COLORS[pair.p0],
+            alpha=0.45,
+            edgecolors="white",
+            linewidths=0.4,
+            zorder=2,
+        )
+
+    for row in g2_vs_p2_summary:
+        ax_scatter.errorbar(
+            row["p2"],
+            row["g2"],
+            xerr=row["p2_err"],
+            yerr=row["g2_err"],
+            fmt="o",
+            ms=6.2,
+            mec="white",
+            mew=0.6,
+            elinewidth=1.0,
+            capsize=2.0,
+            color=P0_COLORS[row["p0"]],
+            zorder=4,
+        )
+    ax_scatter.set_xscale("log")
+    ax_scatter.set_xlabel(r"$P_2$")
+    ax_scatter.set_ylabel(r"$G(\phi_2)$")
+    ax_scatter.set_title("Paired arrest states", pad=4)
+    ax_scatter.legend(
+        handles=[
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="none",
+                markerfacecolor=P0_COLORS[p0],
+                markeredgecolor="white",
+                markeredgewidth=0.5,
+                markersize=6,
+                label=P0_LABELS[p0],
+            )
+            for p0 in P0_ORDER
+            if any(pair.kept and pair.p0 == p0 and pair.p2 > 0.0 and pair.g2 > 0.0 for pair in paired_arrest_points)
+        ],
+        title=r"$P_0$",
+        loc="best",
+        fontsize=8,
+    )
+
+    xr = np.arange(len(g2_over_p2_summary))
+    ax_ratio.errorbar(
+        xr,
+        [row["ratio"] for row in g2_over_p2_summary],
+        yerr=[row["ratio_err"] for row in g2_over_p2_summary],
+        fmt="o-",
+        color="#222222",
+        lw=1.3,
+        ms=5,
+        capsize=2,
+        zorder=2,
+    )
+    for index, row in enumerate(g2_over_p2_summary):
+        ax_ratio.plot(index, row["ratio"], "o", ms=5.5, color=P0_COLORS[row["p0"]], mec="white", mew=0.5, zorder=3)
+    ax_ratio.set_yscale("log")
+    ax_ratio.set_xticks(xr, [P0_LABELS[row["p0"]] for row in g2_over_p2_summary])
+    ax_ratio.set_ylabel(r"$G(\phi_2)/P_2$")
+    ax_ratio.set_xlabel(r"$P_0$")
+    ax_ratio.set_title("Stiffness per arrest pressure", pad=4)
+
+    save_figure(fig, output_dir, stem, dpi)
 
 
 def main() -> None:
@@ -1135,7 +1353,11 @@ def main() -> None:
     depletion_curves = build_depletion_curves(records, args.max_postjam_divisions)
     phi2_summary = build_phi2_summary(records, args.max_postjam_divisions, active_cutoff=1)
     mechanics_points = build_mechanics_points(records)
-    g2_summary = build_g2_summary(records)
+    paired_arrest_points = build_paired_arrest_points(records, args.max_postjam_divisions, active_cutoff=1)
+    apply_g2_tukey_filter(paired_arrest_points)
+    g2_summary = build_g2_summary(paired_arrest_points)
+    g2_over_p2_summary = build_paired_g2_over_p2_summary(paired_arrest_points)
+    g2_vs_p2_summary = build_paired_g2_vs_p2_summary(paired_arrest_points)
     lambda_c_summary = build_lambda_c_summary(records, args.max_postjam_divisions, active_cutoff=1)
     hgamma_summary = build_growth_hgamma_summary(records, GROWTH_CROSSOVER_DPHI)
     growth_histograms = build_growth_histograms(records, GROWTH_CROSSOVER_DPHI)
@@ -1169,13 +1391,42 @@ def main() -> None:
         ["p0", "g2", "g2_err", "count"],
         g2_summary,
     )
+    paired_rows = []
+    for pair in paired_arrest_points:
+        paired_rows.append(
+            {
+                "p0": pair.p0,
+                "seed": pair.seed,
+                "dphi": pair.dphi,
+                "phi2": pair.phi2,
+                "p2": pair.p2,
+                "g2": pair.g2,
+                "g2_over_p2": pair.g2 / pair.p2 if pair.p2 != 0.0 else "",
+                "kept_after_g2_tukey": int(pair.kept),
+            }
+        )
+    write_csv(
+        output_dir / "figureS1_paired_arrest_points_l15.csv",
+        ["p0", "seed", "dphi", "phi2", "p2", "g2", "g2_over_p2", "kept_after_g2_tukey"],
+        paired_rows,
+    )
+    write_csv(
+        output_dir / "figureS1_g2_over_p2_summary_l15.csv",
+        ["p0", "ratio", "ratio_err", "count"],
+        g2_over_p2_summary,
+    )
+    write_csv(
+        output_dir / "figureS1_g2_vs_p2_summary_l15.csv",
+        ["p0", "count", "p2", "p2_err", "g2", "g2_err"],
+        g2_vs_p2_summary,
+    )
     write_csv(
         output_dir / "figure3_lambda_c_summary_l15.csv",
         ["p0", "lambda_c_bar", "lambda_c_bar_err", "count"],
         lambda_c_summary,
     )
     write_csv(
-        output_dir / "figure4_hgamma_summary_l15.csv",
+        output_dir / "figureS2_hgamma_summary_l15.csv",
         ["p0", "dphi", "h_gamma", "h_gamma_err", "spike_fraction", "spike_fraction_err", "count"],
         hgamma_summary,
     )
@@ -1212,14 +1463,15 @@ def main() -> None:
             }
         )
     write_csv(
-        output_dir / "figure4_growth_histograms_l15.csv",
+        output_dir / "figureS2_growth_histograms_l15.csv",
         ["p0", "dphi", "kind", "g_left", "g_right", "density", "mass", "count"],
         histogram_rows,
     )
 
     make_figure1(output_dir, structural_points, depletion_curves, phi2_summary, args.dpi)
-    make_figure2(output_dir, mechanics_points, phi2_summary, g2_summary, lambda_c_summary, args.dpi)
-    make_figure3(output_dir, hgamma_summary, growth_histograms, args.dpi)
+    make_figure2(output_dir, mechanics_points, phi2_summary, g2_summary, paired_arrest_points, lambda_c_summary, args.dpi)
+    make_figure_s2(output_dir, hgamma_summary, growth_histograms, args.dpi)
+    make_figure_s1(output_dir, paired_arrest_points, g2_vs_p2_summary, g2_over_p2_summary, args.dpi)
 
     if seeds is None:
         print(f"Loaded records: {len(records)}")

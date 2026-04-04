@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Numerics Notes</title>
+  <style>
+    :root {
+      --bg: #f6f1e8;
+      --panel: #fffaf2;
+      --ink: #1d1b18;
+      --muted: #5a544c;
+      --line: #d7c9b5;
+      --accent: #8d4f2c;
+      --accent-soft: #efe0cf;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, #f1e0cb 0, transparent 28%),
+        linear-gradient(180deg, #f8f3eb 0%, var(--bg) 100%);
+      line-height: 1.55;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1,
+    h2 {
+      line-height: 1.2;
+      margin: 0 0 14px;
+      font-weight: 600;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      font-size: 1.35rem;
+      margin-top: 30px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+
+    p,
+    ul {
+      margin: 0 0 14px;
+    }
+
+    .lede {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 72ch;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin: 16px 0 20px;
+      box-shadow: 0 8px 24px rgba(56, 38, 20, 0.06);
+    }
+
+    .formula {
+      background: var(--accent-soft);
+      border-left: 4px solid var(--accent);
+      padding: 14px 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.96rem;
+      white-space: pre-wrap;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 0.95em;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Numerics Notes</h1>
+    <p class="lede">
+      This note records only the constructions stated in the paper for the secondary-arrest
+      quantities <code>&phi;<sub>2</sub></code>, <code>P<sub>2</sub></code>, <code>G<sub>2</sub></code>,
+      the mean compressed-sector flux fraction <code>&#772;&lambda;<sub>c</sub></code>, and the growth-rate
+      crossover observables.
+    </p>
+
+    <h2>1. Measured Secondary Arrest</h2>
+    <div class="panel">
+      <p>
+        The paper defines the secondary-arrest density by
+      </p>
+      <div class="formula">u(&phi;<sub>2</sub>, P<sub>0</sub>) = &epsilon;</div>
+      <p>
+        In the figure construction, the active cutoff is <code>1</code>, so the measured arrest row is the
+        first saved post-jam row with
+      </p>
+      <div class="formula">n_initial_free_active &lt;= 1</div>
+      <p>
+        At that row the code reads
+      </p>
+      <div class="formula">
+phi2 = row.phi
+P2   = row.pressure
+      </div>
+    </div>
+
+    <h2>2. Predicted Arrest Density</h2>
+    <div class="panel">
+      <p>
+        The predicted secondary-arrest density used in the paper is
+      </p>
+      <div class="formula">
+phi2_pred = phi_J + n_J * (chi_bar * a_eps + (1 - chi_bar) * u_J * integral_s)
+      </div>
+      <p>
+        Here <code>phi_J</code>, <code>n_J</code>, and <code>u_J</code> are taken at jamming,
+        <code>chi_bar</code> is the arithmetic mean of <code>chi_c</code> over saved post-jam rows
+        with <code>&phi; &lt;= &phi;<sub>2</sub></code>, and <code>a_eps</code> and
+        <code>integral_s</code> come from the Kaplan-Meier construction for the completion-threshold
+        survival function.
+      </p>
+    </div>
+
+    <h2>3. Kaplan-Meier Construction</h2>
+    <div class="panel">
+      <p>
+        The paper models depletion through the survival function
+      </p>
+      <div class="formula">S(a) = Prob(an initially free bud is still active beyond delta-area a)</div>
+      <p>
+        The implementation builds the standard Kaplan-Meier estimator from initially free buds, treating
+        mechanical completion as the event and division or run termination as censoring. From that
+        stepwise survival curve it extracts:
+      </p>
+      <ul>
+        <li><code>a_eps</code>: the first delta-area where survival falls to the target level <code>active_cutoff / initial_free_total</code></li>
+        <li><code>integral_s</code>: the area under <code>S(a)</code> up to that crossing</li>
+      </ul>
+    </div>
+
+    <h2>4. Mean Compressed-Sector Flux Fraction</h2>
+    <div class="panel">
+      <p>
+        The paper defines the compressed-sector flux fraction by
+      </p>
+      <div class="formula">
+u_total  = Nu / (N - Nf)
+lambda_c = ((1 - u_total) * chi_c) / (u_total + (1 - u_total) * chi_c)
+      </div>
+      <p>
+        The inset in Fig. 3B uses the arithmetic mean over saved post-jam rows up to arrest:
+      </p>
+      <div class="formula">
+lambda_c_bar = (1 / M) * sum_k lambda_c(phi_k), over all saved rows with phi_k &lt;= phi2
+      </div>
+    </div>
+
+    <h2>5. Arrest-Point Shear Modulus</h2>
+    <div class="panel">
+      <p>
+        The paper figure uses the saved <code>PHI2</code> shear outputs. For each
+        <code>(P0, seed)</code>, it selects the smallest-<code>&Delta;&phi;</code> run that both reaches the
+        saved arrest packing and has a valid <code>G(&phi;<sub>2</sub>)</code> measurement. The shear modulus is
+        estimated from the initial topology-preserving segment of the stress-strain data:
+      </p>
+      <div class="formula">G2 = slope of stress vs strain over the initial topology-preserving segment</div>
+      <p>
+        The summary panels use one representative value per seed and then aggregate across seeds.
+      </p>
+    </div>
+
+    <h2>6. Growth-Rate Crossover Observables</h2>
+    <div class="panel">
+      <p>
+        At fixed <code>&Delta;&phi; = 3 &times; 10<sup>-3</sup></code>, the paper uses two observables:
+      </p>
+      <ul>
+        <li>the normalized growth-rate heterogeneity <code>h_gamma = Var(g) / mean(g)^2</code></li>
+        <li>the pooled histogram <code>&Pi;(g)</code> of normalized bud growth rates <code>g</code></li>
+      </ul>
+      <p>
+        These are the quantities shown in the supplementary growth-crossover figure.
+      </p>
+    </div>
+  </main>
+</body>
+</html>
