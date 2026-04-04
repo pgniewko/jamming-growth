@@ -133,7 +133,8 @@ class JobRecord:
     post_rows: list[PostRow]
     cohort_rows: list[CohortRow]
     bext_row: BextRow | None
-    shear_data_path: Path | None
+    shear_dphi_data_path: Path | None
+    shear_phi2_data_path: Path | None
     stats_path: Path
 
     @property
@@ -359,7 +360,8 @@ def load_records(size: str, dphi_probe: float, seeds: list[str] | None = None) -
         growth = growth_paths(name)
         if not growth_done(growth):
             continue
-        shear = shear_paths(name)
+        shear_dphi = shear_paths(name)
+        shear_phi2 = shear_paths(name, source_tag="PHI2")
         bext = bext_paths(name, dphi_probe)
         cohort_path = growth["cohort_gz"] if growth["cohort_gz"].is_file() else growth["cohort"]
         records.append(
@@ -372,7 +374,8 @@ def load_records(size: str, dphi_probe: float, seeds: list[str] | None = None) -
                 post_rows=parse_post_rows(growth["postjamm_summary"]),
                 cohort_rows=parse_cohort_rows(cohort_path),
                 bext_row=parse_bext(bext["data"]) if bext_done(bext) else None,
-                shear_data_path=shear["g_data"] if shear_done(shear) else None,
+                shear_dphi_data_path=shear_dphi["g_data"] if shear_done(shear_dphi) else None,
+                shear_phi2_data_path=shear_phi2["g_data"] if shear_done(shear_phi2) else None,
                 stats_path=growth["stats_frame"],
             )
         )
@@ -618,7 +621,7 @@ def build_phi2_summary(records: list[JobRecord], max_postjam_divisions: int, act
 def build_mechanics_points(records: list[JobRecord]) -> list[dict]:
     grouped: dict[tuple[str, float], list[JobRecord]] = defaultdict(list)
     for record in records:
-        if record.bext_row is None or record.shear_data_path is None:
+        if record.bext_row is None or record.shear_dphi_data_path is None:
             continue
         grouped[(record.p0, record.dphi)].append(record)
 
@@ -652,26 +655,17 @@ def build_mechanics_points(records: list[JobRecord]) -> list[dict]:
     return rows
 
 
-def build_g2_summary(records: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> list[dict]:
+def build_g2_summary(records: list[JobRecord]) -> list[dict]:
     per_seed: dict[tuple[str, str], list[JobRecord]] = defaultdict(list)
     for record in records:
-        if record.shear_data_path is None:
+        if record.shear_phi2_data_path is None:
             continue
         per_seed[(record.p0, record.seed)].append(record)
 
     raw: dict[str, list[tuple[str, float]]] = defaultdict(list)
     for (p0, seed), group in per_seed.items():
-        chosen = choose_phi2_record(group, max_postjam_divisions, active_cutoff=active_cutoff)
-        if chosen is None:
-            continue
-        row_cutoff = first_active_cutoff_row(chosen, active_cutoff)
-        if row_cutoff is None:
-            continue
-        shear_candidates = [record for record in group if record.shear_data_path is not None]
-        if not shear_candidates:
-            continue
-        nearest = min(shear_candidates, key=lambda record: abs(record.endpoint.phi - row_cutoff.phi))
-        value = estimate_shear_modulus(nearest.shear_data_path)
+        chosen = min(group, key=lambda record: record.dphi)
+        value = estimate_shear_modulus(chosen.shear_phi2_data_path)
         if math.isfinite(value):
             raw[p0].append((seed, value))
 
@@ -1023,9 +1017,9 @@ def make_figure2(
         capsize=2,
     )
     ax_g2.set_xticks(xg, [P0_LABELS[row["p0"]] for row in g2_summary])
-    ax_g2.set_ylabel(r"$G$ near $\phi_2$")
+    ax_g2.set_ylabel(r"$G(\phi_2)$")
     ax_g2.set_xlabel(r"$P_0$")
-    ax_g2.set_title("Shear stiffness near arrest", pad=6)
+    ax_g2.set_title("Shear stiffness at arrest", pad=6)
 
     save_figure(fig, output_dir, stem, dpi)
 
@@ -1141,7 +1135,7 @@ def main() -> None:
     depletion_curves = build_depletion_curves(records, args.max_postjam_divisions)
     phi2_summary = build_phi2_summary(records, args.max_postjam_divisions, active_cutoff=1)
     mechanics_points = build_mechanics_points(records)
-    g2_summary = build_g2_summary(records, args.max_postjam_divisions, active_cutoff=1)
+    g2_summary = build_g2_summary(records)
     lambda_c_summary = build_lambda_c_summary(records, args.max_postjam_divisions, active_cutoff=1)
     hgamma_summary = build_growth_hgamma_summary(records, GROWTH_CROSSOVER_DPHI)
     growth_histograms = build_growth_histograms(records, GROWTH_CROSSOVER_DPHI)
