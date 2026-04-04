@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Numerics Notes</title>
+  <title>Numerics Reference</title>
   <style>
     :root {
       --bg: #f6f1e8;
@@ -97,12 +97,12 @@
 </head>
 <body>
   <main>
-    <h1>Numerics Notes</h1>
+    <h1>Numerics Reference</h1>
     <p class="lede">
-      This note records only the constructions stated in the paper for the secondary-arrest
-      quantities <code>&phi;<sub>2</sub></code>, <code>P<sub>2</sub></code>, <code>G<sub>2</sub></code>,
-      the mean compressed-sector flux fraction <code>&#772;&lambda;<sub>c</sub></code>, and the growth-rate
-      crossover observables.
+      This page records only the quantities and constructions used in the paper:
+      <code>&phi;<sub>2</sub></code>, <code>P<sub>2</sub></code>, <code>G<sub>2</sub></code>,
+      the mean compressed-sector flux fraction <code>&#772;&lambda;<sub>c</sub></code>, and the
+      growth-rate crossover observables.
     </p>
 
     <h2>1. Measured Secondary Arrest</h2>
@@ -111,10 +111,7 @@
         The paper defines the secondary-arrest density by
       </p>
       <div class="formula">u(&phi;<sub>2</sub>, P<sub>0</sub>) = &epsilon;</div>
-      <p>
-        In the figure construction, the active cutoff is <code>1</code>, so the measured arrest row is the
-        first saved post-jam row with
-      </p>
+      <p>The current figure construction uses active cutoff <code>1</code>, so the measured arrest row is the first saved post-jam row with</p>
       <div class="formula">n_initial_free_active &lt;= 1</div>
       <p>
         At that row the code reads
@@ -127,9 +124,7 @@ P2   = row.pressure
 
     <h2>2. Predicted Arrest Density</h2>
     <div class="panel">
-      <p>
-        The predicted secondary-arrest density used in the paper is
-      </p>
+      <p>The predicted secondary-arrest density used in the paper is</p>
       <div class="formula">
 phi2_pred = phi_J + n_J * (chi_bar * a_eps + (1 - chi_bar) * u_J * integral_s)
       </div>
@@ -144,15 +139,9 @@ phi2_pred = phi_J + n_J * (chi_bar * a_eps + (1 - chi_bar) * u_J * integral_s)
 
     <h2>3. Kaplan-Meier Construction</h2>
     <div class="panel">
-      <p>
-        The paper models depletion through the survival function
-      </p>
+      <p>The paper models depletion through the survival function</p>
       <div class="formula">S(a) = Prob(an initially free bud is still active beyond delta-area a)</div>
-      <p>
-        The implementation builds the standard Kaplan-Meier estimator from initially free buds, treating
-        mechanical completion as the event and division or run termination as censoring. From that
-        stepwise survival curve it extracts:
-      </p>
+      <p>The Kaplan-Meier construction uses initially free buds, treating mechanical completion as the event and division or run termination as censoring. From that stepwise survival curve it extracts:</p>
       <ul>
         <li><code>a_eps</code>: the first delta-area where survival falls to the target level <code>active_cutoff / initial_free_total</code></li>
         <li><code>integral_s</code>: the area under <code>S(a)</code> up to that crossing</li>
@@ -161,9 +150,7 @@ phi2_pred = phi_J + n_J * (chi_bar * a_eps + (1 - chi_bar) * u_J * integral_s)
 
     <h2>4. Mean Compressed-Sector Flux Fraction</h2>
     <div class="panel">
-      <p>
-        The paper defines the compressed-sector flux fraction by
-      </p>
+      <p>The paper defines the compressed-sector flux fraction by</p>
       <div class="formula">
 u_total  = Nu / (N - Nf)
 lambda_c = ((1 - u_total) * chi_c) / (u_total + (1 - u_total) * chi_c)
@@ -178,23 +165,14 @@ lambda_c_bar = (1 / M) * sum_k lambda_c(phi_k), over all saved rows with phi_k &
 
     <h2>5. Arrest-Point Shear Modulus</h2>
     <div class="panel">
-      <p>
-        The paper figure uses the saved <code>PHI2</code> shear outputs. For each
-        <code>(P0, seed)</code>, it selects the smallest-<code>&Delta;&phi;</code> run that both reaches the
-        saved arrest packing and has a valid <code>G(&phi;<sub>2</sub>)</code> measurement. The shear modulus is
-        estimated from the initial topology-preserving segment of the stress-strain data:
-      </p>
+      <p>The paper figure uses the saved <code>PHI2</code> shear outputs. For each <code>(P0, seed)</code>, it keeps one representative arrest packing and estimates the shear modulus from the initial topology-preserving segment of the stress-strain data:</p>
       <div class="formula">G2 = slope of stress vs strain over the initial topology-preserving segment</div>
-      <p>
-        The summary panels use one representative value per seed and then aggregate across seeds.
-      </p>
+      <p>The summary panels use one representative value per seed and then aggregate across seeds.</p>
     </div>
 
     <h2>6. Growth-Rate Crossover Observables</h2>
     <div class="panel">
-      <p>
-        At fixed <code>&Delta;&phi; = 3 &times; 10<sup>-3</sup></code>, the paper uses two observables:
-      </p>
+      <p>At fixed <code>&Delta;&phi; = 3 &times; 10<sup>-3</sup></code>, the paper uses two observables:</p>
       <ul>
         <li>the normalized growth-rate heterogeneity <code>h_gamma = Var(g) / mean(g)^2</code></li>
         <li>the pooled histogram <code>&Pi;(g)</code> of normalized bud growth rates <code>g</code></li>

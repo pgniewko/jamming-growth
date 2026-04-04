@@ -51,6 +51,7 @@ DPHI_RANGE_STYLES = [
     ("3e-2 to 1.2e-1", 3e-2, 1.21e-1, "^"),
 ]
 P_MAX = 0.1
+SECONDARY_ARREST_ACTIVE_CUTOFF = 1
 GROWTH_CROSSOVER_DPHI = 3e-3
 GROWTH_HISTOGRAM_P0_ORDER = ["1e-1", "1e-2", "1e-3", "1e-4"]
 GROWTH_HISTOGRAM_TEXT = {
@@ -162,6 +163,14 @@ class ArrestPair:
     p2: float
     g2: float
     kept: bool = True
+
+
+@dataclass
+class ArrestSelection:
+    p0: str
+    seed: str
+    record: JobRecord
+    row_cutoff: PostRow
 
 
 def parse_args() -> argparse.Namespace:
@@ -439,28 +448,62 @@ def first_active_cutoff_row(record: JobRecord, active_cutoff: int) -> PostRow | 
     return next((row for row in record.post_rows if row.initial_free_active <= active_cutoff), None)
 
 
-def choose_phi2_record(group: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> JobRecord | None:
-    eligible = [
-        record
-        for record in group
-        if record.final_divisions <= max_postjam_divisions and first_active_cutoff_row(record, active_cutoff) is not None
-    ]
-    if not eligible:
+def choose_arrest_selection(
+    group: list[JobRecord],
+    max_postjam_divisions: int,
+    active_cutoff: int = SECONDARY_ARREST_ACTIVE_CUTOFF,
+    require_phi2_shear: bool = False,
+) -> ArrestSelection | None:
+    candidates: list[ArrestSelection] = []
+    for record in group:
+        if require_phi2_shear and record.shear_phi2_data_path is None:
+            continue
+        if record.final_divisions > max_postjam_divisions:
+            continue
+        row_cutoff = first_active_cutoff_row(record, active_cutoff)
+        if row_cutoff is None:
+            continue
+        candidates.append(
+            ArrestSelection(
+                p0=record.p0,
+                seed=record.seed,
+                record=record,
+                row_cutoff=row_cutoff,
+            )
+        )
+    if not candidates:
         return None
-    return min(eligible, key=lambda record: record.delta_phi)
+    key = (
+        (lambda selection: selection.record.dphi)
+        if require_phi2_shear
+        else (lambda selection: selection.record.delta_phi)
+    )
+    return min(candidates, key=key)
 
 
-def choose_phi2_shear_record(group: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> JobRecord | None:
-    eligible = [
-        record
-        for record in group
-        if record.shear_phi2_data_path is not None
-        and record.final_divisions <= max_postjam_divisions
-        and first_active_cutoff_row(record, active_cutoff) is not None
-    ]
-    if not eligible:
-        return None
-    return min(eligible, key=lambda record: record.dphi)
+def build_arrest_selections(
+    records: list[JobRecord],
+    max_postjam_divisions: int,
+    active_cutoff: int = SECONDARY_ARREST_ACTIVE_CUTOFF,
+    require_phi2_shear: bool = False,
+) -> list[ArrestSelection]:
+    per_seed: dict[tuple[str, str], list[JobRecord]] = defaultdict(list)
+    for record in records:
+        per_seed[(record.p0, record.seed)].append(record)
+
+    selections: list[ArrestSelection] = []
+    for group in per_seed.values():
+        chosen = choose_arrest_selection(
+            group,
+            max_postjam_divisions,
+            active_cutoff=active_cutoff,
+            require_phi2_shear=require_phi2_shear,
+        )
+        if chosen is not None:
+            selections.append(chosen)
+
+    selections.sort(key=lambda selection: (float(selection.p0), selection.seed))
+    return selections
 
 
 def baseline_delta_z_by_pressure(records: list[JobRecord]) -> tuple[np.ndarray, np.ndarray]:
@@ -571,7 +614,11 @@ def kaplan_meier_a_epsilon_and_integral(record: JobRecord, active_cutoff: int) -
     return None
 
 
-def predicted_phi2(record: JobRecord, row_cutoff: PostRow, active_cutoff: int = 1) -> float | None:
+def predicted_phi2(
+    record: JobRecord,
+    row_cutoff: PostRow,
+    active_cutoff: int = SECONDARY_ARREST_ACTIVE_CUTOFF,
+) -> float | None:
     km = kaplan_meier_a_epsilon_and_integral(record, active_cutoff)
     if km is None:
         return None
@@ -581,28 +628,20 @@ def predicted_phi2(record: JobRecord, row_cutoff: PostRow, active_cutoff: int = 
     u_j = record.post_rows[0].u_j
     chi_bar = mean([row.chi_c for row in record.post_rows if row.phi <= row_cutoff.phi])
     return record.phi_j + n_j * (chi_bar * a_eps + (1.0 - chi_bar) * u_j * integral_s)
-def build_phi2_summary(records: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> list[dict]:
-    per_seed: dict[tuple[str, str], list[JobRecord]] = defaultdict(list)
-    for record in records:
-        per_seed[(record.p0, record.seed)].append(record)
 
+
+def build_phi2_summary(selections: list[ArrestSelection], active_cutoff: int = SECONDARY_ARREST_ACTIVE_CUTOFF) -> list[dict]:
     raw = []
-    for (p0, seed), group in per_seed.items():
-        chosen = choose_phi2_record(group, max_postjam_divisions, active_cutoff=active_cutoff)
-        if chosen is None:
-            continue
-        row_cutoff = first_active_cutoff_row(chosen, active_cutoff)
-        if row_cutoff is None:
-            continue
-        pred = predicted_phi2(chosen, row_cutoff, active_cutoff=active_cutoff)
+    for selection in selections:
+        pred = predicted_phi2(selection.record, selection.row_cutoff, active_cutoff=active_cutoff)
         if pred is None:
             continue
         raw.append(
             {
-                "p0": p0,
-                "seed": seed,
-                "phi2_meas": row_cutoff.phi,
-                "p2_meas": row_cutoff.pressure,
+                "p0": selection.p0,
+                "seed": selection.seed,
+                "phi2_meas": selection.row_cutoff.phi,
+                "p2_meas": selection.row_cutoff.pressure,
                 "phi2_pred": pred,
             }
         )
@@ -674,32 +713,22 @@ def build_mechanics_points(records: list[JobRecord]) -> list[dict]:
 
 
 def build_paired_arrest_points(
-    records: list[JobRecord],
-    max_postjam_divisions: int,
-    active_cutoff: int = 1,
+    selections: list[ArrestSelection],
 ) -> list[ArrestPair]:
-    per_seed: dict[tuple[str, str], list[JobRecord]] = defaultdict(list)
-    for record in records:
-        per_seed[(record.p0, record.seed)].append(record)
-
     pairs: list[ArrestPair] = []
-    for (p0, seed), group in per_seed.items():
-        chosen = choose_phi2_shear_record(group, max_postjam_divisions, active_cutoff=active_cutoff)
-        if chosen is None:
+    for selection in selections:
+        if selection.record.shear_phi2_data_path is None:
             continue
-        row_cutoff = first_active_cutoff_row(chosen, active_cutoff)
-        if row_cutoff is None:
-            continue
-        value = estimate_shear_modulus(chosen.shear_phi2_data_path)
+        value = estimate_shear_modulus(selection.record.shear_phi2_data_path)
         if not math.isfinite(value):
             continue
         pairs.append(
             ArrestPair(
-                p0=p0,
-                seed=seed,
-                dphi=chosen.dphi,
-                phi2=row_cutoff.phi,
-                p2=row_cutoff.pressure,
+                p0=selection.p0,
+                seed=selection.seed,
+                dphi=selection.record.dphi,
+                phi2=selection.row_cutoff.phi,
+                p2=selection.row_cutoff.pressure,
                 g2=value,
             )
         )
@@ -796,29 +825,19 @@ def build_paired_g2_vs_p2_summary(pairs: list[ArrestPair]) -> list[dict]:
     return summary
 
 
-def build_lambda_c_summary(records: list[JobRecord], max_postjam_divisions: int, active_cutoff: int = 1) -> list[dict]:
-    per_seed: dict[tuple[str, str], list[JobRecord]] = defaultdict(list)
-    for record in records:
-        per_seed[(record.p0, record.seed)].append(record)
-
+def build_lambda_c_summary(selections: list[ArrestSelection]) -> list[dict]:
     raw: dict[str, list[float]] = defaultdict(list)
-    for (p0, _seed), group in per_seed.items():
-        chosen = choose_phi2_record(group, max_postjam_divisions, active_cutoff=active_cutoff)
-        if chosen is None:
-            continue
-        row_cutoff = first_active_cutoff_row(chosen, active_cutoff)
-        if row_cutoff is None:
-            continue
+    for selection in selections:
         lambda_values = []
-        for row in chosen.post_rows:
-            if row.phi > row_cutoff.phi:
+        for row in selection.record.post_rows:
+            if row.phi > selection.row_cutoff.phi:
                 break
             denominator = row.u_total + (1.0 - row.u_total) * row.chi_c
             if denominator <= 0.0:
                 continue
             lambda_values.append(((1.0 - row.u_total) * row.chi_c) / denominator)
         if lambda_values:
-            raw[p0].append(mean(lambda_values))
+            raw[selection.p0].append(mean(lambda_values))
 
     summary = []
     for p0 in P0_ORDER:
@@ -919,7 +938,7 @@ def write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
-def make_figure1(
+def make_structure_figure(
     output_dir: Path,
     structural_points: list[dict],
     depletion_curves: dict[str, tuple[np.ndarray, np.ndarray]],
@@ -1009,7 +1028,7 @@ def make_figure1(
     save_figure(fig, output_dir, stem, dpi)
 
 
-def make_figure2(
+def make_mechanics_figure(
     output_dir: Path,
     mechanics_points: list[dict],
     phi2_summary: list[dict],
@@ -1149,7 +1168,7 @@ def make_figure2(
     save_figure(fig, output_dir, stem, dpi)
 
 
-def make_figure_s2(output_dir: Path, hgamma_summary: list[dict], histograms: dict[str, dict], dpi: int) -> None:
+def make_growth_crossover_figure(output_dir: Path, hgamma_summary: list[dict], histograms: dict[str, dict], dpi: int) -> None:
     fig = plt.figure(figsize=(7.1, 3.2))
     ax_h = fig.add_subplot(1, 1, 1)
 
@@ -1238,7 +1257,7 @@ def make_figure_s2(output_dir: Path, hgamma_summary: list[dict], histograms: dic
     save_figure(fig, output_dir, "figureS2_growth_crossover_l15", dpi)
 
 
-def make_figure_s1(
+def make_paired_arrest_figure(
     output_dir: Path,
     paired_arrest_points: list[ArrestPair],
     g2_vs_p2_summary: list[dict],
@@ -1351,14 +1370,25 @@ def main() -> None:
 
     structural_points = build_structural_points(records)
     depletion_curves = build_depletion_curves(records, args.max_postjam_divisions)
-    phi2_summary = build_phi2_summary(records, args.max_postjam_divisions, active_cutoff=1)
+    measured_arrest_selections = build_arrest_selections(
+        records,
+        args.max_postjam_divisions,
+        active_cutoff=SECONDARY_ARREST_ACTIVE_CUTOFF,
+    )
+    paired_arrest_selections = build_arrest_selections(
+        records,
+        args.max_postjam_divisions,
+        active_cutoff=SECONDARY_ARREST_ACTIVE_CUTOFF,
+        require_phi2_shear=True,
+    )
+    phi2_summary = build_phi2_summary(measured_arrest_selections, active_cutoff=SECONDARY_ARREST_ACTIVE_CUTOFF)
     mechanics_points = build_mechanics_points(records)
-    paired_arrest_points = build_paired_arrest_points(records, args.max_postjam_divisions, active_cutoff=1)
+    paired_arrest_points = build_paired_arrest_points(paired_arrest_selections)
     apply_g2_tukey_filter(paired_arrest_points)
     g2_summary = build_g2_summary(paired_arrest_points)
     g2_over_p2_summary = build_paired_g2_over_p2_summary(paired_arrest_points)
     g2_vs_p2_summary = build_paired_g2_vs_p2_summary(paired_arrest_points)
-    lambda_c_summary = build_lambda_c_summary(records, args.max_postjam_divisions, active_cutoff=1)
+    lambda_c_summary = build_lambda_c_summary(measured_arrest_selections)
     hgamma_summary = build_growth_hgamma_summary(records, GROWTH_CROSSOVER_DPHI)
     growth_histograms = build_growth_histograms(records, GROWTH_CROSSOVER_DPHI)
 
@@ -1468,10 +1498,10 @@ def main() -> None:
         histogram_rows,
     )
 
-    make_figure1(output_dir, structural_points, depletion_curves, phi2_summary, args.dpi)
-    make_figure2(output_dir, mechanics_points, phi2_summary, g2_summary, paired_arrest_points, lambda_c_summary, args.dpi)
-    make_figure_s2(output_dir, hgamma_summary, growth_histograms, args.dpi)
-    make_figure_s1(output_dir, paired_arrest_points, g2_vs_p2_summary, g2_over_p2_summary, args.dpi)
+    make_structure_figure(output_dir, structural_points, depletion_curves, phi2_summary, args.dpi)
+    make_mechanics_figure(output_dir, mechanics_points, phi2_summary, g2_summary, paired_arrest_points, lambda_c_summary, args.dpi)
+    make_growth_crossover_figure(output_dir, hgamma_summary, growth_histograms, args.dpi)
+    make_paired_arrest_figure(output_dir, paired_arrest_points, g2_vs_p2_summary, g2_over_p2_summary, args.dpi)
 
     if seeds is None:
         print(f"Loaded records: {len(records)}")
