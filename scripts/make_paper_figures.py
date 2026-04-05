@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import gzip
 import math
 import os
@@ -133,7 +132,6 @@ class JobRecord:
     post_rows: list[PostRow]
     cohort_rows: list[CohortRow]
     bext_row: BextRow | None
-    shear_dphi_data_path: Path | None
     shear_phi2_data_path: Path | None
     stats_path: Path
 
@@ -375,7 +373,6 @@ def load_records(size: str, dphi_probe: float, seeds: list[str] | None = None) -
         growth = growth_paths(name)
         if not growth_done(growth):
             continue
-        shear_dphi = shear_paths(name)
         shear_phi2 = shear_paths(name, source_tag="PHI2")
         bext = bext_paths(name, dphi_probe)
         cohort_path = growth["cohort_gz"] if growth["cohort_gz"].is_file() else growth["cohort"]
@@ -388,7 +385,6 @@ def load_records(size: str, dphi_probe: float, seeds: list[str] | None = None) -
                 post_rows=parse_post_rows(growth["postjamm_summary"]),
                 cohort_rows=parse_cohort_rows(cohort_path),
                 bext_row=parse_bext(bext["data"]) if bext_done(bext) else None,
-                shear_dphi_data_path=shear_dphi["g_data"] if shear_done(shear_dphi) else None,
                 shear_phi2_data_path=shear_phi2["g_data"] if shear_done(shear_phi2) else None,
                 stats_path=growth["stats_frame"],
             )
@@ -678,7 +674,7 @@ def build_phi2_summary(selections: list[ArrestSelection], active_cutoff: int = S
 def build_mechanics_points(records: list[JobRecord]) -> list[dict]:
     grouped: dict[tuple[str, float], list[JobRecord]] = defaultdict(list)
     for record in records:
-        if record.bext_row is None or record.shear_dphi_data_path is None:
+        if record.bext_row is None:
             continue
         grouped[(record.p0, record.dphi)].append(record)
 
@@ -929,13 +925,6 @@ def save_figure(fig: plt.Figure, output_dir: Path, stem: str, dpi: int) -> None:
     fig.savefig(output_dir / f"{stem}.png", dpi=dpi, bbox_inches="tight", facecolor="white")
     fig.savefig(output_dir / f"{stem}.pdf", bbox_inches="tight", facecolor="white")
     plt.close(fig)
-
-
-def write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
 
 
 def make_structure_figure(
@@ -1306,25 +1295,49 @@ def make_paired_arrest_figure(
     ax_scatter.set_xlabel(r"$P_2$")
     ax_scatter.set_ylabel(r"$G(\phi_2)$")
     ax_scatter.set_title("Paired arrest states", pad=4)
+    legend_handles = [
+        Line2D(
+            [0],
+            [0],
+            lw=0,
+            color="none",
+            label=r"$P_0$",
+        )
+    ]
+    legend_handles.extend(
+        [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="none",
+            markerfacecolor=P0_COLORS[p0],
+            markeredgecolor="white",
+            markeredgewidth=0.5,
+            markersize=6,
+            label=P0_LABELS[p0],
+        )
+        for p0 in P0_ORDER
+        if any(pair.kept and pair.p0 == p0 and pair.p2 > 0.0 and pair.g2 > 0.0 for pair in paired_arrest_points)
+        ]
+    )
     ax_scatter.legend(
-        handles=[
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="none",
-                markerfacecolor=P0_COLORS[p0],
-                markeredgecolor="white",
-                markeredgewidth=0.5,
-                markersize=6,
-                label=P0_LABELS[p0],
-            )
-            for p0 in P0_ORDER
-            if any(pair.kept and pair.p0 == p0 and pair.p2 > 0.0 and pair.g2 > 0.0 for pair in paired_arrest_points)
-        ],
-        title=r"$P_0$",
-        loc="best",
+        handles=legend_handles,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.14),
+        borderaxespad=0.0,
         fontsize=8,
+        ncol=4,
+        columnspacing=0.8,
+        handletextpad=0.35,
+        labelspacing=0.45,
+        alignment="left",
+        frameon=True,
+        fancybox=False,
+        framealpha=1.0,
+        facecolor="white",
+        edgecolor="0.4",
+        borderpad=0.3,
     )
 
     xr = np.arange(len(g2_over_p2_summary))
@@ -1391,112 +1404,6 @@ def main() -> None:
     lambda_c_summary = build_lambda_c_summary(measured_arrest_selections)
     hgamma_summary = build_growth_hgamma_summary(records, GROWTH_CROSSOVER_DPHI)
     growth_histograms = build_growth_histograms(records, GROWTH_CROSSOVER_DPHI)
-
-    write_csv(
-        output_dir / "figure2_structure_points_l15.csv",
-        ["p0", "dphi", "range_label", "pred_mean", "pred_err", "obs_mean", "obs_err", "count"],
-        structural_points,
-    )
-    depletion_rows = []
-    for p0, (x_values, y_values) in depletion_curves.items():
-        for x_value, y_value in zip(x_values.tolist(), y_values.tolist()):
-            depletion_rows.append({"p0": p0, "phi_minus_phi_j": x_value, "active_fraction": y_value})
-    write_csv(
-        output_dir / "figure2_depletion_curves_l15.csv",
-        ["p0", "phi_minus_phi_j", "active_fraction"],
-        depletion_rows,
-    )
-    write_csv(
-        output_dir / "figure2_phi2_summary_l15.csv",
-        ["p0", "count", "phi2_meas", "phi2_meas_err", "phi2_pred", "phi2_pred_err", "p2", "p2_err", "p2_norm", "p2_norm_err"],
-        phi2_summary,
-    )
-    write_csv(
-        output_dir / "figure3_mechanics_points_l15.csv",
-        ["p0", "dphi", "pred_mean", "pred_err", "meas_mean", "meas_err", "count"],
-        mechanics_points,
-    )
-    write_csv(
-        output_dir / "figure3_g2_summary_l15.csv",
-        ["p0", "g2", "g2_err", "count"],
-        g2_summary,
-    )
-    paired_rows = []
-    for pair in paired_arrest_points:
-        paired_rows.append(
-            {
-                "p0": pair.p0,
-                "seed": pair.seed,
-                "dphi": pair.dphi,
-                "phi2": pair.phi2,
-                "p2": pair.p2,
-                "g2": pair.g2,
-                "g2_over_p2": pair.g2 / pair.p2 if pair.p2 != 0.0 else "",
-                "kept_after_g2_tukey": int(pair.kept),
-            }
-        )
-    write_csv(
-        output_dir / "figureS1_paired_arrest_points_l15.csv",
-        ["p0", "seed", "dphi", "phi2", "p2", "g2", "g2_over_p2", "kept_after_g2_tukey"],
-        paired_rows,
-    )
-    write_csv(
-        output_dir / "figureS1_g2_over_p2_summary_l15.csv",
-        ["p0", "ratio", "ratio_err", "count"],
-        g2_over_p2_summary,
-    )
-    write_csv(
-        output_dir / "figureS1_g2_vs_p2_summary_l15.csv",
-        ["p0", "count", "p2", "p2_err", "g2", "g2_err"],
-        g2_vs_p2_summary,
-    )
-    write_csv(
-        output_dir / "figure3_lambda_c_summary_l15.csv",
-        ["p0", "lambda_c_bar", "lambda_c_bar_err", "count"],
-        lambda_c_summary,
-    )
-    write_csv(
-        output_dir / "figureS2_hgamma_summary_l15.csv",
-        ["p0", "dphi", "h_gamma", "h_gamma_err", "spike_fraction", "spike_fraction_err", "count"],
-        hgamma_summary,
-    )
-    histogram_rows = []
-    for p0 in GROWTH_HISTOGRAM_P0_ORDER:
-        histogram = growth_histograms.get(p0)
-        if histogram is None:
-            continue
-        edges = histogram["edges"]
-        density = histogram["density"]
-        for left, right, value in zip(edges[:-1], edges[1:], density.tolist()):
-            histogram_rows.append(
-                {
-                    "p0": p0,
-                    "dphi": histogram["dphi"],
-                    "kind": "continuous",
-                    "g_left": left,
-                    "g_right": right,
-                    "density": value,
-                    "mass": value * (right - left),
-                    "count": histogram["count"],
-                }
-            )
-        histogram_rows.append(
-            {
-                "p0": p0,
-                "dphi": histogram["dphi"],
-                "kind": "spike",
-                "g_left": 1.0,
-                "g_right": edges[-1],
-                "density": "",
-                "mass": histogram["spike_fraction"],
-                "count": histogram["count"],
-            }
-        )
-    write_csv(
-        output_dir / "figureS2_growth_histograms_l15.csv",
-        ["p0", "dphi", "kind", "g_left", "g_right", "density", "mass", "count"],
-        histogram_rows,
-    )
 
     make_structure_figure(output_dir, structural_points, depletion_curves, phi2_summary, args.dpi)
     make_mechanics_figure(output_dir, mechanics_points, phi2_summary, g2_summary, paired_arrest_points, lambda_c_summary, args.dpi)
