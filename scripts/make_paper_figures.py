@@ -1293,8 +1293,7 @@ def make_paired_arrest_figure(
         )
     ax_scatter.set_xscale("log")
     ax_scatter.set_xlabel(r"$P_2$")
-    ax_scatter.set_ylabel(r"$G(\phi_2)$")
-    ax_scatter.set_title("Paired arrest states", pad=4)
+    ax_scatter.set_ylabel(r"$G_2$")
     legend_handles = [
         Line2D(
             [0],
@@ -1356,9 +1355,8 @@ def make_paired_arrest_figure(
         ax_ratio.plot(index, row["ratio"], "o", ms=5.5, color=P0_COLORS[row["p0"]], mec="white", mew=0.5, zorder=3)
     ax_ratio.set_yscale("log")
     ax_ratio.set_xticks(xr, [P0_LABELS[row["p0"]] for row in g2_over_p2_summary])
-    ax_ratio.set_ylabel(r"$G(\phi_2)/P_2$")
+    ax_ratio.set_ylabel(r"$G_2/P_2$")
     ax_ratio.set_xlabel(r"$P_0$")
-    ax_ratio.set_title("Stiffness per arrest pressure", pad=4)
 
     save_figure(fig, output_dir, stem, dpi)
 
