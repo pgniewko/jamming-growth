@@ -1150,7 +1150,7 @@ def make_mechanics_figure(
         capsize=2,
     )
     ax_g2.set_xticks(xg, [P0_LABELS[row["p0"]] for row in g2_summary])
-    ax_g2.set_ylabel(r"$G(\phi_2)$")
+    ax_g2.set_ylabel(r"$G_2$")
     ax_g2.set_xlabel(r"$P_0$")
     ax_g2.set_title("Shear stiffness at arrest", pad=6)
 
