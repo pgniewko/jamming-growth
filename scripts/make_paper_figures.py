@@ -1006,8 +1006,8 @@ def make_structure_figure(
     x = np.arange(len(phi2_summary))
     meas = [row["phi2_meas"] for row in phi2_summary]
     pred_y = [row["phi2_pred"] for row in phi2_summary]
-    ax_phi2.errorbar(x, meas, yerr=[row["phi2_meas_err"] for row in phi2_summary], fmt="o", color="#222222", ms=5, capsize=2, label="measured")
-    ax_phi2.errorbar(x, pred_y, yerr=[row["phi2_pred_err"] for row in phi2_summary], fmt="s", mfc="white", mec="#b23a48", color="#b23a48", ms=5, capsize=2, label="predicted")
+    ax_phi2.errorbar(x, meas, yerr=[row["phi2_meas_err"] for row in phi2_summary], fmt="o", color="#222222", ms=5, capsize=2, label="simulation")
+    ax_phi2.errorbar(x, pred_y, yerr=[row["phi2_pred_err"] for row in phi2_summary], fmt="s", mfc="white", mec="#b23a48", color="#b23a48", ms=5, capsize=2, label="theory")
     ax_phi2.set_xticks(x, [P0_LABELS[row["p0"]] for row in phi2_summary])
     ax_phi2.set_ylabel(r"$\phi_2$")
     ax_phi2.set_xlabel(r"$P_0$")
