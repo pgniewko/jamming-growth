@@ -101,8 +101,9 @@
     <p class="lede">
       This page records only the quantities and constructions used in the paper:
       <code>&phi;<sub>2</sub></code>, <code>P<sub>2</sub></code>, <code>G<sub>2</sub></code>,
-      the mean compressed-sector flux fraction <code>&#772;&lambda;<sub>c</sub></code>, and the
-      growth-rate crossover observables.
+      the mean compressed-sector flux fraction <code>&#772;&lambda;<sub>c</sub></code>, the
+      growth-rate crossover observables, and the supplementary post-jamming division-count
+      diagnostics.
     </p>
 
     <h2>1. Measured Secondary Arrest</h2>
@@ -179,6 +180,53 @@ lambda_c_bar = (1 / M) * sum_k lambda_c(phi_k), over all saved rows with phi_k &
       </ul>
       <p>
         These are the quantities shown in the supplementary growth-crossover figure.
+      </p>
+    </div>
+
+    <h2>7. Post-Jamming Division Counts</h2>
+    <div class="panel">
+      <p>The supplementary lineage diagnostic quantifies when post-jamming division activity accumulates, relative to the saved post-jam origin <code>&phi;<sub>J</sub></code> and the observed depletion point <code>&phi;<sub>2</sub></code>.</p>
+      <div class="formula">
+N_div_all(Delta phi) =
+# { DIVLOG events with phi_event - phi_J &lt;= Delta phi }
+
+r_div_all(Delta phi) = Delta N_div_all / Delta phi
+
+N_div_track(Delta phi) =
+# { TRANSITIONS events with event_code = 3 and phi_event - phi_J &lt;= Delta phi }
+      </div>
+      <p>
+        The reference point <code>phi_J</code> is the first saved row of the matching
+        <code>POSTJAMM_SUMMARY</code> file. Division and tracked-reinjection events are counted
+        only after the saved post-jam start, using the event filter
+        <code>event_step &gt;= step_J</code> and <code>event_phi &gt;= phi_J</code>.
+      </p>
+      <p>
+        The observed depletion point for this supplement is the first saved post-jam row with
+        <code>n_initial_free_active == 0</code>. For runs that reach that row, the split summary is
+      </p>
+      <div class="formula">
+N_div_up_to_phi2      = N_div_all(Delta phi_2_obs)
+N_div_after_phi2_end  = N_div_all(final) - N_div_all(Delta phi_2_obs)
+      </div>
+      <p>
+        Here “after <code>phi_2</code>” means after that run's own observed
+        <code>phi_2</code>, up to the saved endpoint of the same run. Runs that do not exhaust by
+        the saved endpoint remain in the cumulative curves, but they are excluded from the
+        up-to-<code>phi_2</code> versus after-<code>phi_2</code> split summary.
+      </p>
+      <p>
+        The current supplement figure shows the cumulative count and the
+        up-to-<code>phi_2</code> / after-<code>phi_2</code> split, normalized by the size-specific
+        mean jammed cell count <code>&lt;N_J&gt;</code>:
+      </p>
+      <div class="formula">
+normalized count = division count / &lt;N_J&gt;
+      </div>
+      <p>
+        The all-division cumulative curves are summarized across runs by median and interquartile
+        range. The tracked subset remains part of the diagnostic tables as a direct check on the
+        reinjection pathway, but it is not shown in the current main supplement panel layout.
       </p>
     </div>
   </main>
