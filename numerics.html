@@ -203,30 +203,33 @@ N_div_track(Delta phi) =
       </p>
       <p>
         The observed depletion point for this supplement is the first saved post-jam row with
-        <code>n_initial_free_active == 0</code>. For runs that reach that row, the split summary is
+        <code>n_initial_free_active == 0</code>. For runs that reach that row, the summary value
+        shown in the lower panel is the cumulative post-jamming division count evaluated at that
+        same point:
       </p>
       <div class="formula">
-N_div_up_to_phi2      = N_div_all(Delta phi_2_obs)
-N_div_after_phi2_end  = N_div_all(final) - N_div_all(Delta phi_2_obs)
+N_div(phi2) = N_div_all(Delta phi_2_obs)
       </div>
       <p>
-        Here “after <code>phi_2</code>” means after that run's own observed
-        <code>phi_2</code>, up to the saved endpoint of the same run. Runs that do not exhaust by
-        the saved endpoint remain in the cumulative curves, but they are excluded from the
-        up-to-<code>phi_2</code> versus after-<code>phi_2</code> split summary.
+        This is therefore a direct slice through the cumulative curve at the run's own observed
+        <code>phi_2</code>. Runs that do not exhaust by the saved endpoint remain in the cumulative
+        curves, but they are excluded from the <code>phi_2</code>-slice summary because
+        <code>phi_2</code> is not observed for them.
       </p>
       <p>
         The current supplement figure shows the cumulative count and the
-        up-to-<code>phi_2</code> / after-<code>phi_2</code> split, normalized by the size-specific
-        mean jammed cell count <code>&lt;N_J&gt;</code>:
+        <code>phi_2</code>-slice summary, normalized by the size-specific mean jammed cell count
+        <code>&lt;N_J&gt;</code>:
       </p>
       <div class="formula">
 normalized count = division count / &lt;N_J&gt;
       </div>
       <p>
         The all-division cumulative curves are summarized across runs by median and interquartile
-        range. The tracked subset remains part of the diagnostic tables as a direct check on the
-        reinjection pathway, but it is not shown in the current main supplement panel layout.
+        range. The <code>phi_2</code>-slice summary in the lower panel is shown as the median with
+        a bootstrap confidence interval over runs. The tracked subset remains part of the
+        diagnostic tables as a direct check on the reinjection pathway, but it is not shown in the
+        current main supplement panel layout.
       </p>
     </div>
   </main>

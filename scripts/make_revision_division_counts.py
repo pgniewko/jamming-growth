@@ -336,6 +336,19 @@ def bootstrap_mean_ci(values: list[float], reps: int, seed: int = BOOTSTRAP_SEED
     return float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
 
 
+def bootstrap_median_ci(values: list[float], reps: int, seed: int = BOOTSTRAP_SEED) -> tuple[float, float]:
+    array = np.asarray(values, dtype=float)
+    if len(array) <= 1:
+        value = float(array[0]) if len(array) == 1 else float("nan")
+        return value, value
+    rng = np.random.default_rng(seed)
+    medians = np.empty(reps, dtype=float)
+    for index in range(reps):
+        sample = rng.choice(array, size=len(array), replace=True)
+        medians[index] = float(np.median(sample))
+    return float(np.percentile(medians, 2.5)), float(np.percentile(medians, 97.5))
+
+
 def build_cumulative_rows(group: list[RunSummary], grid_step: float) -> list[dict]:
     max_endpoint = max(run.delta_phi_final for run in group)
     grid = np.arange(0.0, max_endpoint + 0.5 * grid_step, grid_step, dtype=float)
@@ -404,33 +417,24 @@ def build_rate_rows(group: list[RunSummary], bin_width: float, bootstrap_reps: i
     return rows
 
 
-def build_split_rows(group: list[RunSummary]) -> list[dict]:
+def build_phi2_rows(group: list[RunSummary], bootstrap_reps: int) -> list[dict]:
     exhausted = [run for run in group if run.exhausted_by_endpoint == 1 and run.n_div_all_at_phi2 is not None]
     if not exhausted:
         return []
-    before = [float(run.n_div_all_at_phi2) for run in exhausted if run.n_div_all_at_phi2 is not None]
-    after = [float(run.n_div_all_after_phi2) for run in exhausted if run.n_div_all_after_phi2 is not None]
-    before_med, before_q1, before_q3 = quantile_triplet(before)
-    after_med, after_q1, after_q3 = quantile_triplet(after)
+    values = [float(run.n_div_all_at_phi2) for run in exhausted if run.n_div_all_at_phi2 is not None]
+    median, q1, q3 = quantile_triplet(values)
+    ci_low, ci_high = bootstrap_median_ci(values, bootstrap_reps)
     return [
         {
             "lx": exhausted[0].lx,
             "p0": exhausted[0].p0,
-            "phase": "by_phi2",
             "n_runs": len(exhausted),
-            "median": before_med,
-            "q1": before_q1,
-            "q3": before_q3,
-        },
-        {
-            "lx": exhausted[0].lx,
-            "p0": exhausted[0].p0,
-            "phase": "after_phi2",
-            "n_runs": len(exhausted),
-            "median": after_med,
-            "q1": after_q1,
-            "q3": after_q3,
-        },
+            "median": median,
+            "q1": q1,
+            "q3": q3,
+            "ci_low": ci_low,
+            "ci_high": ci_high,
+        }
     ]
 
 
@@ -495,12 +499,12 @@ def make_figure(
     output_dir: Path,
     sizes: list[int],
     cumulative_rows: list[dict],
-    split_rows: list[dict],
+    phi2_rows: list[dict],
     avg_nj_by_size: dict[int, float],
     dpi: int,
 ) -> None:
     cumulative_lookup = build_grouped_lookup(cumulative_rows, "delta_phi")
-    split_lookup = build_grouped_lookup(split_rows, "phase")
+    phi2_lookup = build_grouped_lookup(phi2_rows, "median")
 
     ncols = len(sizes)
     fig, axes = plt.subplots(2, ncols, figsize=(4.2 * ncols, 6.2), constrained_layout=False)
@@ -511,7 +515,7 @@ def make_figure(
     present_p0s = [
         p0
         for p0 in P0_ORDER
-        if any((size, p0) in cumulative_lookup or (size, p0) in split_lookup for size in sizes)
+        if any((size, p0) in cumulative_lookup or (size, p0) in phi2_lookup for size in sizes)
     ]
 
     for col, size in enumerate(sizes):
@@ -536,45 +540,30 @@ def make_figure(
                 if delta_phi_2 is not None:
                     ax_top.axvline(delta_phi_2, color=P0_COLORS[p0], lw=1.0, ls="--", alpha=0.8)
 
-        split_p0s = [p0 for p0 in present_p0s if (size, p0) in split_lookup]
-        if split_p0s:
-            x = np.arange(len(split_p0s), dtype=float)
-            width = 0.38
-            before_rows = [next(row for row in split_lookup[(size, p0)] if row["phase"] == "by_phi2") for p0 in split_p0s]
-            after_rows = [next(row for row in split_lookup[(size, p0)] if row["phase"] == "after_phi2") for p0 in split_p0s]
-
-            before_median = np.asarray([row["median"] for row in before_rows], dtype=float) / norm
-            before_q1 = np.asarray([row["q1"] for row in before_rows], dtype=float) / norm
-            before_q3 = np.asarray([row["q3"] for row in before_rows], dtype=float) / norm
-            after_median = np.asarray([row["median"] for row in after_rows], dtype=float) / norm
-            after_q1 = np.asarray([row["q1"] for row in after_rows], dtype=float) / norm
-            after_q3 = np.asarray([row["q3"] for row in after_rows], dtype=float) / norm
-
-            ax_bot.bar(
-                x - 0.5 * width,
-                before_median,
-                width=width,
-                color="#d7c37c",
-                edgecolor="#8c7a39",
-                linewidth=0.8,
-                label=r"up to $\phi_2$" if col == 0 else None,
-                yerr=np.vstack((before_median - before_q1, before_q3 - before_median)),
-                capsize=2,
-                error_kw={"elinewidth": 0.9},
-            )
-            ax_bot.bar(
-                x + 0.5 * width,
-                after_median,
-                width=width,
-                color="#c77259",
-                edgecolor="#8d4f2c",
-                linewidth=0.8,
-                label=r"after $\phi_2$ to endpoint" if col == 0 else None,
-                yerr=np.vstack((after_median - after_q1, after_q3 - after_median)),
-                capsize=2,
-                error_kw={"elinewidth": 0.9},
-            )
-            ax_bot.set_xticks(x, [P0_LABELS[p0] for p0 in split_p0s], rotation=20)
+        phi2_p0s = [p0 for p0 in present_p0s if (size, p0) in phi2_lookup]
+        if phi2_p0s:
+            x = np.arange(len(phi2_p0s), dtype=float)
+            rows = [phi2_lookup[(size, p0)][0] for p0 in phi2_p0s]
+            median = np.asarray([row["median"] for row in rows], dtype=float) / norm
+            ci_low = np.asarray([row["ci_low"] for row in rows], dtype=float) / norm
+            ci_high = np.asarray([row["ci_high"] for row in rows], dtype=float) / norm
+            ax_bot.plot(x, median, color="#b06c3b", lw=1.0, alpha=0.7)
+            for idx, p0 in enumerate(phi2_p0s):
+                ax_bot.errorbar(
+                    [x[idx]],
+                    [median[idx]],
+                    yerr=np.asarray([[max(0.0, median[idx] - ci_low[idx])], [max(0.0, ci_high[idx] - median[idx])]], dtype=float),
+                    fmt="o",
+                    color="#222222",
+                    mfc=P0_COLORS[p0],
+                    mec="#222222",
+                    mew=0.8,
+                    ms=6.2,
+                    capsize=2.5,
+                    lw=1.0,
+                    zorder=3,
+                )
+            ax_bot.set_xticks(x, [P0_LABELS[p0] for p0 in phi2_p0s], rotation=20)
         else:
             ax_bot.text(0.5, 0.5, "no exhausted runs", transform=ax_bot.transAxes, ha="center", va="center", color="0.45")
             ax_bot.set_xticks([])
@@ -586,9 +575,10 @@ def make_figure(
 
         if col == 0:
             add_panel_label(ax_top, "A")
-            add_panel_label(ax_bot, "C")
+            add_panel_label(ax_bot, "B")
             ax_top.set_ylabel(r"cumulative divisions / $\langle N_J \rangle$")
-            ax_bot.set_ylabel(r"division count / $\langle N_J \rangle$")
+            ax_bot.set_ylabel(r"$N_{\mathrm{div}}(\phi_2) / \langle N_J \rangle$")
+        ax_bot.set_title(r"cumulative divisions evaluated at $\phi_2$", pad=6)
 
     legend_handles = [
         Line2D([0], [0], color=P0_COLORS[p0], lw=2.0, label=P0_LABELS[p0])
@@ -596,7 +586,6 @@ def make_figure(
     ]
     if legend_handles:
         fig.legend(handles=legend_handles, loc="upper center", ncols=min(len(legend_handles), 6), fontsize=9, bbox_to_anchor=(0.5, 0.985))
-    axes[1, 0].legend(loc="upper left", fontsize=8)
     save_figure(fig, output_dir, "fig_lineage_division_counts", dpi)
 
 
@@ -618,12 +607,12 @@ def main() -> None:
 
     cumulative_rows: list[dict] = []
     rate_rows: list[dict] = []
-    split_rows: list[dict] = []
+    phi2_rows: list[dict] = []
     for key in sorted(grouped, key=lambda item: (item[0], float(item[1]))):
         group = grouped[key]
         cumulative_rows.extend(build_cumulative_rows(group, args.grid_step))
         rate_rows.extend(build_rate_rows(group, args.bin_width, args.bootstrap_reps))
-        split_rows.extend(build_split_rows(group))
+        phi2_rows.extend(build_phi2_rows(group, args.bootstrap_reps))
 
     summary_rows = [
         {
@@ -713,7 +702,7 @@ def main() -> None:
     if not sizes:
         raise SystemExit("No validated runs found for the requested sizes.")
     avg_nj_by_size = average_nj_by_size(summaries)
-    make_figure(output_dir, sizes, cumulative_rows, split_rows, avg_nj_by_size, args.dpi)
+    make_figure(output_dir, sizes, cumulative_rows, phi2_rows, avg_nj_by_size, args.dpi)
 
     mismatch_count = sum(1 for summary in summaries if summary.postjamm_summary_count_gap != 0)
     print(f"Selected representative runs: {len(summaries)}")
