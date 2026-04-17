@@ -43,6 +43,11 @@ P0_COLORS = {
     "1e-4": "#84b547",
     "1e-5": "#f28e2b",
 }
+SIZE_STYLES = {
+    15: {"color": "#2f5d8a", "marker": "o"},
+    20: {"color": "#c77259", "marker": "s"},
+    25: {"color": "#1f9e89", "marker": "^"},
+}
 POSTJAM_TOL = 1e-12
 BOOTSTRAP_SEED = 12345
 
@@ -116,7 +121,8 @@ class RunSummary:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate supplementary post-jamming division-count diagnostics.")
-    parser.add_argument("--sizes", nargs="+", default=["15", "20"])
+    parser.add_argument("--panel-a-size", type=int, default=20)
+    parser.add_argument("--panel-b-sizes", nargs="+", type=int, default=[20])
     parser.add_argument("--output-dir", default=str(REPO_ROOT / "paper" / "revision-figures"))
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument("--bin-width", type=float, default=0.0025)
@@ -497,7 +503,8 @@ def average_nj_by_size(summaries: list[RunSummary]) -> dict[int, float]:
 
 def make_figure(
     output_dir: Path,
-    sizes: list[int],
+    panel_a_size: int,
+    panel_b_sizes: list[int],
     cumulative_rows: list[dict],
     phi2_rows: list[dict],
     avg_nj_by_size: dict[int, float],
@@ -506,83 +513,79 @@ def make_figure(
     cumulative_lookup = build_grouped_lookup(cumulative_rows, "delta_phi")
     phi2_lookup = build_grouped_lookup(phi2_rows, "median")
 
-    ncols = len(sizes)
-    fig, axes = plt.subplots(2, ncols, figsize=(4.2 * ncols, 6.2), constrained_layout=False)
-    if ncols == 1:
-        axes = np.asarray(axes).reshape(2, 1)
-    fig.subplots_adjust(hspace=0.38, wspace=0.28, top=0.86)
+    fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(6.3, 7.2), constrained_layout=False)
+    fig.subplots_adjust(hspace=0.42, top=0.9)
 
-    present_p0s = [
-        p0
-        for p0 in P0_ORDER
-        if any((size, p0) in cumulative_lookup or (size, p0) in phi2_lookup for size in sizes)
-    ]
+    present_p0s_a = [p0 for p0 in P0_ORDER if (panel_a_size, p0) in cumulative_lookup]
+    x_max = 0.0
+    for p0 in present_p0s_a:
+        curves = cumulative_lookup[(panel_a_size, p0)]
+        x = np.asarray([row["delta_phi"] for row in curves], dtype=float)
+        y = np.asarray([row["all_median"] for row in curves], dtype=float)
+        y_q1 = np.asarray([row["all_q1"] for row in curves], dtype=float)
+        y_q3 = np.asarray([row["all_q3"] for row in curves], dtype=float)
+        ax_top.plot(x, y, lw=1.8, color=P0_COLORS[p0])
+        ax_top.fill_between(x, y_q1, y_q3, color=P0_COLORS[p0], alpha=0.18, linewidth=0.0)
+        x_max = max(x_max, float(x[-1]))
+        delta_phi_2 = curves[0]["median_delta_phi_2_obs"]
+        if delta_phi_2 is not None:
+            ax_top.axvline(delta_phi_2, color=P0_COLORS[p0], lw=1.0, ls="--", alpha=0.8)
 
-    for col, size in enumerate(sizes):
-        ax_top = axes[0, col]
-        ax_bot = axes[1, col]
+    ax_top.set_xlim(0.0, max(x_max, 1e-6))
+    ax_top.set_xlabel(r"$\Delta \phi = \phi - \phi_J$")
+    ax_top.set_ylabel("cumulative divisions per run")
+    add_panel_label(ax_top, "A")
 
+    x_positions = np.arange(len(P0_ORDER), dtype=float)
+    present_l_sizes = [size for size in panel_b_sizes if any((size, p0) in phi2_lookup for p0 in P0_ORDER)]
+    if present_l_sizes:
+        size = present_l_sizes[0]
         norm = avg_nj_by_size[size]
-        x_max = 0.0
-        for p0 in present_p0s:
-            curves = cumulative_lookup.get((size, p0), [])
-            if curves:
-                x = np.asarray([row["delta_phi"] for row in curves], dtype=float)
-                y = np.asarray([row["all_median"] for row in curves], dtype=float) / norm
-                y_q1 = np.asarray([row["all_q1"] for row in curves], dtype=float) / norm
-                y_q3 = np.asarray([row["all_q3"] for row in curves], dtype=float) / norm
-                ax_top.plot(x, y, lw=1.8, color=P0_COLORS[p0])
-                ax_top.fill_between(x, y_q1, y_q3, color=P0_COLORS[p0], alpha=0.18, linewidth=0.0)
-
-                x_max = max(x_max, float(x[-1]))
-
-                delta_phi_2 = curves[0]["median_delta_phi_2_obs"]
-                if delta_phi_2 is not None:
-                    ax_top.axvline(delta_phi_2, color=P0_COLORS[p0], lw=1.0, ls="--", alpha=0.8)
-
-        phi2_p0s = [p0 for p0 in present_p0s if (size, p0) in phi2_lookup]
-        if phi2_p0s:
-            x = np.arange(len(phi2_p0s), dtype=float)
-            rows = [phi2_lookup[(size, p0)][0] for p0 in phi2_p0s]
-            median = np.asarray([row["median"] for row in rows], dtype=float) / norm
-            ci_low = np.asarray([row["ci_low"] for row in rows], dtype=float) / norm
-            ci_high = np.asarray([row["ci_high"] for row in rows], dtype=float) / norm
-            ax_bot.plot(x, median, color="#b06c3b", lw=1.0, alpha=0.7)
-            for idx, p0 in enumerate(phi2_p0s):
+        xs = []
+        median = []
+        ci_low = []
+        ci_high = []
+        point_p0s = []
+        for idx, p0 in enumerate(P0_ORDER):
+            if (size, p0) not in phi2_lookup:
+                continue
+            row = phi2_lookup[(size, p0)][0]
+            xs.append(x_positions[idx])
+            median.append(row["median"] / norm)
+            ci_low.append(row["ci_low"] / norm)
+            ci_high.append(row["ci_high"] / norm)
+            point_p0s.append(p0)
+        if xs:
+            xs_arr = np.asarray(xs, dtype=float)
+            median_arr = np.asarray(median, dtype=float)
+            ci_low_arr = np.asarray(ci_low, dtype=float)
+            ci_high_arr = np.asarray(ci_high, dtype=float)
+            ax_bot.plot(xs_arr, median_arr, color="#8b8174", lw=1.0, alpha=0.75, zorder=1)
+            for idx, p0 in enumerate(point_p0s):
                 ax_bot.errorbar(
-                    [x[idx]],
-                    [median[idx]],
-                    yerr=np.asarray([[max(0.0, median[idx] - ci_low[idx])], [max(0.0, ci_high[idx] - median[idx])]], dtype=float),
+                    [xs_arr[idx]],
+                    [median_arr[idx]],
+                    yerr=np.asarray([[max(0.0, median_arr[idx] - ci_low_arr[idx])], [max(0.0, ci_high_arr[idx] - median_arr[idx])]], dtype=float),
                     fmt="o",
-                    color="#222222",
+                    color=P0_COLORS[p0],
                     mfc=P0_COLORS[p0],
                     mec="#222222",
-                    mew=0.8,
+                    mew=0.7,
                     ms=6.2,
                     capsize=2.5,
                     lw=1.0,
                     zorder=3,
                 )
-            ax_bot.set_xticks(x, [P0_LABELS[p0] for p0 in phi2_p0s], rotation=20)
-        else:
-            ax_bot.text(0.5, 0.5, "no exhausted runs", transform=ax_bot.transAxes, ha="center", va="center", color="0.45")
-            ax_bot.set_xticks([])
 
-        ax_top.set_xlim(0.0, max(x_max, 1e-6))
-        ax_top.set_title(rf"L = {size}, $\langle N_J \rangle = {norm:.2f}$", pad=6)
-        ax_bot.set_xlabel(r"$P_0$")
-        ax_top.set_xlabel(r"$\Delta \phi = \phi - \phi_J$")
-
-        if col == 0:
-            add_panel_label(ax_top, "A")
-            add_panel_label(ax_bot, "B")
-            ax_top.set_ylabel(r"cumulative divisions / $\langle N_J \rangle$")
-            ax_bot.set_ylabel(r"$N_{\mathrm{div}}(\phi_2) / \langle N_J \rangle$")
-        ax_bot.set_title(r"cumulative divisions evaluated at $\phi_2$", pad=6)
+    ax_bot.set_xticks(x_positions, [P0_LABELS[p0] for p0 in P0_ORDER], rotation=20)
+    ax_bot.set_xlabel(r"$P_0$")
+    ax_bot.set_ylabel(r"$N_{\mathrm{div}}(\phi_2) / \langle N_J \rangle$")
+    ax_bot.set_title(r"cumulative cell divisions between $\phi_J$ and $\phi_2$", pad=8)
+    add_panel_label(ax_bot, "B")
 
     legend_handles = [
         Line2D([0], [0], color=P0_COLORS[p0], lw=2.0, label=P0_LABELS[p0])
-        for p0 in present_p0s
+        for p0 in present_p0s_a
     ]
     if legend_handles:
         fig.legend(handles=legend_handles, loc="upper center", ncols=min(len(legend_handles), 6), fontsize=9, bbox_to_anchor=(0.5, 0.985))
@@ -600,7 +603,9 @@ def main() -> None:
     if args.seed_start is not None:
         seeds = seed_range(args.seed_start, args.seed_stop)
 
-    candidates = load_candidate_records(args.sizes, seeds)
+    panel_b_sizes = [int(size) for size in args.panel_b_sizes]
+    load_sizes = sorted({str(args.panel_a_size), *[str(size) for size in panel_b_sizes]}, key=int)
+    candidates = load_candidate_records(load_sizes, seeds)
     representatives = choose_representative_records(candidates)
     summaries = [summarize_record(record) for record in representatives]
     grouped = group_by_size_and_p0(summaries)
@@ -698,11 +703,10 @@ def main() -> None:
         summary_rows,
     )
 
-    sizes = sorted({summary.lx for summary in summaries})
-    if not sizes:
+    if not summaries:
         raise SystemExit("No validated runs found for the requested sizes.")
     avg_nj_by_size = average_nj_by_size(summaries)
-    make_figure(output_dir, sizes, cumulative_rows, phi2_rows, avg_nj_by_size, args.dpi)
+    make_figure(output_dir, int(args.panel_a_size), panel_b_sizes, cumulative_rows, phi2_rows, avg_nj_by_size, args.dpi)
 
     mismatch_count = sum(1 for summary in summaries if summary.postjamm_summary_count_gap != 0)
     print(f"Selected representative runs: {len(summaries)}")
