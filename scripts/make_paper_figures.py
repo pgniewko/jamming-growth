@@ -59,20 +59,6 @@ GROWTH_HISTOGRAM_TEXT = {
     "1e-3": r"$P_0=10^{-3}$",
     "1e-4": r"$P_0=10^{-4}$",
 }
-MARKER_VISUAL_SCALE = {"o": 1.0, "s": 0.972, "^": 1.03}
-MECHANICS_DPHI_VISUAL_SCALE = {
-    1e-4: 0.982,
-    3e-4: 1.000,
-    1e-3: 1.018,
-    3e-3: 0.978,
-    1e-2: 1.026,
-    3e-2: 0.950,
-    6e-2: 1.000,
-    1e-1: 1.055,
-    1.2e-1: 1.105,
-}
-
-
 @dataclass
 class PostRow:
     phi: float
@@ -1044,12 +1030,11 @@ def make_mechanics_figure(
     hi = float(max(xs.max(), ys.max()) * 1.15)
     ax_id.plot([lo, hi], [lo, hi], ls="--", lw=1.0, color="0.55", zorder=1)
     for row in positive:
-        scale = MARKER_VISUAL_SCALE.get(row["marker"], 1.0) * MECHANICS_DPHI_VISUAL_SCALE.get(row["dphi"], 1.0)
         ax_id.errorbar(
-            row["pred_mean"] * scale,
-            row["meas_mean"] * scale,
-            xerr=row["pred_err"] * scale,
-            yerr=row["meas_err"] * scale,
+            row["pred_mean"],
+            row["meas_mean"],
+            xerr=row["pred_err"],
+            yerr=row["meas_err"],
             fmt=row["marker"],
             ms=6.2,
             mec="white",
