@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import gzip
 import math
 import os
@@ -229,7 +228,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-postjam-divisions", type=int, default=10)
     parser.add_argument("--division-count-panel-a-size", type=int, default=20)
     parser.add_argument("--division-count-panel-b-sizes", nargs="+", type=int, default=[20])
-    parser.add_argument("--division-count-bin-width", type=float, default=0.0025)
     parser.add_argument("--division-count-grid-step", type=float, default=0.0025)
     parser.add_argument("--division-count-bootstrap-reps", type=int, default=2000)
     parser.add_argument("--dpi", type=int, default=300)
@@ -240,8 +238,6 @@ def parse_args() -> argparse.Namespace:
         raise SystemExit("--seed-start and --seed-stop must be given together")
     if args.seed_start is not None and args.seed_stop < args.seed_start:
         raise SystemExit("--seed-stop must be greater than or equal to --seed-start")
-    if args.division_count_bin_width <= 0.0:
-        raise SystemExit("--division-count-bin-width must be positive")
     if args.division_count_grid_step <= 0.0:
         raise SystemExit("--division-count-grid-step must be positive")
     if args.division_count_bootstrap_reps <= 0:
@@ -1129,19 +1125,6 @@ def quantile_triplet(values: list[float]) -> tuple[float, float, float]:
     )
 
 
-def bootstrap_mean_ci(values: list[float], reps: int, seed: int = BOOTSTRAP_SEED) -> tuple[float, float]:
-    array = np.asarray(values, dtype=float)
-    if len(array) <= 1:
-        value = float(array[0]) if len(array) == 1 else float("nan")
-        return value, value
-    rng = np.random.default_rng(seed)
-    means = np.empty(reps, dtype=float)
-    for index in range(reps):
-        sample = rng.choice(array, size=len(array), replace=True)
-        means[index] = float(np.mean(sample))
-    return float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
-
-
 def bootstrap_median_ci(values: list[float], reps: int, seed: int = BOOTSTRAP_SEED) -> tuple[float, float]:
     array = np.asarray(values, dtype=float)
     if len(array) <= 1:
@@ -1188,40 +1171,6 @@ def build_division_count_cumulative_rows(group: list[DivisionRunSummary], grid_s
     return rows
 
 
-def build_division_count_rate_rows(group: list[DivisionRunSummary], bin_width: float, bootstrap_reps: int) -> list[dict]:
-    max_endpoint = max(run.delta_phi_final for run in group)
-    edges = np.arange(0.0, max_endpoint + bin_width, bin_width, dtype=float)
-    if edges[-1] < max_endpoint + POSTJAM_TOL:
-        edges = np.append(edges, edges[-1] + bin_width)
-    delta_phi_2_values = [run.delta_phi_2_obs for run in group if run.delta_phi_2_obs is not None]
-    median_delta_phi_2 = float(np.median(delta_phi_2_values)) if delta_phi_2_values else None
-    rows: list[dict] = []
-    for left, right in zip(edges[:-1], edges[1:]):
-        covered = [run for run in group if run.delta_phi_final >= right - POSTJAM_TOL]
-        if not covered:
-            continue
-        counts = []
-        for run in covered:
-            lo = np.searchsorted(run.all_event_deltas, left - POSTJAM_TOL, side="left")
-            hi = np.searchsorted(run.all_event_deltas, right - POSTJAM_TOL, side="left")
-            counts.append((hi - lo) / bin_width)
-        ci_low, ci_high = bootstrap_mean_ci(counts, bootstrap_reps)
-        rows.append(
-            {
-                "lx": covered[0].lx,
-                "p0": covered[0].p0,
-                "bin_left": float(left),
-                "bin_right": float(right),
-                "n_runs": len(covered),
-                "median_delta_phi_2_obs": median_delta_phi_2,
-                "rate_mean": float(np.mean(counts)),
-                "rate_ci_low": ci_low,
-                "rate_ci_high": ci_high,
-            }
-        )
-    return rows
-
-
 def build_division_count_phi2_rows(group: list[DivisionRunSummary], bootstrap_reps: int) -> list[dict]:
     exhausted = [run for run in group if run.exhausted_by_endpoint == 1 and run.n_div_all_at_phi2 is not None]
     if not exhausted:
@@ -1250,28 +1199,6 @@ def group_division_summaries_by_size_and_p0(summaries: list[DivisionRunSummary])
     for value in grouped.values():
         value.sort(key=lambda row: int(row.seed))
     return grouped
-
-
-def format_csv_value(value) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, str):
-        return value
-    if isinstance(value, float):
-        if math.isnan(value):
-            return ""
-        return f"{value:.12g}"
-    return str(value)
-
-
-def write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({name: format_csv_value(row.get(name)) for name in fieldnames})
 
 
 def build_grouped_lookup(rows: list[dict], key_name: str) -> dict[tuple[int, str], list[dict]]:
@@ -1385,7 +1312,6 @@ def make_division_count_outputs(
     output_dir: Path,
     panel_a_size: int,
     panel_b_sizes: list[int],
-    bin_width: float,
     grid_step: float,
     bootstrap_reps: int,
     seeds: list[str] | None,
@@ -1400,97 +1326,11 @@ def make_division_count_outputs(
 
     grouped = group_division_summaries_by_size_and_p0(summaries)
     cumulative_rows: list[dict] = []
-    rate_rows: list[dict] = []
     phi2_rows: list[dict] = []
     for key in sorted(grouped, key=lambda item: (item[0], float(item[1]))):
         group = grouped[key]
         cumulative_rows.extend(build_division_count_cumulative_rows(group, grid_step))
-        rate_rows.extend(build_division_count_rate_rows(group, bin_width, bootstrap_reps))
         phi2_rows.extend(build_division_count_phi2_rows(group, bootstrap_reps))
-
-    summary_rows = [
-        {
-            "lx": summary.lx,
-            "p0": summary.p0,
-            "seed": summary.seed,
-            "dphi_target": summary.dphi_target,
-            "n_j": summary.n_j,
-            "phi_j": summary.phi_j,
-            "phi_2_obs": summary.phi_2_obs,
-            "delta_phi_2_obs": summary.delta_phi_2_obs,
-            "delta_phi_final": summary.delta_phi_final,
-            "exhausted_by_endpoint": summary.exhausted_by_endpoint,
-            "N_div_all_at_phi2": summary.n_div_all_at_phi2,
-            "N_div_all_final": summary.n_div_all_final,
-            "N_div_all_after_phi2": summary.n_div_all_after_phi2,
-            "frac_before_phi2": summary.frac_before_phi2,
-            "N_div_track_at_phi2": summary.n_div_track_at_phi2,
-            "N_div_track_final": summary.n_div_track_final,
-            "divlog_postjam_count": summary.divlog_postjam_count,
-            "postjamm_summary_final_count": summary.postjamm_summary_final_count,
-            "postjamm_summary_count_gap": summary.postjamm_summary_count_gap,
-        }
-        for summary in summaries
-    ]
-
-    write_csv(
-        output_dir / "division_counts_cumulative.csv",
-        [
-            "lx",
-            "p0",
-            "delta_phi",
-            "n_runs",
-            "median_delta_phi_2_obs",
-            "all_median",
-            "all_q1",
-            "all_q3",
-            "track_mean",
-            "track_median",
-            "track_q1",
-            "track_q3",
-        ],
-        cumulative_rows,
-    )
-    write_csv(
-        output_dir / "division_counts_rate.csv",
-        [
-            "lx",
-            "p0",
-            "bin_left",
-            "bin_right",
-            "n_runs",
-            "median_delta_phi_2_obs",
-            "rate_mean",
-            "rate_ci_low",
-            "rate_ci_high",
-        ],
-        rate_rows,
-    )
-    write_csv(
-        output_dir / "division_counts_summary.csv",
-        [
-            "lx",
-            "p0",
-            "seed",
-            "dphi_target",
-            "n_j",
-            "phi_j",
-            "phi_2_obs",
-            "delta_phi_2_obs",
-            "delta_phi_final",
-            "exhausted_by_endpoint",
-            "N_div_all_at_phi2",
-            "N_div_all_final",
-            "N_div_all_after_phi2",
-            "frac_before_phi2",
-            "N_div_track_at_phi2",
-            "N_div_track_final",
-            "divlog_postjam_count",
-            "postjamm_summary_final_count",
-            "postjamm_summary_count_gap",
-        ],
-        summary_rows,
-    )
 
     avg_nj_by_size = average_nj_by_size(summaries)
     make_division_count_figure(output_dir, panel_a_size, panel_b_sizes, cumulative_rows, phi2_rows, avg_nj_by_size, dpi)
@@ -1981,7 +1821,6 @@ def main() -> None:
         output_dir,
         args.division_count_panel_a_size,
         [int(size) for size in args.division_count_panel_b_sizes],
-        args.division_count_bin_width,
         args.division_count_grid_step,
         args.division_count_bootstrap_reps,
         seeds,
