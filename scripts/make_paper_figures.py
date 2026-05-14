@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import gzip
 import math
 import os
@@ -43,6 +44,14 @@ P0_COLORS = {
     "1e-3": "#1f9e89",
     "1e-4": "#84b547",
     "1e-5": "#f28e2b",
+}
+SIZE_ORDER = ["8", "15", "20"]
+SIZE_LABELS = {size: rf"$L={size}D_0$" for size in SIZE_ORDER}
+SIZE_COLORS = {
+    "8": "#0072B2",
+    "15": "#D55E00",
+    "20": "#009E73",
+    "25": "#CC79A7",
 }
 DPHI_RANGE_STYLES = [
     ("1e-4 to 1e-3", 1e-4, 1.01e-3, "o"),
@@ -221,11 +230,13 @@ class DivisionRunSummary:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate publication-quality paper figures for L=15.")
+    parser = argparse.ArgumentParser(description="Generate publication-quality paper figures.")
     parser.add_argument("--size", default="15")
     parser.add_argument("--output-dir", default=str(REPO_ROOT / "paper" / "figures"))
     parser.add_argument("--dphi-probe", type=float, default=DEFAULT_DPHI_PROBE)
     parser.add_argument("--max-postjam-divisions", type=int, default=10)
+    parser.add_argument("--size-effect-sizes", nargs="+", default=SIZE_ORDER)
+    parser.add_argument("--no-size-effects", action="store_true")
     parser.add_argument("--division-count-panel-a-size", type=int, default=20)
     parser.add_argument("--division-count-panel-b-sizes", nargs="+", type=int, default=[20])
     parser.add_argument("--division-count-grid-step", type=float, default=0.0025)
@@ -985,6 +996,13 @@ def save_figure(fig: plt.Figure, output_dir: Path, stem: str, dpi: int) -> None:
     plt.close(fig)
 
 
+def write_csv_rows(output_dir: Path, stem: str, rows: list[dict], fieldnames: list[str]) -> None:
+    with (output_dir / f"{stem}.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def parse_division_events(path: Path) -> list[EventRow]:
     events: list[EventRow] = []
     with path.open("r", encoding="utf-8") as handle:
@@ -1338,6 +1356,246 @@ def make_division_count_outputs(
     return len(summaries), mismatch_count
 
 
+def collect_size_effect_inputs(
+    sizes: list[str],
+    dphi_probe: float,
+    seeds: list[str] | None,
+    max_postjam_divisions: int,
+) -> dict[str, dict]:
+    by_size: dict[str, dict] = {}
+    for size in sizes:
+        records = load_records(size, dphi_probe, seeds=seeds)
+        if not records:
+            continue
+        measured_arrest_selections = build_arrest_selections(
+            records,
+            max_postjam_divisions,
+            active_cutoff=SECONDARY_ARREST_ACTIVE_CUTOFF,
+        )
+        paired_arrest_selections = build_arrest_selections(
+            records,
+            max_postjam_divisions,
+            active_cutoff=SECONDARY_ARREST_ACTIVE_CUTOFF,
+            require_phi2_shear=True,
+        )
+        paired_arrest_points = build_paired_arrest_points(paired_arrest_selections)
+        apply_g2_tukey_filter(paired_arrest_points)
+        by_size[str(size)] = {
+            "records": records,
+            "structural_points": build_structural_points(records),
+            "phi2_summary": build_phi2_summary(
+                measured_arrest_selections,
+                active_cutoff=SECONDARY_ARREST_ACTIVE_CUTOFF,
+            ),
+            "mechanics_points": build_mechanics_points(records),
+            "g2_summary": build_g2_summary(paired_arrest_points),
+        }
+    return by_size
+
+
+def export_size_effect_data(output_dir: Path, by_size: dict[str, dict]) -> None:
+    structural_rows = []
+    phi2_rows = []
+    mechanics_rows = []
+    g2_rows = []
+    for size, data in by_size.items():
+        for row in data["structural_points"]:
+            structural_rows.append({"size": size, **row})
+        for row in data["phi2_summary"]:
+            phi2_rows.append({"size": size, **row})
+        for row in data["mechanics_points"]:
+            mechanics_rows.append({"size": size, **row})
+        for row in data["g2_summary"]:
+            g2_rows.append({"size": size, **row})
+
+    write_csv_rows(
+        output_dir,
+        "figureS3_size_effects_figure2A",
+        structural_rows,
+        ["size", "p0", "dphi", "range_label", "marker", "pred_mean", "pred_err", "obs_mean", "obs_err", "count"],
+    )
+    write_csv_rows(
+        output_dir,
+        "figureS3_size_effects_figure2C_simulation",
+        phi2_rows,
+        ["size", "p0", "count", "phi2_meas", "phi2_meas_err"],
+    )
+    write_csv_rows(
+        output_dir,
+        "figureS3_size_effects_figure3A",
+        mechanics_rows,
+        ["size", "p0", "dphi", "marker", "pred_mean", "pred_err", "meas_mean", "meas_err", "count"],
+    )
+    write_csv_rows(
+        output_dir,
+        "figureS3_size_effects_figure3C_line",
+        g2_rows,
+        ["size", "p0", "g2", "g2_err", "count"],
+    )
+
+
+def make_size_effects_figure(
+    output_dir: Path,
+    by_size: dict[str, dict],
+    dpi: int,
+    stem: str = "figureS3_size_effects",
+) -> None:
+    present_sizes = [size for size in SIZE_ORDER if size in by_size]
+    present_sizes.extend(size for size in by_size if size not in present_sizes)
+    if not present_sizes:
+        return
+
+    fig = plt.figure(figsize=(7.1, 6.7))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1.05, 1.0], height_ratios=[1.0, 1.0], wspace=0.38, hspace=0.43)
+    ax_struct = fig.add_subplot(gs[0, 0])
+    ax_phi2 = fig.add_subplot(gs[0, 1])
+    ax_mech = fig.add_subplot(gs[1, 0])
+    ax_g2 = fig.add_subplot(gs[1, 1])
+
+    add_panel_label(ax_struct, "A")
+    add_panel_label(ax_phi2, "B")
+    add_panel_label(ax_mech, "C")
+    add_panel_label(ax_g2, "D")
+
+    structural = [(size, row) for size in present_sizes for row in by_size[size]["structural_points"]]
+    if structural:
+        pred = np.asarray([row["pred_mean"] for _size, row in structural])
+        obs = np.asarray([row["obs_mean"] for _size, row in structural])
+        lo = float(min(pred.min(), obs.min()) * 0.92)
+        hi = float(max(pred.max(), obs.max()) * 1.03)
+        ax_struct.plot([lo, hi], [lo, hi], ls="--", lw=1.0, color="0.55", zorder=1)
+        for size, row in structural:
+            ax_struct.errorbar(
+                row["pred_mean"],
+                row["obs_mean"],
+                fmt=row["marker"],
+                ms=5.3,
+                mec="white",
+                mew=0.5,
+                color=SIZE_COLORS.get(size, "0.35"),
+                alpha=0.9,
+                zorder=3,
+            )
+        ax_struct.set_xlim(lo, hi)
+        ax_struct.set_ylim(lo, hi)
+    ax_struct.set_xlabel(r"Eq. (6) prediction for $\Delta Z$")
+    ax_struct.set_ylabel(r"measured $\Delta Z$")
+    ax_struct.set_title(r"Fig. 2A: coordination identity", pad=6)
+
+    x_all = np.arange(len(P0_ORDER))
+    for size in present_sizes:
+        rows = [row for row in by_size[size]["phi2_summary"] if row["p0"] in P0_ORDER]
+        x = np.asarray([P0_ORDER.index(row["p0"]) for row in rows], dtype=float)
+        if len(x) == 0:
+            continue
+        ax_phi2.errorbar(
+            x,
+            [row["phi2_meas"] for row in rows],
+            yerr=[row["phi2_meas_err"] for row in rows],
+            fmt="o-",
+            color=SIZE_COLORS.get(size, "0.35"),
+            lw=1.25,
+            ms=4.2,
+            capsize=2,
+            label=SIZE_LABELS.get(size, rf"$L={size}D_0$"),
+        )
+    ax_phi2.set_xticks(x_all, [P0_LABELS[p0] for p0 in P0_ORDER])
+    ax_phi2.set_ylabel(r"$\phi_2$")
+    ax_phi2.set_xlabel(r"$P_0$")
+    ax_phi2.set_title(r"Fig. 2C: simulation $\phi_2$", pad=6)
+
+    mechanics = [
+        (size, row)
+        for size in present_sizes
+        for row in by_size[size]["mechanics_points"]
+        if row["pred_mean"] > 0.0 and row["meas_mean"] > 0.0
+    ]
+    if mechanics:
+        xs = np.asarray([row["pred_mean"] for _size, row in mechanics])
+        ys = np.asarray([row["meas_mean"] for _size, row in mechanics])
+        lo = 0.0
+        hi = float(max(xs.max(), ys.max()) * 1.15)
+        ax_mech.plot([lo, hi], [lo, hi], ls="--", lw=1.0, color="0.55", zorder=1)
+        for size, row in mechanics:
+            ax_mech.errorbar(
+                row["pred_mean"],
+                row["meas_mean"],
+                xerr=row["pred_err"],
+                yerr=row["meas_err"],
+                fmt=row["marker"],
+                ms=5.5,
+                mec="white",
+                mew=0.6,
+                elinewidth=0.9,
+                capsize=2.0,
+                color=SIZE_COLORS.get(size, "0.35"),
+                alpha=0.9,
+                zorder=3,
+            )
+        ax_mech.set_xlim(lo, hi)
+        ax_mech.set_ylim(lo, hi)
+    ax_mech.set_xlabel(r"$\lambda_c B_{\mathrm{ext}}$")
+    ax_mech.set_ylabel(r"$B_{\mathrm{grow}}$")
+    ax_mech.set_title(r"Fig. 3A: growth bulk identity", pad=6)
+
+    for size in present_sizes:
+        rows = [row for row in by_size[size]["g2_summary"] if row["p0"] in P0_ORDER]
+        x = np.asarray([P0_ORDER.index(row["p0"]) for row in rows], dtype=float)
+        if len(x) == 0:
+            continue
+        ax_g2.errorbar(
+            x,
+            [row["g2"] for row in rows],
+            yerr=[row["g2_err"] for row in rows],
+            fmt="o-",
+            color=SIZE_COLORS.get(size, "0.35"),
+            lw=1.25,
+            ms=4.2,
+            capsize=2,
+            label=SIZE_LABELS.get(size, rf"$L={size}D_0$"),
+        )
+    ax_g2.set_xticks(x_all, [P0_LABELS[p0] for p0 in P0_ORDER])
+    ax_g2.set_ylabel(r"$G_2$")
+    ax_g2.set_xlabel(r"$P_0$")
+    ax_g2.set_title(r"Fig. 3C: median $G_2$", pad=6)
+
+    size_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color=SIZE_COLORS.get(size, "0.35"),
+            markerfacecolor=SIZE_COLORS.get(size, "0.35"),
+            markeredgecolor="white",
+            markeredgewidth=0.5,
+            lw=1.25,
+            markersize=5.2,
+            label=SIZE_LABELS.get(size, rf"$L={size}D_0$"),
+        )
+        for size in present_sizes
+    ]
+    marker_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker=marker,
+            color="0.25",
+            lw=0,
+            markersize=5.5,
+            markerfacecolor="0.25",
+            markeredgecolor="0.25",
+            label=label,
+        )
+        for label, _lo, _hi, marker in DPHI_RANGE_STYLES
+    ]
+    ax_struct.legend(handles=size_handles, title=r"system size", loc="upper left", fontsize=8, handletextpad=0.35)
+    ax_mech.legend(handles=marker_handles, title=r"$\Delta\phi$ range", loc="lower right", fontsize=8, handletextpad=0.35)
+    ax_phi2.legend(loc="best", fontsize=8, handlelength=1.8)
+
+    save_figure(fig, output_dir, stem, dpi)
+    export_size_effect_data(output_dir, by_size)
+
+
 def make_structure_figure(
     output_dir: Path,
     structural_points: list[dict],
@@ -1567,7 +1825,13 @@ def make_mechanics_figure(
     save_figure(fig, output_dir, stem, dpi)
 
 
-def make_growth_crossover_figure(output_dir: Path, hgamma_summary: list[dict], histograms: dict[str, dict], dpi: int) -> None:
+def make_growth_crossover_figure(
+    output_dir: Path,
+    hgamma_summary: list[dict],
+    histograms: dict[str, dict],
+    dpi: int,
+    stem: str = "figureS2_growth_crossover_l15",
+) -> None:
     fig = plt.figure(figsize=(7.1, 3.2))
     ax_h = fig.add_subplot(1, 1, 1)
 
@@ -1653,7 +1917,7 @@ def make_growth_crossover_figure(output_dir: Path, hgamma_summary: list[dict], h
 
     ax_h.text(0.52, 0.86, r"Representative pooled $\Pi(g)$", transform=ax_h.transAxes, ha="center", fontsize=9)
 
-    save_figure(fig, output_dir, "figureS2_growth_crossover_l15", dpi)
+    save_figure(fig, output_dir, stem, dpi)
 
 
 def make_paired_arrest_figure(
@@ -1813,10 +2077,50 @@ def main() -> None:
     hgamma_summary = build_growth_hgamma_summary(records, GROWTH_CROSSOVER_DPHI)
     growth_histograms = build_growth_histograms(records, GROWTH_CROSSOVER_DPHI)
 
-    make_structure_figure(output_dir, structural_points, depletion_curves, phi2_summary, args.dpi)
-    make_mechanics_figure(output_dir, mechanics_points, phi2_summary, g2_summary, paired_arrest_points, lambda_c_summary, args.dpi)
-    make_growth_crossover_figure(output_dir, hgamma_summary, growth_histograms, args.dpi)
-    make_paired_arrest_figure(output_dir, paired_arrest_points, g2_vs_p2_summary, g2_over_p2_summary, args.dpi)
+    size_stem = str(args.size)
+    make_structure_figure(
+        output_dir,
+        structural_points,
+        depletion_curves,
+        phi2_summary,
+        args.dpi,
+        stem=f"figure2_structure_l{size_stem}",
+    )
+    make_mechanics_figure(
+        output_dir,
+        mechanics_points,
+        phi2_summary,
+        g2_summary,
+        paired_arrest_points,
+        lambda_c_summary,
+        args.dpi,
+        stem=f"figure3_mechanics_l{size_stem}",
+    )
+    make_growth_crossover_figure(
+        output_dir,
+        hgamma_summary,
+        growth_histograms,
+        args.dpi,
+        stem=f"figureS2_growth_crossover_l{size_stem}",
+    )
+    make_paired_arrest_figure(
+        output_dir,
+        paired_arrest_points,
+        g2_vs_p2_summary,
+        g2_over_p2_summary,
+        args.dpi,
+        stem=f"figureS1_paired_arrest_l{size_stem}",
+    )
+    size_effect_count = 0
+    if not args.no_size_effects:
+        size_effect_data = collect_size_effect_inputs(
+            [str(size) for size in args.size_effect_sizes],
+            args.dphi_probe,
+            seeds,
+            args.max_postjam_divisions,
+        )
+        make_size_effects_figure(output_dir, size_effect_data, args.dpi)
+        size_effect_count = len(size_effect_data)
     division_summary_count, division_mismatch_count = make_division_count_outputs(
         output_dir,
         args.division_count_panel_a_size,
@@ -1831,6 +2135,8 @@ def main() -> None:
         print(f"Loaded records: {len(records)}")
     else:
         print(f"Loaded records: {len(records)} for seeds {args.seed_start}-{args.seed_stop}")
+    if not args.no_size_effects:
+        print(f"Loaded size-effect datasets: {size_effect_count}")
     print(f"Selected division-count representative runs: {division_summary_count}")
     print(f"Runs with DIVLOG / POSTJAMM_SUMMARY count mismatch: {division_mismatch_count}")
     print(f"Wrote figures to: {output_dir}")
