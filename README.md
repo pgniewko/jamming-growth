@@ -3,7 +3,7 @@
 2D numerical simulations of growing budding-yeast packings, derived shear-response
 calculations, and `B_ext` probes.
 
-The repository now uses a single growth code:
+The repository uses a single growth code:
 
 - `src/jamming_by_growth.f` generates the jammed packing at `phi_j`, the final
   packing at `phi_j + dphi`, and an optional packing at the first saved post-jam
