@@ -2,6 +2,7 @@ bin/
 .venv/
 .pip-cache/
 output/
+paper/
 __pycache__/
 *.pyc
 *.pyo

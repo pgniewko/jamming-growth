@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
-import time
 from collections import Counter
 from datetime import datetime
-from pathlib import Path
 
-from run_growth_shear import basename, build_paths, growth_done, job_params, shear_done
+from pipeline_config import DEFAULT_DPHI_PROBE, basename, dphi_allowed, iter_all_job_params, iter_job_params, seed_range
+from pipeline_paths import bext_paths, growth_paths, shear_paths
+from pipeline_validate import bext_done, growth_done, shear_done
 
 
 DIMENSIONS = (
@@ -23,34 +23,26 @@ PAIRWISE_DIMENSIONS = (
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Monitor completed growth+shear jobs.")
+    parser = argparse.ArgumentParser(description="Monitor completed growth, shear, and B_ext jobs.")
     parser.add_argument(
-        "--interval-seconds",
-        type=int,
-        default=300,
-        help="Polling interval in seconds. Default: 300",
+        "--dphi-probe",
+        type=float,
+        default=DEFAULT_DPHI_PROBE,
+        help=f"Probe compression used to locate B_ext outputs. Default: {DEFAULT_DPHI_PROBE:g}",
     )
-    parser.add_argument(
-        "--write-reports",
-        action="store_true",
-        help="Also write rendered reports to disk.",
-    )
-    parser.add_argument(
-        "--latest-report",
-        type=Path,
-        help="Path for the latest rendered report.",
-    )
-    parser.add_argument(
-        "--history-dir",
-        type=Path,
-        help="Directory for timestamped report snapshots.",
-    )
-    parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Render one report and exit.",
-    )
-    return parser.parse_args()
+    parser.add_argument("--sizes", nargs="+", help="Optional size filter, e.g. 15")
+    parser.add_argument("--p0s", nargs="+", help="Optional P0 filter.")
+    parser.add_argument("--dphis", nargs="+", help="Optional dphi filter.")
+    parser.add_argument("--seed-start", type=int, help="Optional inclusive seed start.")
+    parser.add_argument("--seed-stop", type=int, help="Optional inclusive seed stop.")
+    args = parser.parse_args()
+    if args.dphi_probe <= 0.0:
+        raise SystemExit("--dphi-probe must be positive")
+    if (args.seed_start is None) ^ (args.seed_stop is None):
+        raise SystemExit("--seed-start and --seed-stop must be given together")
+    if args.seed_start is not None and args.seed_stop < args.seed_start:
+        raise SystemExit("--seed-stop must be greater than or equal to --seed-start")
+    return args
 
 
 def format_percent(completed, total):
@@ -74,36 +66,81 @@ def render_table(headers, rows):
     return "\n".join(lines)
 
 
-def collect_status():
-    jobs = list(job_params())
+def pair_is_allowed(left, right, left_value, right_value):
+    if left == "p0" and right == "dphi":
+        return dphi_allowed(left_value, right_value)
+    if left == "dphi" and right == "p0":
+        return dphi_allowed(right_value, left_value)
+    return True
+
+
+def _sort_key(value):
+    try:
+        return (0, float(value))
+    except ValueError:
+        return (1, value)
+
+
+def collect_status(dphi_probe, sizes=None, p0s=None, dphis=None, seeds=None):
+    all_jobs = list(iter_all_job_params(sizes=sizes, p0s=p0s, dphis=dphis, seeds=seeds))
+    jobs = list(iter_job_params(sizes=sizes, p0s=p0s, dphis=dphis, seeds=seeds))
     expected_single = {key: Counter() for key, _label in DIMENSIONS}
     completed_single = {key: Counter() for key, _label in DIMENSIONS}
     expected_pair = {(left, right): Counter() for left, right, _label in PAIRWISE_DIMENSIONS}
     completed_pair = {(left, right): Counter() for left, right, _label in PAIRWISE_DIMENSIONS}
 
-    completed_jobs = 0
+    growth_completed = 0
+    phi2_growth_available = 0
+    shear_completed = 0
+    shear_phi2_completed = 0
+    bext_completed = 0
+    pipeline_completed = 0
+
     for params in jobs:
         for key, _label in DIMENSIONS:
             expected_single[key][params[key]] += 1
         for left, right, _label in PAIRWISE_DIMENSIONS:
             expected_pair[(left, right)][(params[left], params[right])] += 1
 
-        paths = build_paths(basename(params))
-        if growth_done(paths) and shear_done(paths):
-            completed_jobs += 1
+        name = basename(params)
+        growth = growth_paths(name)
+        growth_ok = growth_done(growth)
+        phi2_growth_ok = growth["phi2_frame_gz"].is_file() or growth["phi2_frame"].is_file()
+        shear_ok = shear_done(shear_paths(name))
+        shear_phi2_ok = shear_done(shear_paths(name, source_tag="PHI2"))
+        bext_ok = bext_done(bext_paths(name, dphi_probe))
+        if growth_ok:
+            growth_completed += 1
+        if phi2_growth_ok:
+            phi2_growth_available += 1
+        if shear_ok:
+            shear_completed += 1
+        if shear_phi2_ok:
+            shear_phi2_completed += 1
+        if bext_ok:
+            bext_completed += 1
+        if growth_ok and shear_ok and bext_ok:
+            pipeline_completed += 1
             for key, _label in DIMENSIONS:
                 completed_single[key][params[key]] += 1
             for left, right, _label in PAIRWISE_DIMENSIONS:
                 completed_pair[(left, right)][(params[left], params[right])] += 1
 
     return {
+        "all_jobs": all_jobs,
         "jobs": jobs,
-        "completed_jobs": completed_jobs,
+        "growth_completed": growth_completed,
+        "phi2_growth_available": phi2_growth_available,
+        "shear_completed": shear_completed,
+        "shear_phi2_completed": shear_phi2_completed,
+        "bext_completed": bext_completed,
+        "pipeline_completed": pipeline_completed,
         "expected_single": expected_single,
         "completed_single": completed_single,
         "expected_pair": expected_pair,
         "completed_pair": completed_pair,
     }
+
 
 def render_single_dimension_tables(status):
     sections = []
@@ -114,7 +151,7 @@ def render_single_dimension_tables(status):
             completed = status["completed_single"][key][value]
             rows.append((value, completed, expected, format_percent(completed, expected)))
         sections.append(
-            f"{label}\n{render_table((label, 'Completed', 'Total', 'Percent'), rows)}"
+            f"{label}\n{render_table((label, 'Pipeline Complete', 'Total', 'Percent'), rows)}"
         )
     return "\n\n".join(sections)
 
@@ -130,6 +167,9 @@ def render_pairwise_table(left, right, label, status):
         row_completed = 0
         row_expected = 0
         for right_value in right_values:
+            if not pair_is_allowed(left, right, left_value, right_value):
+                row.append("n/a")
+                continue
             expected = status["expected_pair"][(left, right)][(left_value, right_value)]
             completed = status["completed_pair"][(left, right)][(left_value, right_value)]
             row.append(f"{completed}/{expected}")
@@ -145,10 +185,12 @@ def render_pairwise_table(left, right, label, status):
         column_completed = sum(
             status["completed_pair"][(left, right)][(left_value, right_value)]
             for left_value in left_values
+            if pair_is_allowed(left, right, left_value, right_value)
         )
         column_expected = sum(
             status["expected_pair"][(left, right)][(left_value, right_value)]
             for left_value in left_values
+            if pair_is_allowed(left, right, left_value, right_value)
         )
         total_row.append(f"{column_completed}/{column_expected}")
         total_completed += column_completed
@@ -159,56 +201,50 @@ def render_pairwise_table(left, right, label, status):
     return f"{label}\n{render_table(headers, rows)}"
 
 
-def _sort_key(value):
-    try:
-        return (0, float(value))
-    except ValueError:
-        return (1, value)
-
-
 def render_report(status):
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    total_grid_jobs = len(status["all_jobs"])
     total_jobs = len(status["jobs"])
-    completed_jobs = status["completed_jobs"]
+    total_grid_points = len({(params["lx"], params["p0"], params["dphi"]) for params in status["all_jobs"]})
+    active_grid_points = len({(params["lx"], params["p0"], params["dphi"]) for params in status["jobs"]})
+
+    summary_rows = [
+        ("Growth complete", status["growth_completed"], total_jobs, format_percent(status["growth_completed"], total_jobs)),
+        ("Phi2 packing saved", status["phi2_growth_available"], total_jobs, format_percent(status["phi2_growth_available"], total_jobs)),
+        ("Shear complete", status["shear_completed"], total_jobs, format_percent(status["shear_completed"], total_jobs)),
+        ("Shear at phi2 complete", status["shear_phi2_completed"], total_jobs, format_percent(status["shear_phi2_completed"], total_jobs)),
+        ("B_ext complete", status["bext_completed"], total_jobs, format_percent(status["bext_completed"], total_jobs)),
+        ("Pipeline complete", status["pipeline_completed"], total_jobs, format_percent(status["pipeline_completed"], total_jobs)),
+    ]
 
     sections = [
         f"Completed job monitor snapshot\nTimestamp: {timestamp}",
         (
             "Summary\n"
-            f"Completed growth+shear jobs: {completed_jobs}/{total_jobs} "
-            f"({format_percent(completed_jobs, total_jobs).strip()})"
+            f"Scheduled jobs after dphi filter: {total_jobs}/{total_grid_jobs}\n"
+            f"Active grid points (L, P0, dphi): {active_grid_points}/{total_grid_points}\n"
+            f"{render_table(('Stage', 'Completed', 'Total', 'Percent'), summary_rows)}"
         ),
         render_single_dimension_tables(status),
     ]
-
     for left, right, label in PAIRWISE_DIMENSIONS:
         sections.append(render_pairwise_table(left, right, label, status))
-
     return "\n\n".join(sections) + "\n"
-
-
-def write_report(report_text, latest_report, history_dir):
-    if latest_report is None or history_dir is None:
-        raise SystemExit("--latest-report and --history-dir are required with --write-reports")
-    latest_report.parent.mkdir(parents=True, exist_ok=True)
-    history_dir.mkdir(parents=True, exist_ok=True)
-    latest_report.write_text(report_text)
-    snapshot_name = datetime.now().astimezone().strftime("%Y%m%dT%H%M%S%z.txt")
-    (history_dir / snapshot_name).write_text(report_text)
 
 
 def main():
     args = parse_args()
-
-    while True:
-        status = collect_status()
-        report_text = render_report(status)
-        print(report_text, flush=True)
-        if args.write_reports:
-            write_report(report_text, args.latest_report, args.history_dir)
-        if args.once:
-            return
-        time.sleep(args.interval_seconds)
+    seeds = None
+    if args.seed_start is not None:
+        seeds = seed_range(args.seed_start, args.seed_stop)
+    status = collect_status(
+        args.dphi_probe,
+        sizes=args.sizes,
+        p0s=args.p0s,
+        dphis=args.dphis,
+        seeds=seeds,
+    )
+    print(render_report(status), flush=True)
 
 
 if __name__ == "__main__":

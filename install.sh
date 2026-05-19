@@ -30,8 +30,9 @@ Options:
 Notes:
   - The installer checks for Python 3, the `venv` module, `make`, and
     `gfortran` before it creates the project environment.
-  - `bash ./install.sh` creates the venv, installs dependencies, builds the
-    binaries, and verifies Python imports from `requirements.txt`.
+  - `bash ./install.sh` creates the venv, installs any listed Python
+    dependencies, builds the binaries, and verifies Python imports from
+    `requirements.txt`.
   - The installer never activates the environment for you. Activate it
     separately with `source .venv/bin/activate` when needed.
 EOF
@@ -162,6 +163,12 @@ for requirement, module_name in targets:
 PY
 }
 
+requirements_have_entries() {
+    local req_file="${SCRIPT_DIR}/requirements.txt"
+    [[ -f "${req_file}" ]] || return 1
+    grep -Eq '^[[:space:]]*[^#[:space:]]' "${req_file}"
+}
+
 if [[ -z "${PYTHON_BIN}" ]]; then
     if command -v python3 >/dev/null 2>&1 && check_python_venv "$(command -v python3)"; then
         PYTHON_BIN=$(command -v python3)
@@ -207,7 +214,11 @@ if [[ ${UPGRADE_PIP} -eq 1 ]]; then
     "${VENV_PYTHON}" -m pip install --upgrade pip
 fi
 
-"${VENV_PIP}" install -r "${SCRIPT_DIR}/requirements.txt"
+if requirements_have_entries; then
+    "${VENV_PIP}" install -r "${SCRIPT_DIR}/requirements.txt"
+else
+    echo "No third-party Python dependencies listed in requirements.txt."
+fi
 
 if [[ ${RUN_BUILD} -eq 1 ]]; then
     make -C "${SCRIPT_DIR}" all

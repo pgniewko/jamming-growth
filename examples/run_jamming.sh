@@ -21,13 +21,57 @@ results_root="${ROOT_DIR}/output/debug"
 growth_dir=""
 log_dir=""
 force=0
-exe_file=""
+save_all_data=0
 
 compress_if_present() {
     local path="$1"
     if [[ -f "${path}" ]]; then
         gzip -f "${path}"
     fi
+}
+
+growth_outputs_valid() {
+    PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/jg-pycache" python3 - \
+        "${growth_dir}" "${log_dir}" "${basename}" "${ROOT_DIR}/scripts" <<'PY'
+from pathlib import Path
+import sys
+
+growth_dir = Path(sys.argv[1])
+log_dir = Path(sys.argv[2])
+basename = sys.argv[3]
+scripts_dir = Path(sys.argv[4])
+
+sys.path.insert(0, str(scripts_dir))
+
+from pipeline_validate import growth_done
+
+paths = {
+    "frame": growth_dir / f"LF_DPHI_{basename}",
+    "frame_gz": growth_dir / f"LF_DPHI_{basename}.gz",
+    "jamm": growth_dir / f"LF_JAMM_{basename}",
+    "jamm_gz": growth_dir / f"LF_JAMM_{basename}.gz",
+    "phi2_frame": growth_dir / f"LF_PHI2_{basename}",
+    "phi2_frame_gz": growth_dir / f"LF_PHI2_{basename}.gz",
+    "lineage_frame": growth_dir / f"LINEAGE_LF_DPHI_{basename}",
+    "lineage_frame_gz": growth_dir / f"LINEAGE_LF_DPHI_{basename}.gz",
+    "lineage_jamm": growth_dir / f"LINEAGE_LF_JAMM_{basename}",
+    "lineage_jamm_gz": growth_dir / f"LINEAGE_LF_JAMM_{basename}.gz",
+    "stats_frame": growth_dir / f"STATS_LF_DPHI_{basename}",
+    "stats_jamm": growth_dir / f"STATS_LF_JAMM_{basename}",
+    "divlog": growth_dir / f"DIVLOG_{basename}",
+    "transitions": growth_dir / f"TRANSITIONS_{basename}",
+    "postjamm_summary": growth_dir / f"POSTJAMM_SUMMARY_{basename}",
+    "cohort": growth_dir / f"COHORT_INITIAL_FREE_{basename}",
+    "cohort_gz": growth_dir / f"COHORT_INITIAL_FREE_{basename}.gz",
+    "nc": growth_dir / f"NC_{basename}",
+    "steplog": growth_dir / f"STEPLOG_{basename}",
+    "traj": growth_dir / basename,
+    "traj_gz": growth_dir / f"{basename}.gz",
+    "log": log_dir / f"stdout_{basename[:-4]}.log",
+}
+
+raise SystemExit(0 if growth_done(paths) else 1)
+PY
 }
 
 usage() {
@@ -51,10 +95,36 @@ Options:
   --ar VALUE            Initial bud aspect ratio. Default: 1.01
   --divtype VALUE       Division type. Default: 4
   --version VALUE       Output version. Default: 1.0
-  --force               Overwrite existing outputs.
-  --exe PATH            Growth executable to run. Default: bin/jamming_by_growth
+  --force               Rerun even if outputs already validate.
+  --save-all-data       Retain the raw growth trajectory.
   -h, --help            Show this help.
 EOF
+}
+
+cleanup_outputs() {
+    rm -f \
+        "${growth_dir}/${basename}" \
+        "${growth_dir}/${basename}.gz" \
+        "${growth_dir}/LF_JAMM_${basename}" \
+        "${growth_dir}/LF_JAMM_${basename}.gz" \
+        "${growth_dir}/LF_DPHI_${basename}" \
+        "${growth_dir}/LF_DPHI_${basename}.gz" \
+        "${growth_dir}/LF_PHI2_${basename}" \
+        "${growth_dir}/LF_PHI2_${basename}.gz" \
+        "${growth_dir}/LINEAGE_LF_JAMM_${basename}" \
+        "${growth_dir}/LINEAGE_LF_JAMM_${basename}.gz" \
+        "${growth_dir}/LINEAGE_LF_DPHI_${basename}" \
+        "${growth_dir}/LINEAGE_LF_DPHI_${basename}.gz" \
+        "${stats_jamm}" \
+        "${stats_frame}" \
+        "${nc_file}" \
+        "${steplog_file}" \
+        "${divlog_file}" \
+        "${transitions_file}" \
+        "${postjamm_file}" \
+        "${cohort_file}" \
+        "${cohort_file}.gz" \
+        "${stdout_log}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -74,7 +144,7 @@ while [[ $# -gt 0 ]]; do
         --divtype) divtype="$2"; shift 2 ;;
         --version) version="$2"; shift 2 ;;
         --force) force=1; shift ;;
-        --exe) exe_file="$2"; shift 2 ;;
+        --save-all-data) save_all_data=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *)
             echo "Unknown argument: $1" >&2
@@ -83,14 +153,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-if [[ -n "${exe_file}" ]]; then
-    if [[ "${exe_file}" != /* ]]; then
-        EXE_FILE="${PWD}/${exe_file}"
-    else
-        EXE_FILE="${exe_file}"
-    fi
-fi
 
 if [[ ! -x "${EXE_FILE}" ]]; then
     echo "Missing executable: ${EXE_FILE}. Run 'make all' first." >&2
@@ -121,12 +183,25 @@ dphi_fortran=$(printf '%s' "${dphi}" | tr '[:upper:]' '[:lower:]' | sed 's/e/d/g
 basename="v${version}_ar${ar}_div_${divtype}_desync${desync}_seed_${seed}"
 basename="${basename}_Lx${Lx}_Ly${Ly}_att${att}_dphi${dphi}_P${P0}.dat"
 stdout_log="${log_dir}/stdout_${basename%.dat}.log"
-final_frame="${growth_dir}/LF_DPHI_${basename}"
+final_frame="${growth_dir}/LF_DPHI_${basename}.gz"
+jam_frame="${growth_dir}/LF_JAMM_${basename}.gz"
+lineage_frame="${growth_dir}/LINEAGE_LF_DPHI_${basename}.gz"
+lineage_jamm="${growth_dir}/LINEAGE_LF_JAMM_${basename}.gz"
+stats_frame="${growth_dir}/STATS_LF_DPHI_${basename}"
+stats_jamm="${growth_dir}/STATS_LF_JAMM_${basename}"
+nc_file="${growth_dir}/NC_${basename}"
+steplog_file="${growth_dir}/STEPLOG_${basename}"
+divlog_file="${growth_dir}/DIVLOG_${basename}"
+transitions_file="${growth_dir}/TRANSITIONS_${basename}"
+postjamm_file="${growth_dir}/POSTJAMM_SUMMARY_${basename}"
+cohort_file="${growth_dir}/COHORT_INITIAL_FREE_${basename}"
 
-if [[ ${force} -eq 0 && ( -s "${final_frame}" || -s "${final_frame}.gz" ) ]]; then
+if [[ ${force} -eq 0 ]] && growth_outputs_valid; then
     echo "Skipping existing growth run: ${final_frame}"
     exit 0
 fi
+
+cleanup_outputs
 
 (
     cd "${growth_dir}"
@@ -149,6 +224,14 @@ EOF
 compress_if_present "${growth_dir}/${basename}"
 compress_if_present "${growth_dir}/LF_JAMM_${basename}"
 compress_if_present "${growth_dir}/LF_DPHI_${basename}"
+compress_if_present "${growth_dir}/LF_PHI2_${basename}"
+compress_if_present "${growth_dir}/LINEAGE_LF_JAMM_${basename}"
+compress_if_present "${growth_dir}/LINEAGE_LF_DPHI_${basename}"
+compress_if_present "${cohort_file}"
+
+if [[ ${save_all_data} -eq 0 ]]; then
+    rm -f "${growth_dir}/${basename}" "${growth_dir}/${basename}.gz"
+fi
 
 echo "Saved growth outputs in ${growth_dir}"
 echo "Saved growth stdout in ${stdout_log}"

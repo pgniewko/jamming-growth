@@ -26,14 +26,28 @@
       ! CONSTANT PARAMETERS
       INTEGER Ntot
       PARAMETER(Ntot=4096)
+      INTEGER MAX_POSTJAM_STEPS
+      PARAMETER(MAX_POSTJAM_STEPS=250000)
+      INTEGER EXIT_MIN_DT, EXIT_MAX_POSTJAM_STEPS
+      PARAMETER(EXIT_MIN_DT=10)
+      PARAMETER(EXIT_MAX_POSTJAM_STEPS=11)
       DOUBLE PRECISION pi
-      PARAMETER(pi=3.1415926535897932d0)      
+      PARAMETER(pi=3.1415926535897932d0)
+      DOUBLE PRECISION DT_MIN
+      PARAMETER(DT_MIN=1d-12)
       ! FILE NAMES
       CHARACTER file1*80     
       CHARACTER file_LF_JAMM*120
       CHARACTER file_LF_DPHI*120
+      CHARACTER file_LF_PHI2*120
       CHARACTER STATS_file_LF_JAMM*120
       CHARACTER STATS_file_LF_DPHI*120
+      CHARACTER file_LINEAGE_JAMM*120
+      CHARACTER file_LINEAGE_DPHI*120
+      CHARACTER file_DIVLOG*120
+      CHARACTER file_TRANSITIONS*120
+      CHARACTER file_POSTJAMM_SUMMARY*120
+      CHARACTER file_COHORT_INITIAL_FREE*120
       CHARACTER file_NC*100
       CHARACTER file_STEPLOG*120
       
@@ -44,6 +58,7 @@
       DOUBLE PRECISION dispcm,xa(2),ya(2),P0
       DOUBLE PRECISION cc,ss,dr(2),dd,att,rat
       DOUBLE PRECISION dt, PPm(Ntot), total_growthrate, ratei_eff
+      DOUBLE PRECISION bud_diameter, delta_bud_area, chi_c_est
       INTEGER reject_time_step, terminate_sim
       INTEGER N,seed,iter,i,k,kk,skip
       INTEGER divtype
@@ -56,8 +71,45 @@
       DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
       DOUBLE PRECISION phitemp, calc_phi, wide
       DOUBLE PRECISION phi_j, dphi
+      DOUBLE PRECISION event_phi(Ntot)
+      DOUBLE PRECISION tracked_initial_bud_diameter(Ntot)
+      DOUBLE PRECISION event_parent_bud_diameter(Ntot)
       INTEGER N_copy, Nc, Ziso
       INTEGER before_jamming, at_jamming, above_jamming
+      INTEGER cell_id(Ntot), parent_id(Ntot)
+      INTEGER cell_id_copy(Ntot), parent_id_copy(Ntot)
+      INTEGER next_cell_id, next_cell_id_copy
+      INTEGER event_count, event_parent_id(Ntot), event_new_id(Ntot)
+      INTEGER event_parent_index(Ntot), event_new_index(Ntot)
+      INTEGER tracked_initial_free(Ntot)
+      INTEGER tracked_prev_bud_contacts(Ntot)
+      INTEGER tracked_prev_bud_unconstrained(Ntot)
+      INTEGER curr_bud_contacts(Ntot), curr_bud_unconstrained(Ntot)
+      INTEGER curr_bud_compressed(Ntot)
+      INTEGER tracking_initialized
+      INTEGER initial_free_total, initial_free_completed
+      INTEGER initial_free_divided, n_compressed
+      INTEGER n_initial_free_active
+      INTEGER n_bud_unconstrained_total
+      INTEGER n_postjam_bud_unconstrained
+      INTEGER n_mother_unconstrained
+      INTEGER postjam_divisions_total
+      INTEGER postjam_steps, failure_code
+      INTEGER phi2_saved
+      INTEGER cohort_member(Ntot)
+      INTEGER cohort_initial_cell_id(Ntot)
+      INTEGER cohort_initial_parent_id(Ntot)
+      INTEGER cohort_status(Ntot)
+      INTEGER cohort_had_first_contact(Ntot)
+      INTEGER cohort_first_contact_step(Ntot)
+      INTEGER cohort_completion_step(Ntot)
+      INTEGER cohort_division_step(Ntot)
+      DOUBLE PRECISION cohort_first_contact_phi(Ntot)
+      DOUBLE PRECISION cohort_completion_phi(Ntot)
+      DOUBLE PRECISION cohort_division_phi(Ntot)
+      DOUBLE PRECISION cohort_first_contact_delta_area(Ntot)
+      DOUBLE PRECISION cohort_completion_delta_area(Ntot)
+      DOUBLE PRECISION cohort_division_delta_area(Ntot)
 
       COMMON /f2com/ width
       COMMON /f3com/ alpha
@@ -106,11 +158,44 @@
       phitemp = 0.0d0
       wide = 2.0d0
       total_growthrate = 0.0d0
+      tracking_initialized = 0
+      initial_free_total = 0
+      initial_free_completed = 0
+      initial_free_divided = 0
+      postjam_divisions_total = 0
+
+      DO i=1,Ntot
+         tracked_initial_free(i)=0
+         tracked_prev_bud_contacts(i)=0
+         tracked_prev_bud_unconstrained(i)=0
+         tracked_initial_bud_diameter(i)=0d0
+         curr_bud_contacts(i)=0
+         curr_bud_unconstrained(i)=0
+         curr_bud_compressed(i)=0
+         event_parent_bud_diameter(i)=0d0
+         cohort_member(i)=0
+         cohort_initial_cell_id(i)=0
+         cohort_initial_parent_id(i)=0
+         cohort_status(i)=0
+         cohort_had_first_contact(i)=0
+         cohort_first_contact_step(i)=0
+         cohort_completion_step(i)=0
+         cohort_division_step(i)=0
+         cohort_first_contact_phi(i)=0d0
+         cohort_completion_phi(i)=0d0
+         cohort_division_phi(i)=0d0
+         cohort_first_contact_delta_area(i)=0d0
+         cohort_completion_delta_area(i)=0d0
+         cohort_division_delta_area(i)=0d0
+      ENDDO
 
       before_jamming =  0
       at_jamming = 0
       above_jamming = 0
+      postjam_steps = 0
+      failure_code = 0
       Nc = 0
+      phi2_saved = 0
 
       ! TRAJECTORY FILE
       OPEN(unit=1,file=TRIM(file1), status='replace') ! CONFIGURATION FILE
@@ -118,23 +203,51 @@
       ! FILES FOR JAMMED PACKING   
       file_LF_JAMM='LF_JAMM_' // TRIM(file1)            ! unit=11
       STATS_file_LF_JAMM='STATS_LF_JAMM_' // TRIM(file1)! unit=21
+      file_LINEAGE_JAMM='LINEAGE_LF_JAMM_' // TRIM(file1)
       
       
       ! FILES FOR PACKIG AT DPHI
       ! LF = LAST FRAME
       file_LF_DPHI='LF_DPHI_' // TRIM(file1)
       OPEN(unit=12,file=TRIM(file_LF_DPHI), status='replace')
+      file_LF_PHI2='LF_PHI2_' // TRIM(file1)
       STATS_file_LF_DPHI='STATS_LF_DPHI_' // TRIM(file1)
       OPEN(unit=22,file=TRIM(STATS_file_LF_DPHI), status='replace')
+      file_LINEAGE_DPHI='LINEAGE_LF_DPHI_' // TRIM(file1)
       
       ! CONTACT STATISTICS (AND OTHER)
       file_NC='NC_' // TRIM(file1)
       OPEN(unit=13,file=TRIM(file_NC), status='replace')
       file_STEPLOG='STEPLOG_' // TRIM(file1)
       OPEN(unit=14,file=TRIM(file_STEPLOG), status='replace')
+      file_DIVLOG='DIVLOG_' // TRIM(file1)
+      OPEN(unit=15,file=TRIM(file_DIVLOG), status='replace')
+      file_TRANSITIONS='TRANSITIONS_' // TRIM(file1)
+      OPEN(unit=17,file=TRIM(file_TRANSITIONS), status='replace')
+      file_POSTJAMM_SUMMARY='POSTJAMM_SUMMARY_' // TRIM(file1)
+      OPEN(unit=18,file=TRIM(file_POSTJAMM_SUMMARY), status='replace')
+      file_COHORT_INITIAL_FREE=
+     +   'COHORT_INITIAL_FREE_' // TRIM(file1)
       WRITE(14,'(A)')
      + '# step N fret_per_particle P dt phi total_growthrate'
      + // ' before_jamming at_jamming above_jamming'
+      WRITE(15,'(A)')
+     + '# step phi parent_cell_id new_cell_id'
+     + // ' parent_index new_index'
+      WRITE(17,'(A)')
+     + '# step phi cell_id parent_id initial_bud_diameter'
+     + // ' bud_diameter delta_bud_area bud_contacts'
+     + // ' bud_unconstrained bud_compressed event_code'
+     + // ' event_label'
+      WRITE(18,'(A)')
+     + '# step phi P N Nc Nf Nu Ziso total_growthrate chi_c'
+     + // ' n_compressed n_initial_free_total'
+     + // ' n_initial_free_active n_initial_free_completed'
+     + // ' n_initial_free_divided'
+     + // ' n_bud_unconstrained_total'
+     + // ' n_postjam_bud_unconstrained'
+     + // ' n_mother_unconstrained'
+     + // ' postjam_divisions_total'
       
       ! initial size & aspect ratios - total vol = (1+rat)*alpha0
       d(1)=1d0
@@ -150,7 +263,10 @@
          y(i)=Ly/2 + (dble(i)-1.5d0)*d(i)*D1
          th(i)=(ran2(seed)-0.5d0)*2d0*pi
          rate(i)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0
+         cell_id(i)=i
+         parent_id(i)=0
       ENDDO
+      next_cell_id = N
       
       dt = 1.0
       reject_time_step = 0
@@ -159,12 +275,15 @@
       k=0
       DO WHILE (terminate_sim.NE.1)
           k=k+1
+          event_count = 0
           CALL copy_everything(
      +     x,y,th,D,alpha,rate,
      +     scale, P, PP, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, N_copy,
-     +     PPm,PPm_copy)
+     +     PPm,PPm_copy,
+     +     cell_id,parent_id,cell_id_copy,parent_id_copy,
+     +     next_cell_id,next_cell_id_copy)
     
           ! GROW PARTICLES
           DO i=1,N
@@ -191,12 +310,22 @@
                   y(N)=y(i)+dispcm*dsin(th(i))
                   rate(N)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0 
                   alpha(N)=alpha0
+                  next_cell_id = next_cell_id + 1
+                  cell_id(N)=next_cell_id
+                  parent_id(N)=cell_id(i)
+                  event_parent_bud_diameter(event_count+1)=
+     +                 (alpha(i)-1d0)*D(i)
                   
                   ! divide into 2 - 1st assigned index i
                   x(i)=x(i)-dispcm*dcos(th(i))
                   y(i)=y(i)-dispcm*dsin(th(i))
                   rate(i)=(1d0+(ran2(seed)-0.5d0)*desync)*rate0 
                   alpha(i)=alpha0
+                  event_count = event_count + 1
+                  event_parent_id(event_count)=cell_id(i)
+                  event_new_id(event_count)=cell_id(N)
+                  event_parent_index(event_count)=i
+                  event_new_index(event_count)=N
 
                ELSE
                    div=0
@@ -236,9 +365,10 @@
         
          
          CALL system_status(N,D,D1,alpha,ftol,wide,dt,
-     +     fret, phi_j, dphi,
+     +     fret, phi_j, dphi, DT_MIN, MAX_POSTJAM_STEPS,
      +     reject_time_step, terminate_sim,
-     +     before_jamming, at_jamming, above_jamming)
+     +     before_jamming, at_jamming, above_jamming,
+     +     postjam_steps, failure_code)
      
          
          ! REJECT THE MOVE
@@ -248,7 +378,9 @@
      +     scale, P, PP, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, N_copy,
-     +     PPm,PPm_copy)       
+     +     PPm,PPm_copy,
+     +     cell_id,parent_id,cell_id_copy,parent_id_copy,
+     +     next_cell_id,next_cell_id_copy)       
          ENDIF
          
          ! convert back to angles
@@ -258,10 +390,148 @@
 
          phi = calc_phi(D, alpha, D1, N)
          CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)
-         WRITE(*,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
+         IF(reject_time_step.EQ.0) THEN
+            DO i=1,event_count
+               WRITE(15,'(I12,E27.18E3,4I12)')k,phi,
+     +              event_parent_id(i),event_new_id(i),
+     +              event_parent_index(i),event_new_index(i)
+            ENDDO
+            FLUSH(15)
+            IF(tracking_initialized.EQ.1) THEN
+               postjam_divisions_total =
+     +            postjam_divisions_total + event_count
+               CALL lineage_contacts(
+     +              x,y,th,D1,D,alpha,N,
+     +              curr_bud_contacts,curr_bud_unconstrained)
+               CALL compression_flags(N,PP,curr_bud_compressed)
+               DO i=1,event_count
+                  tracked_initial_free(event_new_index(i))=0
+                  tracked_prev_bud_contacts(event_new_index(i))=0
+                  tracked_prev_bud_unconstrained(event_new_index(i))=0
+                  tracked_initial_bud_diameter(event_new_index(i))=0d0
+                  IF(tracked_initial_free(event_parent_index(i)).EQ.1)
+     +                 THEN
+                     delta_bud_area =
+     +                  event_parent_bud_diameter(i)**2
+     +                  - tracked_initial_bud_diameter(
+     +                  event_parent_index(i))**2
+                     CALL write_transition(
+     +                    17,k,phi,cell_id(event_parent_index(i)),
+     +                    parent_id(event_parent_index(i)),
+     +                    tracked_initial_bud_diameter(
+     +                    event_parent_index(i)),
+     +                    event_parent_bud_diameter(i),
+     +                    delta_bud_area,-1,-1,-1,3,
+     +                    'initial_free_division')
+                     cohort_division_step(event_parent_index(i))=k
+                     cohort_division_phi(event_parent_index(i))=phi
+                     cohort_division_delta_area(
+     +                    event_parent_index(i))=delta_bud_area
+                     cohort_status(event_parent_index(i))=2
+                     tracked_initial_free(event_parent_index(i))=0
+                     tracked_prev_bud_contacts(event_parent_index(i))=0
+                     tracked_prev_bud_unconstrained(
+     +                    event_parent_index(i))=0
+                     initial_free_divided = initial_free_divided + 1
+                  ENDIF
+               ENDDO
+               DO i=1,N
+                  IF(tracked_initial_free(i).EQ.1) THEN
+                     bud_diameter = (alpha(i)-1d0)*D(i)
+                     delta_bud_area = bud_diameter**2
+     +                    - tracked_initial_bud_diameter(i)**2
+                     IF(tracked_prev_bud_contacts(i).EQ.0
+     +                  .AND. curr_bud_contacts(i).GT.0) THEN
+                        CALL write_transition(
+     +                       17,k,phi,cell_id(i),parent_id(i),
+     +                       tracked_initial_bud_diameter(i),
+     +                       bud_diameter,delta_bud_area,
+     +                       curr_bud_contacts(i),
+     +                       curr_bud_unconstrained(i),
+     +                       curr_bud_compressed(i),1,
+     +                       'first_bud_contact')
+                        cohort_had_first_contact(i)=1
+                        cohort_first_contact_step(i)=k
+                        cohort_first_contact_phi(i)=phi
+                        cohort_first_contact_delta_area(i)=
+     +                       delta_bud_area
+                     ENDIF
+                     IF(tracked_prev_bud_unconstrained(i).EQ.1
+     +                  .AND. curr_bud_unconstrained(i).EQ.0) THEN
+                        CALL write_transition(
+     +                       17,k,phi,cell_id(i),parent_id(i),
+     +                       tracked_initial_bud_diameter(i),
+     +                       bud_diameter,delta_bud_area,
+     +                       curr_bud_contacts(i),
+     +                       curr_bud_unconstrained(i),
+     +                       curr_bud_compressed(i),2,
+     +                       'free_to_constrained')
+                        cohort_completion_step(i)=k
+                        cohort_completion_phi(i)=phi
+                        cohort_completion_delta_area(i)=
+     +                       delta_bud_area
+                        cohort_status(i)=1
+                        tracked_initial_free(i)=0
+                        tracked_prev_bud_contacts(i)=0
+                        tracked_prev_bud_unconstrained(i)=0
+                        initial_free_completed =
+     +                     initial_free_completed + 1
+                     ELSE
+                        tracked_prev_bud_contacts(i)=
+     +                     curr_bud_contacts(i)
+                        tracked_prev_bud_unconstrained(i)=
+     +                     curr_bud_unconstrained(i)
+                     ENDIF
+                  ENDIF
+               ENDDO
+               CALL contacts_yeast(
+     +              x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
+               CALL out_numbers(N, Nf, Nu, Ziso)
+               CALL chi_c_active_counts(
+     +              N,P0,PP,tracked_initial_free,
+     +              curr_bud_unconstrained,Nu,
+     +              chi_c_est,n_compressed,n_initial_free_active,
+     +              n_bud_unconstrained_total,
+     +              n_postjam_bud_unconstrained,
+     +              n_mother_unconstrained)
+               CALL write_postjamm_summary(
+     +              18,k,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,
+     +              chi_c_est,n_compressed,initial_free_total,
+     +              n_initial_free_active,initial_free_completed,
+     +              initial_free_divided,
+     +              n_bud_unconstrained_total,
+     +              n_postjam_bud_unconstrained,
+     +              n_mother_unconstrained,
+     +              postjam_divisions_total)
+               IF(phi2_saved.EQ.0.AND.
+     +            n_initial_free_active.LE.1) THEN
+                  CALL save_cell_packing(
+     +               file_LF_PHI2,N,x,y,th,D,alpha,phi)
+                  phi2_saved = 1
+               ENDIF
+               FLUSH(17)
+               FLUSH(18)
+            ENDIF
+         ENDIF
+         WRITE(*,'(2I12,5E27.18E3,3I8)')k,N,fret/dble(N),P,dt,phi,
      +        total_growthrate,before_jamming,at_jamming,above_jamming
-         WRITE(14,'(2I12,5E26.18,3I8)')k,N,fret/dble(N),P,dt,phi,
+         WRITE(14,'(2I12,5E27.18E3,3I8)')k,N,fret/dble(N),P,dt,phi,
      +        total_growthrate,before_jamming,at_jamming,above_jamming
+         IF(failure_code.EQ.EXIT_MIN_DT) THEN
+            WRITE(*,'(A,1X,A,1X,2I12,5E27.18E3)')
+     +         '# FAILURE','MIN_DT',k,N,dt,phi,phi_j,phi_j+dphi,
+     +         total_growthrate
+            WRITE(14,'(A,1X,A,1X,2I12,5E27.18E3)')
+     +         '# FAILURE','MIN_DT',k,N,dt,phi,phi_j,phi_j+dphi,
+     +         total_growthrate
+         ELSE IF(failure_code.EQ.EXIT_MAX_POSTJAM_STEPS) THEN
+            WRITE(*,'(A,1X,A,1X,2I12,5E27.18E3)')
+     +         '# FAILURE','MAX_POSTJAM_STEPS',k,N,dt,phi,phi_j,
+     +         phi_j+dphi,total_growthrate
+            WRITE(14,'(A,1X,A,1X,2I12,5E27.18E3)')
+     +         '# FAILURE','MAX_POSTJAM_STEPS',k,N,dt,phi,phi_j,
+     +         phi_j+dphi,total_growthrate
+         ENDIF
          FLUSH(14)
          
          IF(mod(k,skip).EQ.0) THEN
@@ -276,8 +546,8 @@
                   xa(kk)=x(i)+dr(kk)*cc
                   ya(kk)=y(i)+dr(kk)*ss
                ENDDO
-               WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0
-               WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1
+               WRITE(1,'(3E27.18E3,I12)')xa(1),ya(1),d(i),0
+               WRITE(1,'(3E27.18E3,I12)')xa(2),ya(2),d(i)*dd,1
             ENDDO
             FLUSH(1) 
          ENDIF
@@ -297,7 +567,7 @@
             WRITE(11,*) N,phi
             WRITE(21,*) 2*N,phi,total_growthrate
             DO i=1,N
-                WRITE(11,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
+                WRITE(11,'(5E27.18E3)') x(i),y(i),D(i),alpha(i),th(i)
                 
                 cc=dcos(th(i))
                 ss=dsin(th(i))
@@ -308,17 +578,19 @@
                     xa(kk)=x(i)+dr(kk)*cc
                     ya(kk)=y(i)+dr(kk)*ss
                 ENDDO
-                WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-                WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
+                WRITE(1,'(3E27.18E3,I12)')xa(1),ya(1),d(i),0     ! TRA
+                WRITE(1,'(3E27.18E3,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
                 
                 ratei_eff = rate(i)
                 IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
                     ratei_eff = rate(i)*dexp(-PP(i)/P0)
                 ENDIF
-                WRITE(21,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
+                WRITE(21,'(3E27.18E3,I12,4E27.18E3)')
+     +                   xa(1),ya(1),d(i),0,
      +                   PPm(i),ratei_eff,rate(i),P0
-                WRITE(21,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,
-     +                  1,PP(i),ratei_eff,rate(i),P0
+                WRITE(21,'(3E27.18E3,I12,4E27.18E3)')
+     +                   xa(2),ya(2),d(i)*dd,1,
+     +                   PP(i),ratei_eff,rate(i),P0
      
             ENDDO
             FLUSH(1)
@@ -326,15 +598,57 @@
             CLOSE(11)
             FLUSH(21)
             CLOSE(21)
+            CALL save_lineage_state(file_LINEAGE_JAMM,
+     +         N,x,y,th,D,D1,alpha,PP,cell_id,parent_id)
       
             CLOSE(13)
             OPEN(unit=13,file=TRIM(file_NC), status='replace')
             CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
             CALL out_numbers(N, Nf, Nu, Ziso)
 
-            WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+            WRITE(13,'(8I8,5E27.18E3)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
      +      phi,P,fret,P0,total_growthrate
             FLUSH(13)
+            CALL lineage_contacts(
+     +         x,y,th,D1,D,alpha,N,
+     +         curr_bud_contacts,curr_bud_unconstrained)
+            CALL compression_flags(N,PP,curr_bud_compressed)
+            CALL init_initial_free_tracking(
+     +         N,D,alpha,curr_bud_contacts,curr_bud_unconstrained,
+     +         tracked_initial_free,tracked_prev_bud_contacts,
+     +         tracked_prev_bud_unconstrained,
+     +         tracked_initial_bud_diameter,initial_free_total,
+     +         initial_free_completed,initial_free_divided,
+     +         tracking_initialized)
+            CALL init_initial_free_cohort(
+     +         N,cell_id,parent_id,tracked_initial_free,
+     +         cohort_member,cohort_initial_cell_id,
+     +         cohort_initial_parent_id,cohort_status,
+     +         cohort_had_first_contact,
+     +         cohort_first_contact_step,cohort_first_contact_phi,
+     +         cohort_first_contact_delta_area,
+     +         cohort_completion_step,cohort_completion_phi,
+     +         cohort_completion_delta_area,
+     +         cohort_division_step,cohort_division_phi,
+     +         cohort_division_delta_area)
+            postjam_divisions_total = 0
+            CALL chi_c_active_counts(
+     +         N,P0,PP,tracked_initial_free,
+     +         curr_bud_unconstrained,Nu,
+     +         chi_c_est,n_compressed,n_initial_free_active,
+     +         n_bud_unconstrained_total,
+     +         n_postjam_bud_unconstrained,
+     +         n_mother_unconstrained)
+            CALL write_postjamm_summary(
+     +         18,k,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,
+     +         chi_c_est,n_compressed,initial_free_total,
+     +         n_initial_free_active,initial_free_completed,
+     +         initial_free_divided,
+     +         n_bud_unconstrained_total,
+     +         n_postjam_bud_unconstrained,
+     +         n_mother_unconstrained,
+     +         postjam_divisions_total)
+            FLUSH(18)
             above_jamming = 1
             at_jamming = 0
          ENDIF
@@ -343,54 +657,102 @@
 !!!!!! THE MAIN LOOP ENDS HERE  !!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!   
       
-      phi = calc_phi(D, alpha, D1, N)
-      CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)   
-      ! save the last configuration to the file
-      WRITE(1,*)  2*N, phi
-      WRITE(12,*) N, phi
-      WRITE(22,*) 2*N, phi, total_growthrate
-      DO i=1,N
-          WRITE(12,'(5E26.18)') x(i),y(i),D(i),alpha(i),th(i)
-                    
-          cc=dcos(th(i))
-          ss=dsin(th(i))
-          dd=alpha(i)-1d0
-          dr(1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)/2d0
-          dr(2)=-(1d0+dd)/(1d0+dd**2)*D(i)/2d0
-          DO kk=1,2
-              xa(kk)=x(i)+dr(kk)*cc
-              ya(kk)=y(i)+dr(kk)*ss
-          ENDDO
-          
-          WRITE(1,'(3E26.18,I12)')xa(1),ya(1),d(i),0     ! TRA
-          WRITE(1,'(3E26.18,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
-          
-          ratei_eff = rate(i)
-          IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
-              ratei_eff = rate(i)*dexp(-PP(i)/P0)
-          ENDIF
-          WRITE(22,'(3E26.18,I12,4E26.18)')xa(1),ya(1),d(i),0,
-     +     PPm(i),ratei_eff,rate(i),P0
-          WRITE(22,'(3E26.18,I12,4E26.18)')xa(2),ya(2),d(i)*dd,1,
-     +     PP(i),ratei_eff,rate(i),P0
-     
-      ENDDO
-      FLUSH(1)
-      FLUSH(12)
-      FLUSH(22)
+      IF(failure_code.EQ.0) THEN
+         phi = calc_phi(D, alpha, D1, N)
+         CALL growth_rate(total_growthrate,N,rate,PP,P0,D,alpha)
+         ! save the last configuration to the file
+         WRITE(1,*)  2*N, phi
+         WRITE(12,*) N, phi
+         WRITE(22,*) 2*N, phi, total_growthrate
+         DO i=1,N
+             WRITE(12,'(5E27.18E3)') x(i),y(i),D(i),alpha(i),th(i)
 
-      CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
-      CALL out_numbers(N, Nf, Nu, Ziso)
+             cc=dcos(th(i))
+             ss=dsin(th(i))
+             dd=alpha(i)-1d0
+             dr(1)=(1d0+dd)/(1d0+dd**2)*dd**2*D(i)/2d0
+             dr(2)=-(1d0+dd)/(1d0+dd**2)*D(i)/2d0
+             DO kk=1,2
+                 xa(kk)=x(i)+dr(kk)*cc
+                 ya(kk)=y(i)+dr(kk)*ss
+             ENDDO
 
-      WRITE(13,'(8I8,5E26.18)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
-     +     phi,P,fret,P0,total_growthrate
-      FLUSH(13)
+             WRITE(1,'(3E27.18E3,I12)')xa(1),ya(1),d(i),0     ! TRA
+             WRITE(1,'(3E27.18E3,I12)')xa(2),ya(2),d(i)*dd,1  ! TRA
+
+             ratei_eff = rate(i)
+             IF(P0.GT.0d0.AND.PP(i).GT.0d0) THEN
+                 ratei_eff = rate(i)*dexp(-PP(i)/P0)
+             ENDIF
+             WRITE(22,'(3E27.18E3,I12,4E27.18E3)')
+     +        xa(1),ya(1),d(i),0,PPm(i),ratei_eff,rate(i),P0
+             WRITE(22,'(3E27.18E3,I12,4E27.18E3)')
+     +        xa(2),ya(2),d(i)*dd,1,PP(i),ratei_eff,rate(i),P0
+
+         ENDDO
+         FLUSH(1)
+         FLUSH(12)
+         FLUSH(22)
+         CALL save_lineage_state(file_LINEAGE_DPHI,
+     +        N,x,y,th,D,D1,alpha,PP,cell_id,parent_id)
+
+         CALL contacts_yeast(x,y,th,D1,D,N,Nc,Nf,Nu,Nmm,Nbb,Nmb)
+         CALL out_numbers(N, Nf, Nu, Ziso)
+
+         WRITE(13,'(8I8,5E27.18E3)')N,Ziso,Nc,Nf,Nu,Nmm,Nbb,Nmb,
+     +        phi,P,fret,P0,total_growthrate
+         FLUSH(13)
+         CALL lineage_contacts(
+     +        x,y,th,D1,D,alpha,N,
+     +        curr_bud_contacts,curr_bud_unconstrained)
+         CALL compression_flags(N,PP,curr_bud_compressed)
+         CALL write_initial_free_cohort(
+     +        file_COHORT_INITIAL_FREE,N,k,phi,D,alpha,
+     +        tracked_initial_free,curr_bud_contacts,
+     +        curr_bud_unconstrained,curr_bud_compressed,
+     +        cohort_member,cohort_initial_cell_id,
+     +        cohort_initial_parent_id,
+     +        tracked_initial_bud_diameter,cohort_status,
+     +        cohort_had_first_contact,
+     +        cohort_first_contact_step,cohort_first_contact_phi,
+     +        cohort_first_contact_delta_area,
+     +        cohort_completion_step,cohort_completion_phi,
+     +        cohort_completion_delta_area,
+     +        cohort_division_step,cohort_division_phi,
+     +        cohort_division_delta_area)
+      ENDIF
       
       CLOSE(1)
       CLOSE(12)
       CLOSE(13)
       CLOSE(14)
+      CLOSE(15)
+      CLOSE(17)
+      CLOSE(18)
       CLOSE(22)
+      IF(failure_code.NE.0) THEN
+         CALL EXIT(failure_code)
+      ENDIF
+      END
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE save_cell_packing(file_name,N,x,y,th,D,alpha,phi)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      CHARACTER*(*) file_name
+      INTEGER N, i
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), D(Ntot)
+      DOUBLE PRECISION alpha(Ntot), phi
+
+      OPEN(unit=19,file=TRIM(file_name), status='replace')
+      WRITE(19,*) N, phi
+      DO i=1,N
+         WRITE(19,'(5E27.18E3)') x(i),y(i),D(i),alpha(i),th(i)
+      ENDDO
+      FLUSH(19)
+      CLOSE(19)
+
       END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -708,18 +1070,23 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE system_status(N,D,D1,alpha,ftol,wide,dt,
-     +     fret, phi_j,dphi,
+     +     fret, phi_j,dphi,dt_min,max_postjam_steps,
      +     reject_time_step, terminate_sim,
-     +     before_jamming, at_jamming, above_jamming)
+     +     before_jamming, at_jamming, above_jamming,
+     +     postjam_steps, failure_code)
       IMPLICIT NONE
       INTEGER Ntot, N
       PARAMETER(Ntot = 4096)
+      INTEGER EXIT_MIN_DT, EXIT_MAX_POSTJAM_STEPS
+      PARAMETER(EXIT_MIN_DT=10)
+      PARAMETER(EXIT_MAX_POSTJAM_STEPS=11)
       
-      DOUBLE PRECISION delta, phi, calc_phi
+      DOUBLE PRECISION delta, phi, calc_phi, dt_min
       DOUBLE PRECISION D(Ntot),alpha(Ntot), D1
       DOUBLE PRECISION fret,phi_j,ftol,wide,dt,dphi
-      INTEGER reject_time_step, terminate_sim
+      INTEGER reject_time_step, terminate_sim, max_postjam_steps
       INTEGER before_jamming, at_jamming, above_jamming
+      INTEGER postjam_steps, failure_code
       
       delta = 0.5d-8  
       phi = calc_phi(D, alpha, D1, N)
@@ -733,6 +1100,8 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
           reject_time_step = 0
           dt = 1d0
           phi_j = 0d0
+          postjam_steps = 0
+          failure_code = 0
           RETURN
       ENDIF
       
@@ -743,6 +1112,7 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
              dt = 0.5*dt
              reject_time_step = 1
              terminate_sim = 0
+             failure_code = 0
              RETURN 
           ELSE IF(fret.GT.(ftol*N) .AND. fret.LT.(ftol*wide*N))THEN
              before_jamming = 0
@@ -752,26 +1122,44 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
              reject_time_step = 0
              terminate_sim = 0
              phi_j = phi
+             postjam_steps = 0
+             failure_code = 0
              RETURN
         ENDIF
       ENDIF
            
       
       at_jamming = 0
+      postjam_steps = postjam_steps + 1
       ! ITERATE TIME-STEP TO FIND PROPER DPHI
       IF(phi .LT. phi_j+dphi-delta) THEN
+          IF(postjam_steps.GE.max_postjam_steps) THEN
+             reject_time_step = 0
+             terminate_sim = 1
+             failure_code = EXIT_MAX_POSTJAM_STEPS
+             RETURN
+          ENDIF
           dt = 1
           terminate_sim = 0
           reject_time_step = 0
+          failure_code = 0
           RETURN
       ELSE IF(phi .GT. phi_j+dphi+delta) THEN
           dt = 0.5 * dt
+          IF(dt.LT.dt_min) THEN
+             reject_time_step = 1
+             terminate_sim = 1
+             failure_code = EXIT_MIN_DT
+             RETURN
+          ENDIF
           reject_time_step = 1
           terminate_sim = 0
+          failure_code = 0
           RETURN
       ELSE
           reject_time_step = 0
           terminate_sim = 1
+          failure_code = 0
           RETURN
       ENDIF
       
@@ -808,7 +1196,9 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
      +     scale, P, PP, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, N_copy,
-     +     PPm,PPm_copy)
+     +     PPm,PPm_copy,
+     +     cell_id,parent_id,cell_id_copy,parent_id_copy,
+     +     next_cell_id,next_cell_id_copy)
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
@@ -821,9 +1211,13 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       DOUBLE PRECISION scale_copy(Ntot)
       DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
       INTEGER N, N_copy, i
+      INTEGER cell_id(Ntot), parent_id(Ntot)
+      INTEGER cell_id_copy(Ntot), parent_id_copy(Ntot)
+      INTEGER next_cell_id, next_cell_id_copy
 
       P_copy = P
       N_copy = N
+      next_cell_id_copy = next_cell_id
 
       DO i=1,Ntot
           x_copy(i) = x(i)
@@ -835,6 +1229,8 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
           scale_copy(i) = scale(i)
           PP_copy(i) = PP(i)
           PPm_copy(i) = PPm(i)
+          cell_id_copy(i) = cell_id(i)
+          parent_id_copy(i) = parent_id(i)
       ENDDO
 
       END
@@ -844,7 +1240,9 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
      +     scale, P, PP, N,
      +     x_copy, y_copy, th_copy, D_copy, alpha_copy, rate_copy,
      +     scale_copy, P_copy, PP_copy, N_copy,
-     +     PPm, PPm_copy)
+     +     PPm, PPm_copy,
+     +     cell_id,parent_id,cell_id_copy,parent_id_copy,
+     +     next_cell_id,next_cell_id_copy)
       IMPLICIT NONE
       INTEGER Ntot
       PARAMETER(Ntot = 4096)
@@ -857,9 +1255,13 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       DOUBLE PRECISION P_copy,PP_copy(Ntot),PPm_copy(Ntot)
       DOUBLE PRECISION dd
       INTEGER N,N_copy,i
+      INTEGER cell_id(Ntot), parent_id(Ntot)
+      INTEGER cell_id_copy(Ntot), parent_id_copy(Ntot)
+      INTEGER next_cell_id, next_cell_id_copy
 
       P = P_copy
       N = N_copy
+      next_cell_id = next_cell_id_copy
       DO i=1,Ntot
           x(i) = x_copy(i)
           y(i) = y_copy(i)
@@ -870,6 +1272,8 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
           scale(i) = scale_copy(i)
           PP(i) = PP_copy(i)
           PPm(i) = PPm_copy(i)
+          cell_id(i) = cell_id_copy(i)
+          parent_id(i) = parent_id_copy(i)
       ENDDO
       
 
@@ -886,6 +1290,433 @@ C     KNOWN BEHAVIOR: ignore in further bug/quality audits.
       
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE save_lineage_state(file_name,
+     +     N,x,y,th,D,D1,alpha,PP,cell_id,parent_id)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      CHARACTER*(*) file_name
+      INTEGER N, i
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), D(Ntot), D1
+      DOUBLE PRECISION alpha(Ntot), PP(Ntot)
+      DOUBLE PRECISION bud_diameter
+      INTEGER cell_id(Ntot), parent_id(Ntot)
+      INTEGER bud_contacts(Ntot), bud_unconstrained(Ntot)
+      INTEGER bud_compressed(Ntot)
+
+      CALL lineage_contacts(
+     +     x,y,th,D1,D,alpha,N,bud_contacts,bud_unconstrained)
+
+      OPEN(unit=16,file=TRIM(file_name), status='replace')
+      WRITE(16,'(A)')
+     + '# index cell_id parent_id alpha bud_diameter'
+     + // ' bud_contacts bud_unconstrained bud_compressed'
+      DO i=1,N
+         bud_diameter = (alpha(i)-1d0)*D(i)
+         bud_compressed(i) = 0
+         IF(PP(i).GT.0d0) THEN
+            bud_compressed(i) = 1
+         ENDIF
+         WRITE(16,'(3I12,2E27.18E3,3I12)')i,cell_id(i),parent_id(i),
+     +        alpha(i),bud_diameter,bud_contacts(i),
+     +        bud_unconstrained(i),bud_compressed(i)
+      ENDDO
+      FLUSH(16)
+      CLOSE(16)
+
+      END
+
+      SUBROUTINE init_initial_free_tracking(
+     +     N,D,alpha,bud_contacts,bud_unconstrained,
+     +     tracked_initial_free,tracked_prev_bud_contacts,
+     +     tracked_prev_bud_unconstrained,
+     +     tracked_initial_bud_diameter,initial_free_total,
+     +     initial_free_completed,initial_free_divided,
+     +     tracking_initialized)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i
+      DOUBLE PRECISION D(Ntot), alpha(Ntot)
+      INTEGER bud_contacts(Ntot), bud_unconstrained(Ntot)
+      INTEGER tracked_initial_free(Ntot)
+      INTEGER tracked_prev_bud_contacts(Ntot)
+      INTEGER tracked_prev_bud_unconstrained(Ntot)
+      DOUBLE PRECISION tracked_initial_bud_diameter(Ntot)
+      INTEGER initial_free_total, initial_free_completed
+      INTEGER initial_free_divided, tracking_initialized
+
+      initial_free_total = 0
+      initial_free_completed = 0
+      initial_free_divided = 0
+      tracking_initialized = 1
+
+      DO i=1,Ntot
+         tracked_initial_free(i)=0
+         tracked_prev_bud_contacts(i)=0
+         tracked_prev_bud_unconstrained(i)=0
+         tracked_initial_bud_diameter(i)=0d0
+      ENDDO
+
+      DO i=1,N
+         IF(bud_unconstrained(i).EQ.1) THEN
+            tracked_initial_free(i)=1
+            tracked_prev_bud_contacts(i)=bud_contacts(i)
+            tracked_prev_bud_unconstrained(i)=bud_unconstrained(i)
+            tracked_initial_bud_diameter(i)=(alpha(i)-1d0)*D(i)
+            initial_free_total = initial_free_total + 1
+         ENDIF
+      ENDDO
+
+      END
+
+      SUBROUTINE init_initial_free_cohort(
+     +     N,cell_id,parent_id,tracked_initial_free,
+     +     cohort_member,cohort_initial_cell_id,
+     +     cohort_initial_parent_id,cohort_status,
+     +     cohort_had_first_contact,
+     +     cohort_first_contact_step,cohort_first_contact_phi,
+     +     cohort_first_contact_delta_area,
+     +     cohort_completion_step,cohort_completion_phi,
+     +     cohort_completion_delta_area,
+     +     cohort_division_step,cohort_division_phi,
+     +     cohort_division_delta_area)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i
+      INTEGER cell_id(Ntot), parent_id(Ntot)
+      INTEGER tracked_initial_free(Ntot)
+      INTEGER cohort_member(Ntot), cohort_initial_cell_id(Ntot)
+      INTEGER cohort_initial_parent_id(Ntot), cohort_status(Ntot)
+      INTEGER cohort_had_first_contact(Ntot)
+      INTEGER cohort_first_contact_step(Ntot)
+      INTEGER cohort_completion_step(Ntot)
+      INTEGER cohort_division_step(Ntot)
+      DOUBLE PRECISION cohort_first_contact_phi(Ntot)
+      DOUBLE PRECISION cohort_completion_phi(Ntot)
+      DOUBLE PRECISION cohort_division_phi(Ntot)
+      DOUBLE PRECISION cohort_first_contact_delta_area(Ntot)
+      DOUBLE PRECISION cohort_completion_delta_area(Ntot)
+      DOUBLE PRECISION cohort_division_delta_area(Ntot)
+
+      DO i=1,Ntot
+         cohort_member(i)=0
+         cohort_initial_cell_id(i)=0
+         cohort_initial_parent_id(i)=0
+         cohort_status(i)=0
+         cohort_had_first_contact(i)=0
+         cohort_first_contact_step(i)=0
+         cohort_completion_step(i)=0
+         cohort_division_step(i)=0
+         cohort_first_contact_phi(i)=0d0
+         cohort_completion_phi(i)=0d0
+         cohort_division_phi(i)=0d0
+         cohort_first_contact_delta_area(i)=0d0
+         cohort_completion_delta_area(i)=0d0
+         cohort_division_delta_area(i)=0d0
+      ENDDO
+
+      DO i=1,N
+         IF(tracked_initial_free(i).EQ.1) THEN
+            cohort_member(i)=1
+            cohort_initial_cell_id(i)=cell_id(i)
+            cohort_initial_parent_id(i)=parent_id(i)
+         ENDIF
+      ENDDO
+
+      END
+
+      SUBROUTINE write_transition(
+     +     unit_no,step,phi,cell_id,parent_id,
+     +     initial_bud_diameter,bud_diameter,delta_bud_area,
+     +     bud_contacts,bud_unconstrained,bud_compressed,
+     +     event_code,event_label)
+      IMPLICIT NONE
+      INTEGER unit_no, step, cell_id, parent_id
+      INTEGER bud_contacts, bud_unconstrained, bud_compressed
+      INTEGER event_code
+      DOUBLE PRECISION phi, initial_bud_diameter
+      DOUBLE PRECISION bud_diameter, delta_bud_area
+      CHARACTER*(*) event_label
+
+      WRITE(unit_no,'(I12,E27.18E3,2I12,3E27.18E3,4I12,1X,A)')
+     +     step,phi,cell_id,parent_id,initial_bud_diameter,
+     +     bud_diameter,delta_bud_area,bud_contacts,
+     +     bud_unconstrained,bud_compressed,event_code,event_label
+
+      END
+
+      SUBROUTINE compression_flags(N,PP,bud_compressed)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i, bud_compressed(Ntot)
+      DOUBLE PRECISION PP(Ntot)
+
+      DO i=1,N
+         bud_compressed(i)=0
+         IF(PP(i).GT.0d0) THEN
+            bud_compressed(i)=1
+         ENDIF
+      ENDDO
+
+      END
+
+      SUBROUTINE chi_c_active_counts(
+     +     N,P0,PP,tracked_initial_free,
+     +     bud_unconstrained,Nu,
+     +     chi_c_est,n_compressed,n_initial_free_active,
+     +     n_bud_unconstrained_total,
+     +     n_postjam_bud_unconstrained,
+     +     n_mother_unconstrained)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i, n_compressed, n_initial_free_active
+      INTEGER n_bud_unconstrained_total
+      INTEGER n_postjam_bud_unconstrained
+      INTEGER n_mother_unconstrained
+      INTEGER Nu
+      INTEGER tracked_initial_free(Ntot), bud_unconstrained(Ntot)
+      DOUBLE PRECISION P0, PP(Ntot), chi_c_est, chi_sum
+
+      chi_sum = 0d0
+      n_compressed = 0
+      n_initial_free_active = 0
+      n_bud_unconstrained_total = 0
+
+      DO i=1,N
+         IF(PP(i).GT.0d0) THEN
+            n_compressed = n_compressed + 1
+            IF(P0.GT.0d0) THEN
+               chi_sum = chi_sum + dexp(-PP(i)/P0)
+            ELSE
+               chi_sum = chi_sum + 1d0
+            ENDIF
+         ENDIF
+         IF(tracked_initial_free(i).EQ.1) THEN
+            n_initial_free_active = n_initial_free_active + 1
+         ENDIF
+         IF(bud_unconstrained(i).EQ.1) THEN
+            n_bud_unconstrained_total = n_bud_unconstrained_total + 1
+         ENDIF
+      ENDDO
+
+      n_postjam_bud_unconstrained =
+     +     n_bud_unconstrained_total - n_initial_free_active
+      IF(n_postjam_bud_unconstrained.LT.0) THEN
+         n_postjam_bud_unconstrained = 0
+      ENDIF
+
+      n_mother_unconstrained = Nu - n_bud_unconstrained_total
+      IF(n_mother_unconstrained.LT.0) THEN
+         n_mother_unconstrained = 0
+      ENDIF
+
+      IF(n_compressed.GT.0) THEN
+         chi_c_est = chi_sum / dble(n_compressed)
+      ELSE
+         chi_c_est = 1d0
+      ENDIF
+
+      END
+
+      SUBROUTINE write_postjamm_summary(
+     +     unit_no,step,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,
+     +     chi_c_est,n_compressed,initial_free_total,
+     +     n_initial_free_active,initial_free_completed,
+     +     initial_free_divided,
+     +     n_bud_unconstrained_total,
+     +     n_postjam_bud_unconstrained,
+     +     n_mother_unconstrained,
+     +     postjam_divisions_total)
+      IMPLICIT NONE
+      INTEGER unit_no, step, N, Nc, Nf, Nu, Ziso
+      INTEGER n_compressed, initial_free_total
+      INTEGER n_initial_free_active, initial_free_completed
+      INTEGER initial_free_divided
+      INTEGER n_bud_unconstrained_total
+      INTEGER n_postjam_bud_unconstrained
+      INTEGER n_mother_unconstrained
+      INTEGER postjam_divisions_total
+      DOUBLE PRECISION phi, P, total_growthrate, chi_c_est
+
+      WRITE(unit_no,'(I12,2E27.18E3,5I12,2E27.18E3,9I12)')
+     +     step,phi,P,N,Nc,Nf,Nu,Ziso,total_growthrate,chi_c_est,
+     +     n_compressed,initial_free_total,n_initial_free_active,
+     +     initial_free_completed,initial_free_divided,
+     +     n_bud_unconstrained_total,n_postjam_bud_unconstrained,
+     +     n_mother_unconstrained,postjam_divisions_total
+
+      END
+
+      SUBROUTINE write_initial_free_cohort(
+     +     file_name,N,final_step,final_phi,D,alpha,
+     +     tracked_initial_free,bud_contacts,
+     +     bud_unconstrained,bud_compressed,
+     +     cohort_member,cohort_initial_cell_id,
+     +     cohort_initial_parent_id,
+     +     tracked_initial_bud_diameter,cohort_status,
+     +     cohort_had_first_contact,
+     +     cohort_first_contact_step,cohort_first_contact_phi,
+     +     cohort_first_contact_delta_area,
+     +     cohort_completion_step,cohort_completion_phi,
+     +     cohort_completion_delta_area,
+     +     cohort_division_step,cohort_division_phi,
+     +     cohort_division_delta_area)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      CHARACTER*(*) file_name
+      INTEGER N, final_step, i
+      DOUBLE PRECISION final_phi, D(Ntot), alpha(Ntot)
+      INTEGER tracked_initial_free(Ntot), bud_contacts(Ntot)
+      INTEGER bud_unconstrained(Ntot), bud_compressed(Ntot)
+      INTEGER cohort_member(Ntot), cohort_initial_cell_id(Ntot)
+      INTEGER cohort_initial_parent_id(Ntot), cohort_status(Ntot)
+      INTEGER cohort_had_first_contact(Ntot)
+      INTEGER cohort_first_contact_step(Ntot)
+      INTEGER cohort_completion_step(Ntot)
+      INTEGER cohort_division_step(Ntot)
+      DOUBLE PRECISION tracked_initial_bud_diameter(Ntot)
+      DOUBLE PRECISION cohort_first_contact_phi(Ntot)
+      DOUBLE PRECISION cohort_completion_phi(Ntot)
+      DOUBLE PRECISION cohort_division_phi(Ntot)
+      DOUBLE PRECISION cohort_first_contact_delta_area(Ntot)
+      DOUBLE PRECISION cohort_completion_delta_area(Ntot)
+      DOUBLE PRECISION cohort_division_delta_area(Ntot)
+      INTEGER final_step_out, final_contacts, final_unconstrained
+      INTEGER final_compressed
+      DOUBLE PRECISION final_phi_out, final_bud_diameter
+      DOUBLE PRECISION final_delta_bud_area
+
+      OPEN(unit=19,file=TRIM(file_name), status='replace')
+      WRITE(19,'(A)')
+     + '# jam_cell_id jam_parent_id initial_bud_diameter'
+     + // ' status_code had_first_contact'
+     + // ' first_contact_step first_contact_phi'
+     + // ' first_contact_delta_bud_area'
+     + // ' completion_step completion_phi'
+     + // ' completion_delta_bud_area'
+     + // ' division_step division_phi division_delta_bud_area'
+     + // ' final_step final_phi final_bud_diameter'
+     + // ' final_delta_bud_area final_bud_contacts'
+     + // ' final_bud_unconstrained final_bud_compressed'
+      WRITE(19,'(A)')
+     + '# status_code: 0=active_at_final, 1=completed,'
+     + // ' 2=divided_before_completion;'
+     + // ' completion_delta_bud_area is the observed a*.'
+
+      DO i=1,Ntot
+         IF(cohort_member(i).EQ.1) THEN
+            final_step_out = 0
+            final_phi_out = 0d0
+            final_bud_diameter = 0d0
+            final_delta_bud_area = 0d0
+            final_contacts = 0
+            final_unconstrained = 0
+            final_compressed = 0
+            IF(cohort_status(i).EQ.0 .AND. tracked_initial_free(i).EQ.1)
+     +         THEN
+               final_step_out = final_step
+               final_phi_out = final_phi
+               final_bud_diameter = (alpha(i)-1d0)*D(i)
+               final_delta_bud_area = final_bud_diameter**2
+     +            - tracked_initial_bud_diameter(i)**2
+               final_contacts = bud_contacts(i)
+               final_unconstrained = bud_unconstrained(i)
+               final_compressed = bud_compressed(i)
+            ENDIF
+            WRITE(19,
+     +       '(2I12,E27.18E3,3I12,2E27.18E3,I12,2E27.18E3,'//
+     +       'I12,2E27.18E3,I12,3E27.18E3,3I12)')
+     +       cohort_initial_cell_id(i),cohort_initial_parent_id(i),
+     +       tracked_initial_bud_diameter(i),cohort_status(i),
+     +       cohort_had_first_contact(i),
+     +       cohort_first_contact_step(i),cohort_first_contact_phi(i),
+     +       cohort_first_contact_delta_area(i),
+     +       cohort_completion_step(i),cohort_completion_phi(i),
+     +       cohort_completion_delta_area(i),
+     +       cohort_division_step(i),cohort_division_phi(i),
+     +       cohort_division_delta_area(i),
+     +       final_step_out,final_phi_out,final_bud_diameter,
+     +       final_delta_bud_area,final_contacts,final_unconstrained,
+     +       final_compressed
+         ENDIF
+      ENDDO
+
+      FLUSH(19)
+      CLOSE(19)
+
+      END
+
+      SUBROUTINE lineage_contacts(
+     +     x,y,th,D1,D,alpha,N,bud_contacts,bud_unconstrained)
+      IMPLICIT NONE
+      INTEGER Ntot
+      PARAMETER(Ntot = 4096)
+      INTEGER N, i, j, ki, kj, flag
+      DOUBLE PRECISION x(Ntot), y(Ntot), th(Ntot), alpha(Ntot)
+      DOUBLE PRECISION xij, yij, D(Ntot), D1
+      DOUBLE PRECISION dij
+      DOUBLE PRECISION Lx,Ly,rijsq
+      DOUBLE PRECISION c(Ntot),s(Ntot),xa(Ntot,2),ya(Ntot,2)
+      DOUBLE PRECISION dr(Ntot,2),dk(Ntot,2),di_up(Ntot)
+      INTEGER nc_bud(Ntot,2), bud_contacts(Ntot)
+      INTEGER bud_unconstrained(Ntot)
+      COMMON /f5com/ Lx,Ly
+
+      DO i=1,N
+         c(i)=dcos( th(i) )
+         s(i)=dsin( th(i) )
+      ENDDO
+      CALL mol_to_atoms(N,x,y,c,s,D,D1,alpha,dr,xa,ya,dk,di_up)
+
+      DO i=1,N
+         nc_bud(i,1)=0
+         nc_bud(i,2)=0
+         bud_contacts(i)=0
+         bud_unconstrained(i)=0
+      ENDDO
+
+      DO i=1,N-1
+         DO j=i+1, N
+            DO ki=1,2
+               DO kj=1,2
+                  dij=(dk(i,ki)+dk(j,kj))/2d0
+                  xij=xa(i,ki)-xa(j,kj)
+                  xij=xij-idnint(xij/Lx)*Lx
+                  yij=ya(i,ki)-ya(j,kj)
+                  yij=yij-idnint(yij/Ly)*Ly
+                  rijsq=xij**2+yij**2
+                  IF(rijsq.LT.(dij**2)) THEN
+                     nc_bud(i,ki)=nc_bud(i,ki)+1
+                     nc_bud(j,kj)=nc_bud(j,kj)+1
+                  ENDIF
+               ENDDO
+            ENDDO
+         ENDDO
+      ENDDO
+
+      DO i=1,N
+         bud_contacts(i)=nc_bud(i,2)
+         flag = 0
+         IF( (nc_bud(i,1)+nc_bud(i,2)).LT.3 ) THEN
+            flag = 1
+         ENDIF
+         IF( (nc_bud(i,1)+nc_bud(i,2)).EQ.3 ) THEN
+            IF( nc_bud(i,1).EQ.2 .OR. nc_bud(i,2).EQ.2 ) THEN
+               flag = 1
+            ENDIF
+         ENDIF
+         IF(flag.EQ.0 .AND. nc_bud(i,2).EQ.0) THEN
+            bud_unconstrained(i)=1
+         ENDIF
+      ENDDO
+
+      END
+
       SUBROUTINE contacts_yeast(x,y,th,D1,D,N,Z,Nf,Nu,Nmm,Nbb,Nmb)
       IMPLICIT NONE
       INTEGER Ntot, N 
