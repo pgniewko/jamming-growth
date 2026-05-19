@@ -46,9 +46,9 @@ bash ./install.sh
 That script:
 
 - creates `.venv/`
-- installs any Python packages listed in `requirements.txt` if there are any
+- installs the Python packages listed in `requirements.txt`
 - builds the Fortran binaries into `bin/`
-- verifies Python imports only when third-party requirements are listed
+- verifies the listed Python imports
 
 If you want the installer to try installing missing system packages:
 
@@ -103,13 +103,14 @@ Run one shear job from an existing growth endpoint:
 bash examples/run_shear.sh --results-root output/example
 ```
 
-That defaults to shearing `LF_DPHI_<base>`. You can also shear the jammed
-packing or the optional exact-`phi2` packing:
+This defaults to shearing `LF_DPHI_<base>`. If the growth run saved
+`LF_PHI2_<base>`, shear that state with:
 
 ```bash
-bash examples/run_shear.sh --results-root output/example --input-tag JAMM
 bash examples/run_shear.sh --results-root output/example --input-tag PHI2
 ```
+
+`examples/run_shear.sh` supports `DPHI` and `PHI2` input tags.
 
 By default this keeps only `G_data_LF_<tag>_<base>` and the stdout log. Keep
 the shear trajectory with:
@@ -129,10 +130,9 @@ python3 scripts/run_pipeline.py
 That pipeline runs, for each parameter tuple:
 
 1. growth
-2. shear at `phi_j` from `LF_JAMM`
-3. shear at `phi_j + dphi` from `LF_DPHI`
-4. shear at `phi2` from `LF_PHI2` if that file exists
-5. `B_ext`
+2. shear from `LF_DPHI`
+3. optional shear from `LF_PHI2` if that file exists
+4. `B_ext`
 
 The optional `LF_PHI2` packing is saved only when growth reaches the first saved
 post-jam state with `n_initial_free_active <= 1`. Its absence does not make the
@@ -178,17 +178,24 @@ The monitor validates content, not just filenames. A tuple is reported as:
   both exist and parse successfully, together with the required stats and
   lineage files
 - `phi2`-packing-saved if `LF_PHI2` exists
-- shear-at-`phi_j` complete only if `G_data_LF_JAMM` exists and parses
-  successfully
 - shear-complete only if `G_data_LF_DPHI` exists and parses successfully
 - shear-at-`phi2` complete only if `G_data_LF_PHI2` exists and parses
   successfully
 - `B_ext`-complete only if the `B_ext` data file exists and parses successfully
-- pipeline-complete only if growth, shear-at-`phi_j + dphi`, and `B_ext`
-  validate
+- pipeline-complete only if growth, `G_data_LF_DPHI`, and `B_ext` validate
 
-Missing `LF_PHI2`, missing `G_data_LF_PHI2`, or missing `G_data_LF_JAMM` does
-not block pipeline completion.
+Missing `LF_PHI2` or missing `G_data_LF_PHI2` does not block pipeline
+completion.
+
+## Paper Figures
+
+Generate figures from validated outputs with:
+
+```bash
+python3 scripts/make_paper_figures.py
+```
+
+By default this writes figures to `paper/figures/`.
 
 ## Restart Behavior
 
@@ -228,7 +235,6 @@ Standard growth-side packing outputs are:
 
 Standard shear-side outputs are:
 
-- `G_data_LF_JAMM_<base>`
 - `G_data_LF_DPHI_<base>`
 - `G_data_LF_PHI2_<base>` when available
 
@@ -238,7 +244,7 @@ Standard shear-side outputs are:
 - `examples/`: single-job shell wrappers
 - `scripts/`: sweep launchers and shared pipeline helpers
 - `bin/`: compiled executables created by `make`
-- `requirements.txt`: third-party Python requirements, currently empty
+- `requirements.txt`: Python packages needed for figure generation
 
 ## References
 

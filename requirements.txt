@@ -1,1 +1,2 @@
-# No third-party Python packages are required.
+matplotlib
+numpy
