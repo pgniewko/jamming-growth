@@ -1,5 +1,3 @@
-[![DOI](https://zenodo.org/badge/138428274.svg)](https://zenodo.org/badge/latestdoi/138428274)
-
 # jamming-growth
 
 2D numerical simulations of growing budding-yeast packings, derived shear-response
