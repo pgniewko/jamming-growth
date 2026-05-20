@@ -48,13 +48,14 @@ That script:
 - builds the Fortran binaries into `bin/`
 - verifies the listed Python imports
 
-If you want the installer to try installing missing system packages:
+
+Missing system packages can be installed with:
 
 ```bash
 bash ./install.sh --install-system-deps
 ```
 
-If you want to rebuild manually:
+The binaries can be rebuild manually:
 
 ```bash
 make
@@ -89,7 +90,7 @@ that were unconstrained at jamming. It stores the observed `a*` event when a bud
 becomes constrained, plus the final right-censored state for buds that remain
 unconstrained at the saved `dphi`.
 
-The raw growth trajectory is deleted by default. Keep it with:
+The raw growth trajectory is deleted by default. To keep it, run with `--save-all-data`:
 
 ```bash
 bash examples/run_jamming.sh --results-root output/example --save-all-data
