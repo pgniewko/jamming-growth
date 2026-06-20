@@ -379,7 +379,16 @@ class FixedNetworkEnergy:
         return 0.5 * (H + H.T)
 
     def mass_matrix(self, q=None):
-        """Consistent mass matrix, unit mass per lobe (block-diagonal per cell)."""
+        """Consistent mass matrix at constant density (block-diagonal per cell).
+
+        The mother lobe carries unit mass; the bud, at the same areal density,
+        carries a mass equal to its area fraction, ``m_bud = (r_bud/R_MOTHER)**2``.
+        For a dumbbell of point masses ``m1`` (mother, offset ``dr1``) and ``m2``
+        (bud, offset ``dr2``) the consistent (x, y, theta) block is
+        M_xx = M_yy = m1 + m2,
+        M_thth = m1*dr1**2 + m2*dr2**2, with the translation--rotation coupling
+        set by ``sdr = m1*dr1 + m2*dr2``.
+        """
         if q is None:
             q = self.q0
         th = q[2::3]
@@ -387,13 +396,16 @@ class FixedNetworkEnergy:
         s = np.sin(th)
         dr1 = self.dr[self.cells, 0]
         dr2 = self.dr[self.cells, 1]
+        m1 = np.ones(self.ncell)  # mother lobe, unit mass
+        m2 = (self.r_bud[self.cells] / R_MOTHER) ** 2  # bud, mass ~ area
         M = np.zeros((self.ndof, self.ndof))
-        sdr = dr1 + dr2
-        sdr2 = dr1**2 + dr2**2
+        mtrans = m1 + m2
+        sdr = m1 * dr1 + m2 * dr2
+        sdr2 = m1 * dr1**2 + m2 * dr2**2
         for idx in range(self.ncell):
             b = 3 * idx
-            M[b + 0, b + 0] = 2.0
-            M[b + 1, b + 1] = 2.0
+            M[b + 0, b + 0] = mtrans[idx]
+            M[b + 1, b + 1] = mtrans[idx]
             M[b + 2, b + 2] = sdr2[idx]
             mxt = -sdr[idx] * s[idx]
             myt = sdr[idx] * c[idx]
