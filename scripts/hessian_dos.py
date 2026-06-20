@@ -379,39 +379,34 @@ class FixedNetworkEnergy:
         return 0.5 * (H + H.T)
 
     def mass_matrix(self, q=None):
-        """Consistent mass matrix at constant density (block-diagonal per cell).
+        """Consistent mass matrix at constant density (diagonal, per cell).
 
         The mother lobe carries unit mass; the bud, at the same areal density,
-        carries a mass equal to its area fraction, ``m_bud = (r_bud/R_MOTHER)**2``.
-        For a dumbbell of point masses ``m1`` (mother, offset ``dr1``) and ``m2``
-        (bud, offset ``dr2``) the consistent (x, y, theta) block is
+        carries its area fraction, ``m_bud = (r_bud/R_MOTHER)**2``. Each lobe is a
+        rigid disk (not a point), so its moment of inertia about ``theta`` is the
+        parallel-axis term ``m*dr**2`` plus the disk self-spin ``(1/2) m R**2``:
+
         M_xx = M_yy = m1 + m2,
-        M_thth = m1*dr1**2 + m2*dr2**2, with the translation--rotation coupling
-        set by ``sdr = m1*dr1 + m2*dr2``.
+        M_thth = (m1*dr1**2 + m2*dr2**2) + (1/2)(m1*R_MOTHER**2 + m2*r_bud**2).
+
+        The reference point is the area-weighted centroid, which (mass ~ area)
+        coincides with the centre of mass, so ``m1*dr1 + m2*dr2 = 0`` and the
+        translation--rotation coupling vanishes: M is diagonal and orientation
+        independent (``q`` is unused, kept for call-signature symmetry with
+        ``hessian``).
         """
-        if q is None:
-            q = self.q0
-        th = q[2::3]
-        c = np.cos(th)
-        s = np.sin(th)
         dr1 = self.dr[self.cells, 0]
         dr2 = self.dr[self.cells, 1]
+        r_bud = self.r_bud[self.cells]
         m1 = np.ones(self.ncell)  # mother lobe, unit mass
-        m2 = (self.r_bud[self.cells] / R_MOTHER) ** 2  # bud, mass ~ area
-        M = np.zeros((self.ndof, self.ndof))
+        m2 = (r_bud / R_MOTHER) ** 2  # bud, mass ~ area
         mtrans = m1 + m2
-        sdr = m1 * dr1 + m2 * dr2
-        sdr2 = m1 * dr1**2 + m2 * dr2**2
-        for idx in range(self.ncell):
-            b = 3 * idx
-            M[b + 0, b + 0] = mtrans[idx]
-            M[b + 1, b + 1] = mtrans[idx]
-            M[b + 2, b + 2] = sdr2[idx]
-            mxt = -sdr[idx] * s[idx]
-            myt = sdr[idx] * c[idx]
-            M[b + 0, b + 2] = M[b + 2, b + 0] = mxt
-            M[b + 1, b + 2] = M[b + 2, b + 1] = myt
-        return M
+        i_theta = (m1 * dr1**2 + m2 * dr2**2) + 0.5 * (m1 * R_MOTHER**2 + m2 * r_bud**2)
+        diag = np.empty(self.ndof)
+        diag[0::3] = mtrans
+        diag[1::3] = mtrans
+        diag[2::3] = i_theta
+        return np.diag(diag)
 
 
 # ----------------------------------------------------------------------------
@@ -470,7 +465,18 @@ def analyze_packing(path, Lx, Ly=None, h=1e-6):
     eigvals = np.sort(eigvals)
 
     # Remove the 2 exact global-translation zero modes (smallest |lambda|).
+    # Marginal packings legitimately carry many more quasi-zero modes (the
+    # unconstrained-bud rotations, often pushed slightly negative by prestress),
+    # so we do NOT require exactly two. The only invariant that must hold is that
+    # the two modes we drop are quasi-zero (the uniform x/y translations) and not
+    # a real finite-frequency mode -- which fails only for an unrelaxed packing or
+    # a disconnected network.
     n_machine_zero = int(np.sum(np.abs(eigvals) < 1e-10))
+    assert eigvals[1] < 1e-6, (
+        f"2nd-smallest eigenvalue {eigvals[1]:.3e} is not quasi-zero; dropping "
+        f"eigvals[2:] would discard a real mode (unrelaxed packing or "
+        f"disconnected contact network)"
+    )
     nonglobal = eigvals[2:]  # drop the two lowest (uniform x/y translation)
     lam = np.clip(nonglobal, 0.0, None)
     omega = np.sqrt(lam)
