@@ -230,8 +230,10 @@ class Topology:
 def classify(pack, contacts):
     """Replicate the Fortran ``contacts_yeast`` rattler / Nu logic.
 
-    A cell is a rattler if total lobe contacts < 3, or exactly 3 with all three
-    on a single lobe. Nu counts contact-free lobes among non-rattler cells.
+    A cell is a rattler if it has fewer than 3 lobe contacts, or exactly 3 split
+    2--1 between its two lobes (one lobe with 2 contacts, the other with 1); a
+    3--0 split is not a rattler. Nu counts contact-free lobes among non-rattler
+    cells.
     """
     n = pack.N
     mc = np.zeros(n, dtype=int)  # mother-lobe contacts
@@ -431,16 +433,15 @@ class Spectrum:
 
 
 def omega_star(spectrum, lambda_tol=1e-6, n_edge=3):
-    """Characteristic frequency above which extended (bulk) modes proliferate.
+    """Low-frequency edge of the extended (bulk) band.
 
     The two global translations are already removed from ``spectrum.eigvals``.
     We further drop the quasi-zero band (the ``N_u`` unconstrained-bud modes,
-    ``lambda < lambda_tol``) and read ``omega*`` as the onset of the extended
-    band -- the inflection of the cumulative count ``N(omega)=int_0^omega D``,
-    i.e. the frequency at which ``D(omega)`` rises from the gap into its plateau.
-    Operationally this band edge is estimated as the root-mean of the lowest
-    ``n_edge`` extended eigenvalues, a discrete, reproducible plateau onset that
-    vanishes at marginality and grows linearly with the excess coordination.
+    ``lambda < lambda_tol``) and estimate the band edge as the root-mean
+    frequency of the lowest ``n_edge`` extended eigenvalues,
+    ``sqrt(mean(lambda[:n_edge]))``. This is a discrete, reproducible proxy for
+    the band edge (not a true inflection-point fit of the cumulative count); it
+    vanishes at marginality and grows with the excess coordination.
     """
     lam = np.sort(spectrum.eigvals)
     bulk = lam[lam >= lambda_tol]
