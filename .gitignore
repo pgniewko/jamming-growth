@@ -3,6 +3,7 @@ bin/
 .pip-cache/
 output/
 paper/
+data/
 __pycache__/
 *.pyc
 *.pyo

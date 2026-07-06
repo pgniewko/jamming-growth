@@ -234,6 +234,71 @@ Panel B: normalized count N_div(phi2) / &lt;N_J&gt; for L = 20
         a direct check on the reinjection pathway.
       </p>
     </div>
+
+    <h2>8. Vibrational Density of States</h2>
+    <div class="panel">
+      <p>
+        The spectral check diagonalizes the vibrational spectrum of each mechanically
+        arrested packing. Rattlers are discarded; every remaining cell carries the same
+        three rigid-body coordinates used to generate the packings,
+        <code>q = (x, y, &theta;)</code>, where <code>(x, y)</code> is the mother&ndash;bud
+        centroid and <code>&theta;</code> the cell orientation (the bud is rigidly
+        collinear, so it adds no independent coordinate).
+      </p>
+      <p>The elastic energy is a sum of harmonic repulsions over inter-cell lobe&ndash;lobe contacts,</p>
+      <div class="formula">
+U = sum_contacts (k / 2) * (R_a + R_b - r)^2,   for r &lt; R_a + R_b
+      </div>
+      <p>
+        with unit stiffness, lobe radii <code>R_a</code>, and lobe-center separation
+        <code>r</code> under periodic minimum-image. The dynamical matrix is the
+        mass-weighted Hessian evaluated at the force-balanced state, including
+        <em>both</em> the spring-stiffness and the prestress (initial-stress) terms, since
+        the latter is not negligible near marginality:
+      </p>
+      <div class="formula">
+H v = omega^2 M v
+      </div>
+      <p>
+        <code>H</code> is the full Hessian, built by finite differences of the analytic
+        energy gradient on the contact network frozen at the reference configuration.
+        <code>M</code> is the consistent dumbbell mass matrix at fixed areal density: the
+        mother lobe has unit mass and the bud lobe mass
+        <code>m_bud = (R_bud / R_mother)^2</code>. Because the reference point is the
+        area-weighted centroid&mdash;which coincides with the center of mass&mdash;the
+        translation and rotation contributions decouple: within each cell's
+        <code>(x, y, &theta;)</code> block the <code>x&ndash;&theta;</code> and
+        <code>y&ndash;&theta;</code> off-diagonals are exactly zero, so <code>M</code> is
+        diagonal. Its rotational entry is the rigid-body moment of inertia
+      </p>
+      <div class="formula">
+I = sum_a m_a * ( l_a^2 + (1/2) * R_a^2 )
+      </div>
+      <p>
+        i.e. the parallel-axis term plus each disk's own self-spin, with <code>l_a</code>
+        the offset of lobe <code>a</code> from the centroid. Treating the lobes as point
+        masses&mdash;dropping the <code>(1/2) R_a^2</code> self-spin&mdash;would
+        underestimate this inertia, by up to roughly a factor of <code>10</code> for small
+        buds (<code>&alpha; &approx; 1.2</code>), and shift the rotational modes; the
+        self-spin term removes that error.
+      </p>
+      <p>
+        The two uniform-translation zero modes are removed; the remaining eigenvalues give
+        the mode frequencies <code>omega_n = sqrt(lambda_n)</code> and the density of states
+        <code>D(omega)</code>. From the spectrum the diagnostic reads:
+      </p>
+      <ul>
+        <li>
+          the count of quasi-zero modes <code>N_zero</code> (<code>lambda &lt; lambda_tol</code>),
+          which tracks the independently measured unconstrained-bud number <code>N_u</code>;
+        </li>
+        <li>
+          the band edge <code>omega*</code>, the onset of the extended band, which scales
+          with the <em>modified</em> excess coordination
+          <code>Delta Z = Z - (6 - 2u)</code> rather than the naive count <code>Z - 6</code>.
+        </li>
+      </ul>
+    </div>
   </main>
 </body>
 </html>

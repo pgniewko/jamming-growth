@@ -196,6 +196,19 @@ python3 scripts/make_paper_figures.py
 
 By default this writes figures to `paper/figures/`.
 
+Two additional figures are produced by dedicated scripts that reuse the same
+palette and parsers:
+
+```bash
+python3 scripts/make_state_diagram_figure.py   # Fig. 4: (P/Pmax, G/Pmax) state diagram
+python3 scripts/make_dos_figure.py             # Fig. S4: vibrational density of states
+```
+
+`make_dos_figure.py` builds the dynamical matrix of each arrested packing through
+`scripts/hessian_dos.py`, which treats every cell as a rigid mother--bud dumbbell
+with three degrees of freedom `(x, y, theta)` and the harmonic lobe--lobe contact
+law of `src/jamming_by_growth.f`.
+
 ## Restart Behavior
 
 Without `--force`, the single-job wrappers and sweep launchers skip only outputs
