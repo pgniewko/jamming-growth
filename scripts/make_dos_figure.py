@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Figure S4 (Appendix F) -- vibrational density of states of arrested packings.
+"""Make figure  -- vibrational density of states of arrested packings.
 
 Builds the dynamical matrix of the mechanically arrested budding-cell packings
 (``scripts/hessian_dos.py``) and tests the three spectral predictions of the

@@ -4,7 +4,6 @@ This module builds the dynamical matrix of a mechanically arrested budding-cell
 packing and returns its normal-mode spectrum, following the model implemented in
 ``src/jamming_by_growth.f`` / ``src/shear_yeast_linearshear.f``.
 
-Model (confirmed 3 degrees of freedom per cell)
 ------------------------------------------------
 Each non-rattler cell ``i`` carries generalized coordinates ``q_i = (x_i, y_i, th_i)``:
 the molecule reference point (area-weighted centroid of the two lobes) and the
@@ -30,8 +29,6 @@ whose bud is unconstrained: when the bud is small the mother sits near the cell
 centroid, so rotating ``th`` mostly swings the contact-free bud at near-zero
 energy cost. Completing a bud (adding bud contacts) stiffens that mode into the
 bulk. Hence ``N_zero ~ N_u`` and the low-frequency band drains as ``u -> 0``.
-
-Author: generated for the post-jamming-rigidity manuscript revision.
 """
 
 from __future__ import annotations
@@ -188,11 +185,10 @@ def detect_contacts(pack, tol=0.0):
 
 
 def virial_pressure(pack):
-    """2D virial pressure over all lobe-lobe contacts (matches Fortran dfunc).
+    """2D virial pressure over all lobe-lobe contacts.
 
     P = (1 / (2 Lx Ly)) * sum_contacts delta * r,  with delta = dij - r, k = 1.
-    Sums every inter-cell lobe-lobe contact (rattlers included), exactly as the
-    simulation's pressure accumulator does.
+    Sums every inter-cell lobe-lobe contact (rattlers included).
     """
     mother, bud, r_mother, r_bud = lobe_centers(pack.x, pack.y, pack.theta, pack.alpha)
     n = pack.N
@@ -213,7 +209,7 @@ def virial_pressure(pack):
 
 
 # ----------------------------------------------------------------------------
-# Rattler / unconstrained-bud classification (matches contacts_yeast)
+# Rattler / unconstrained-bud classification
 # ----------------------------------------------------------------------------
 @dataclass
 class Topology:
@@ -228,7 +224,7 @@ class Topology:
 
 
 def classify(pack, contacts):
-    """Replicate the Fortran ``contacts_yeast`` rattler / Nu logic.
+    """Replicate the ``contacts_yeast`` (Fortran) rattler / Nu logic.
 
     A cell is a rattler if it has fewer than 3 lobe contacts, or exactly 3 split
     2--1 between its two lobes (one lobe with 2 contacts, the other with 1); a
